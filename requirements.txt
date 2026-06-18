@@ -1,15 +1,29 @@
+# Core
 streamlit
+python-dotenv
+
+# Async and API
 aiohttp
 asyncio
+nest-asyncio
+requests
+tenacity
+
+# Data processing
 pandas
 numpy
+
+# Visualization
 matplotlib
 seaborn
 plotly
 wordcloud
-reportlab
+
+# Web scraping
 beautifulsoup4
-requests
-nest-asyncio
-tenacity
-python-dotenv
+
+# PDF generation
+reportlab
+
+# Progress bars (for tqdm)
+tqdm
