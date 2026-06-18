@@ -1,19 +1,39 @@
-# app.py
-# ============================================
-# AUTHOR PROFILE ANALYSIS - STREAMLIT APPLICATION
-# ============================================
-# Full-featured application for analyzing researcher profiles
-# using ORCID and OpenAlex APIs with advanced analytics
-# ============================================
+import sys
+import warnings
+warnings.filterwarnings('ignore')
+
+# Fix for Python 3.14 weakref issue
+import asyncio
+import threading
+import weakref
+
+# Monkey patch for anyio weakref issue
+try:
+    import anyio
+    from anyio._backends._asyncio import _task_states
+    
+    # Fix for weakref issue
+    original_getitem = weakref.WeakKeyDictionary.__getitem__
+    
+    def patched_getitem(self, key):
+        if key is None:
+            return None
+        try:
+            return original_getitem(self, key)
+        except TypeError:
+            return None
+    
+    weakref.WeakKeyDictionary.__getitem__ = patched_getitem
+except:
+    pass
 
 import streamlit as st
-import asyncio
 import aiohttp
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import seaborn as sns
 from wordcloud import WordCloud
 from io import BytesIO
@@ -35,6 +55,12 @@ from matplotlib.ticker import MaxNLocator
 import nest_asyncio
 from tenacity import retry, stop_after_attempt, wait_exponential
 import logging
+
+# Apply nest_asyncio for compatibility
+try:
+    nest_asyncio.apply()
+except:
+    pass
 
 # PDF support
 try:
