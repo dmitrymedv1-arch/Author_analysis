@@ -3436,7 +3436,6 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
     
     html_parts.append(f"""
                 <h1>📊 Анализ профилей ученых</h1>
-                <div class="date">Дата генерации: {datetime.now().strftime('%d.%m.%Y')}</div>
                 <div style="margin-top: 15px;">
                     <span class="badge badge-info">Всего авторов: {len(all_authors)}</span>
     """)
