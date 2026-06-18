@@ -23,6 +23,7 @@ beautifulsoup4
 pydantic
 lxml
 html5lib
+python-dotenv
 
 # Optional but recommended
 pillow
