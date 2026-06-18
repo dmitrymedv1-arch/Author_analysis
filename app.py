@@ -2878,7 +2878,6 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
             <div class="header">
                 {f'<img src="data:image/png;base64,{logo_base64}" class="header-logo" alt="Логотип">' if logo_base64 else ''}
                 <h1>📊 Профиль ученого</h1>
-                <div class="date">Дата генерации: {datetime.now().strftime('%d.%m.%Y')}</div>
             </div>
             
             <div id="overview" class="section">
@@ -3436,6 +3435,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
     
     html_parts.append(f"""
                 <h1>📊 Анализ профилей ученых</h1>
+                <div class="date">Дата генерации: {datetime.now().strftime('%d.%m.%Y')}</div>
                 <div style="margin-top: 15px;">
                     <span class="badge badge-info">Всего авторов: {len(all_authors)}</span>
     """)
