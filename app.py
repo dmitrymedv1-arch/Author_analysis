@@ -1,11 +1,4 @@
-"""
-Author Profile Analysis - Streamlit Application
-Analyzes researcher profiles from ORCID and OpenAlex with 20+ metrics
-"""
 
-# ============================================
-# IMPORTS
-# ============================================
 
 import streamlit as st
 import asyncio
