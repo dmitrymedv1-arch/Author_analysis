@@ -9,6 +9,5 @@ wordcloud
 reportlab
 beautifulsoup4
 requests
-nest-asyncio
 tenacity
 python-dotenv
