@@ -7,7 +7,7 @@ numpy
 aiohttp
 requests
 nest-asyncio
-tenacit
+tenacity
 
 # Visualization
 matplotlib
