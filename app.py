@@ -3082,7 +3082,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                         f'<li>'
                         f'<strong>{html.escape(author)}</strong>'
                         f' ({count} совместных работ)'
-                        f'{" — <a href=\"https://orcid.org/' + html.escape(clean_orcid(coauthors_with_orcid.get(author, ''))) + '\" target=\"_blank\">ORCID</a>" if coauthors_with_orcid.get(author) else ""}'
+                        f'{" — <a href=\"https://orcid.org/' + clean_orcid(coauthors_with_orcid.get(author, '')) + '\" target=\"_blank\">ORCID</a>" if coauthors_with_orcid.get(author) else ""}'
                         f'</li>'
                         for author, count in list(top_coauthors.items())[:20]
                     ])}
