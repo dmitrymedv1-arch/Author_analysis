@@ -1941,6 +1941,7 @@ def sort_authors_by_h_index(authors: List[Dict]) -> List[Dict]:
 # ФУНКЦИИ ДЛЯ ВИЗУАЛИЗАЦИИ (НАУЧНЫЙ СТИЛЬ)
 # ============================================
 
+@st.cache_data(ttl=3600, show_spinner=False)
 def create_visualizations(profile: Dict) -> Dict[str, str]:
     """Создает визуализации в научном стиле и возвращает их в виде base64 изображений"""
     images = {}
@@ -3915,6 +3916,8 @@ def run_profile_analysis(orcid_list: List[str], show_all_authors: bool, journal_
     if not orcid_list:
         st.error("⚠️ Введите хотя бы один ORCID")
         return
+        
+    st.cache_data.clear()
     
     st.info(f"🔍 Анализирую {len(orcid_list)} авторов...")
     
