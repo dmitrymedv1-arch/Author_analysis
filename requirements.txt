@@ -13,3 +13,4 @@ beautifulsoup4
 requests
 pydantic
 tenacity
+python-dotenv
