@@ -1,29 +1,31 @@
-# Core
-streamlit
-python-dotenv
+# Core dependencies
+streamlit>=1.28.0
+python-dotenv>=1.0.0
 
 # Async and API
-aiohttp
-asyncio
-nest-asyncio
-requests
-tenacity
+aiohttp>=3.8.0
+nest-asyncio>=1.5.0
+requests>=2.31.0
+tenacity>=8.2.0
 
 # Data processing
-pandas
-numpy
+pandas>=2.0.0
+numpy>=1.24.0
 
 # Visualization
-matplotlib
-seaborn
-plotly
-wordcloud
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.14.0
+wordcloud>=1.9.0
 
 # Web scraping
-beautifulsoup4
+beautifulsoup4>=4.12.0
 
 # PDF generation
-reportlab
+reportlab>=4.0.0
 
-# Progress bars (for tqdm)
-tqdm
+# Progress bars
+tqdm>=4.65.0
+
+# Additional utilities
+colorama>=0.4.6
