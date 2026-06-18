@@ -2353,8 +2353,6 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     primary = theme_colors.get('primary', '#667eea')
     secondary = theme_colors.get('secondary', '#f39c12')
     analogous = get_analogous_colors(primary, 2)
-
-    html = ""
     
     total_pubs = profile.get('total_publications', 0)
     h_index = profile.get('h_index', 0)
@@ -2411,7 +2409,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     
     css_vars = generate_css_variables(primary, secondary)
     
-    html = f"""
+    html_content = f"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -3119,7 +3117,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     </html>
     """
     
-    return html
+    return html_content
 
 def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all: bool, journal_logo_base64: Optional[str] = None, theme_colors: Optional[Dict] = None) -> str:
     """Генерирует HTML отчет с множественными авторами"""
