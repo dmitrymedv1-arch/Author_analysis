@@ -1697,27 +1697,23 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
         
         doi_batches = list(chunks(all_dois, BATCH_SIZE))
         
-        pbar = tqdm(total=len(doi_batches), desc="📚 Сбор метаданных OpenAlex", unit="batch")
+        # Вместо tqdm используем простой вывод прогресса
+        print(f"📚 Обработка {len(doi_batches)} батчей метаданных OpenAlex...")
         
-        for batch in doi_batches:
+        for batch_idx, batch in enumerate(doi_batches, 1):
+            print(f"  Батч {batch_idx}/{len(doi_batches)} (найдено {len(all_metadata)}/{len(all_dois)} DOI)...")
             batch_metadata = await get_openalex_metadata(batch, session)
             all_metadata.extend(batch_metadata)
             
-            pbar.update(1)
-            pbar.set_postfix({
-                'Найдено': len(all_metadata),
-                'Всего': len(all_dois)
-            })
-            
             await asyncio.sleep(DELAY_BETWEEN_BATCHES)
-        
-        pbar.close()
         
         print(f"✅ Собрано метаданных: {len(all_metadata)} записей")
         
         print("📊 Обработка публикаций...")
         
-        for item in tqdm(all_metadata, desc="🔄 Обработка публикаций"):
+        for idx, item in enumerate(all_metadata, 1):
+            if idx % 10 == 0 or idx == len(all_metadata):
+                print(f"  Обработано {idx}/{len(all_metadata)} публикаций...")
             pub_data = parse_openalex_publication(item)
             if pub_data:
                 analyzer.add_publication(pub_data)
