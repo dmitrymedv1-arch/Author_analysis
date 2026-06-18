@@ -1,27 +1,25 @@
-# Core dependencies
-streamlit==1.38.0
-pandas==2.2.2
-numpy==1.26.4
+# Core
+streamlit
+pandas
+numpy
 
-# Async HTTP requests
-aiohttp==3.10.0
-nest-asyncio==1.6.0
+# API & Networking
+aiohttp
+requests
+nest-asyncio
 
-# Data visualization
-matplotlib==3.9.0
-seaborn==0.13.2
-plotly==5.22.0
-wordcloud==1.9.3
+# Visualization
+matplotlib
+seaborn
+plotly
+wordcloud
 
-# PDF generation
-reportlab==4.2.2
+# Reports
+reportlab
 
-# Text processing & utilities
-beautifulsoup4==4.12.3
-requests==2.32.3
-python-dotenv==1.0.1
-tenacity==8.3.0
+# Text Processing
+beautifulsoup4
+lxml
 
-# Type hints & validation
-pydantic==2.7.4
-typing-extensions==4.12.2
+# Utilities
+python-dotenv
