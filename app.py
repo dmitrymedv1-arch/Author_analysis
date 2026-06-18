@@ -39,7 +39,6 @@ import time
 from datetime import datetime
 import json
 from typing import List, Set, Dict, Tuple, Optional, Any
-import nest_asyncio
 from collections import Counter, defaultdict
 import numpy as np
 import matplotlib.pyplot as plt
@@ -78,9 +77,6 @@ try:
     PDF_AVAILABLE = True
 except ImportError:
     PDF_AVAILABLE = False
-
-# Для asyncio в Streamlit
-nest_asyncio.apply()
 
 # ============================================
 # COLOR UTILITIES FOR DYNAMIC THEMES (из второго кода)
@@ -3654,12 +3650,9 @@ def run_profile_analysis(orcid_list: List[str], show_all_authors: bool, journal_
         
         start_time = time.time()
         
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        all_authors_data = loop.run_until_complete(
+        all_authors_data = asyncio.run(
             analyze_multiple_authors(orcid_list, progress_callback)
         )
-        loop.close()
         
         elapsed = time.time() - start_time
         
