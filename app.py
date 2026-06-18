@@ -3568,6 +3568,44 @@ def generate_pdf_report(profile: Dict, publications: List[Dict], images: Dict[st
         print("❌ ReportLab не установлен. PDF отчет не может быть сгенерирован.")
         return
     
+    # Регистрация шрифта с поддержкой кириллицы
+    try:
+        import os
+        font_paths = [
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+            '/usr/share/fonts/dejavu/DejaVuSans.ttf',
+            '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+            '/usr/share/fonts/liberation/LiberationSans-Regular.ttf',
+            '/System/Library/Fonts/Helvetica.ttf',
+            '/System/Library/Fonts/HelveticaNeue.ttf',
+            'C:/Windows/Fonts/arial.ttf',
+            'C:/Windows/Fonts/arialn.ttf',
+            '/usr/share/fonts/truetype/msttcorefonts/Arial.ttf',
+            '/usr/share/fonts/truetype/ttf-dejavu/DejaVuSans.ttf',
+        ]
+        font_registered = False
+        custom_font_name = 'Times-Roman'  # Значение по умолчанию
+        
+        for font_path in font_paths:
+            if os.path.exists(font_path):
+                try:
+                    pdfmetrics.registerFont(TTFont('CustomFont', font_path))
+                    font_registered = True
+                    custom_font_name = 'CustomFont'
+                    print(f"✅ Зарегистрирован шрифт с поддержкой кириллицы: {font_path}")
+                    break
+                except Exception as e:
+                    print(f"⚠️ Не удалось зарегистрировать шрифт {font_path}: {e}")
+                    continue
+        
+        if not font_registered:
+            print("⚠️ Шрифт с поддержкой кириллицы не найден, используется стандартный Times-Roman")
+            custom_font_name = 'Times-Roman'
+            
+    except Exception as e:
+        print(f"⚠️ Ошибка регистрации шрифта: {e}")
+        custom_font_name = 'Times-Roman'
+    
     if theme_colors is None:
         theme_colors = {
             'primary': '#667eea',
@@ -3582,7 +3620,6 @@ def generate_pdf_report(profile: Dict, publications: List[Dict], images: Dict[st
     story = []
     
     # Исправление ошибки: colors.HexColor() ожидает цвет с символом '#'
-    # Проверяем, есть ли '#' в начале строки, и добавляем если нужно
     if primary.startswith('#'):
         primary_color = colors.HexColor(primary)
     else:
@@ -3600,7 +3637,7 @@ def generate_pdf_report(profile: Dict, publications: List[Dict], images: Dict[st
         textColor=primary_color,
         alignment=TA_CENTER,
         spaceAfter=30,
-        fontName='Times-Roman'
+        fontName=custom_font_name
     )
     
     heading_style = ParagraphStyle(
@@ -3609,24 +3646,40 @@ def generate_pdf_report(profile: Dict, publications: List[Dict], images: Dict[st
         fontSize=16,
         textColor=primary_color,
         spaceAfter=12,
-        fontName='Times-Bold'
+        fontName=custom_font_name
+    )
+    
+    subheading_style = ParagraphStyle(
+        'CustomSubHeading',
+        parent=styles['Heading3'],
+        fontSize=14,
+        textColor=primary_color,
+        spaceAfter=8,
+        fontName=custom_font_name
+    )
+    
+    normal_style = ParagraphStyle(
+        'CustomNormal',
+        parent=styles['Normal'],
+        fontSize=11,
+        fontName=custom_font_name
     )
     
     story.append(Paragraph("Профиль ученого", title_style))
     
     author_name = profile.get('author_name', 'Unknown')
-    story.append(Paragraph(f"<b>{author_name}</b>", styles['Heading2']))
-    story.append(Paragraph(f"ORCID: {profile.get('orcid', 'N/A')}", styles['Normal']))
+    story.append(Paragraph(f"<b>{author_name}</b>", heading_style))
+    story.append(Paragraph(f"ORCID: {profile.get('orcid', 'N/A')}", normal_style))
     
     author_affiliations = profile.get('author_affiliations', [])
     if author_affiliations:
-        story.append(Paragraph(f"Аффилиации: {', '.join(author_affiliations[:3])}", styles['Normal']))
+        story.append(Paragraph(f"Аффилиации: {', '.join(author_affiliations[:3])}", normal_style))
     
     author_countries = profile.get('author_countries', [])
     if author_countries:
-        story.append(Paragraph(f"Страны: {', '.join(author_countries)}", styles['Normal']))
+        story.append(Paragraph(f"Страны: {', '.join(author_countries)}", normal_style))
     
-    story.append(Paragraph(f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}", styles['Normal']))
+    story.append(Paragraph(f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}", normal_style))
     story.append(Spacer(1, 20))
     
     metrics_data = [
@@ -3652,12 +3705,12 @@ def generate_pdf_report(profile: Dict, publications: List[Dict], images: Dict[st
         ('BACKGROUND', (0, 0), (-1, 0), primary_color),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Times-Bold'),
+        ('FONTNAME', (0, 0), (-1, 0), custom_font_name),
         ('FONTSIZE', (0, 0), (-1, 0), 11),
         ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
         ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-        ('FONTNAME', (0, 1), (-1, -1), 'Times-Roman'),
+        ('FONTNAME', (0, 1), (-1, -1), custom_font_name),
         ('FONTSIZE', (0, 1), (-1, -1), 10),
     ]))
     story.append(table)
@@ -3672,7 +3725,7 @@ def generate_pdf_report(profile: Dict, publications: List[Dict], images: Dict[st
         backColor=colors.HexColor('#D5F5E3'),
         borderPadding=10,
         borderRadius=5,
-        fontName='Times-Roman'
+        fontName=custom_font_name
     )
     story.append(Paragraph(f"<b>Рекомендация:</b> {rec}", rec_style))
     story.append(Spacer(1, 20))
@@ -3717,37 +3770,37 @@ def generate_pdf_report(profile: Dict, publications: List[Dict], images: Dict[st
     
     top_primary_topics = profile.get('top_primary_topics', {})
     if top_primary_topics:
-        story.append(Paragraph("Topics (Топ 10):", styles['Heading3']))
+        story.append(Paragraph("Topics (Топ 10):", subheading_style))
         for topic, count in list(top_primary_topics.items())[:10]:
-            story.append(Paragraph(f"• {topic}: {count} статей", styles['Normal']))
+            story.append(Paragraph(f"• {topic}: {count} статей", normal_style))
         story.append(Spacer(1, 10))
     
     top_subfields = profile.get('top_subfields', {})
     if top_subfields:
-        story.append(Paragraph("Subfields (Топ 10):", styles['Heading3']))
+        story.append(Paragraph("Subfields (Топ 10):", subheading_style))
         for subfield, count in list(top_subfields.items())[:10]:
-            story.append(Paragraph(f"• {subfield}: {count} статей", styles['Normal']))
+            story.append(Paragraph(f"• {subfield}: {count} статей", normal_style))
         story.append(Spacer(1, 10))
     
     top_fields = profile.get('top_fields', {})
     if top_fields:
-        story.append(Paragraph("Fields (Топ 10):", styles['Heading3']))
+        story.append(Paragraph("Fields (Топ 10):", subheading_style))
         for field, count in list(top_fields.items())[:10]:
-            story.append(Paragraph(f"• {field}: {count} статей", styles['Normal']))
+            story.append(Paragraph(f"• {field}: {count} статей", normal_style))
         story.append(Spacer(1, 10))
     
     top_domains = profile.get('top_domains', {})
     if top_domains:
-        story.append(Paragraph("Domains (Топ 5):", styles['Heading3']))
+        story.append(Paragraph("Domains (Топ 5):", subheading_style))
         for domain, count in list(top_domains.items())[:5]:
-            story.append(Paragraph(f"• {domain}: {count} статей", styles['Normal']))
+            story.append(Paragraph(f"• {domain}: {count} статей", normal_style))
         story.append(Spacer(1, 10))
     
     top_keywords = profile.get('top_keywords', {})
     if top_keywords:
-        story.append(Paragraph("Key Concepts (Топ 20):", styles['Heading3']))
+        story.append(Paragraph("Key Concepts (Топ 20):", subheading_style))
         for concept, count in list(top_keywords.items())[:20]:
-            story.append(Paragraph(f"• {concept} ({count})", styles['Normal']))
+            story.append(Paragraph(f"• {concept} ({count})", normal_style))
         story.append(Spacer(1, 20))
     
     collaborations = profile.get('collaborations', {})
@@ -3760,29 +3813,29 @@ def generate_pdf_report(profile: Dict, publications: List[Dict], images: Dict[st
     if domestic_papers > 0 or international_papers > 0 or mixed_papers > 0:
         story.append(PageBreak())
         story.append(Paragraph("<b>Анализ коллабораций</b>", heading_style))
-        story.append(Paragraph(f"Внутристрановые коллаборации: {domestic_papers} статей", styles['Normal']))
+        story.append(Paragraph(f"Внутристрановые коллаборации: {domestic_papers} статей", normal_style))
         for country, affils in list(domestic_collab.items()):
-            story.append(Paragraph(f"  📍 {country}:", styles['Normal']))
+            story.append(Paragraph(f"  📍 {country}:", normal_style))
             if isinstance(affils, dict):
                 for affil, count in list(affils.items())[:5]:
-                    story.append(Paragraph(f"    • {affil}: {count} статей", styles['Normal']))
+                    story.append(Paragraph(f"    • {affil}: {count} статей", normal_style))
             else:
-                story.append(Paragraph(f"    • {affils} статей", styles['Normal']))
+                story.append(Paragraph(f"    • {affils} статей", normal_style))
         story.append(Spacer(1, 5))
         
-        story.append(Paragraph(f"Международные коллаборации: {international_papers} статей", styles['Normal']))
+        story.append(Paragraph(f"Международные коллаборации: {international_papers} статей", normal_style))
         for country, affils in list(international_collab.items()):
-            story.append(Paragraph(f"  📍 {country}:", styles['Normal']))
+            story.append(Paragraph(f"  📍 {country}:", normal_style))
             if isinstance(affils, dict):
                 for affil, count in list(affils.items())[:5]:
-                    story.append(Paragraph(f"    • {affil}: {count} статей", styles['Normal']))
+                    story.append(Paragraph(f"    • {affil}: {count} статей", normal_style))
             else:
-                story.append(Paragraph(f"    • {affils} статей", styles['Normal']))
+                story.append(Paragraph(f"    • {affils} статей", normal_style))
         story.append(Spacer(1, 5))
         
-        story.append(Paragraph(f"Смешанных статей: {mixed_papers}", styles['Normal']))
-        story.append(Paragraph(f"Индекс коллабораций: {profile.get('collaboration_index', 0):.2f}", styles['Normal']))
-        story.append(Paragraph(f"Страновое разнообразие: {profile.get('country_diversity', 0)} стран", styles['Normal']))
+        story.append(Paragraph(f"Смешанных статей: {mixed_papers}", normal_style))
+        story.append(Paragraph(f"Индекс коллабораций: {profile.get('collaboration_index', 0):.2f}", normal_style))
+        story.append(Paragraph(f"Страновое разнообразие: {profile.get('country_diversity', 0)} стран", normal_style))
         story.append(Spacer(1, 20))
     
     top_coauthors = profile.get('top_coauthors', {})
@@ -3793,9 +3846,9 @@ def generate_pdf_report(profile: Dict, publications: List[Dict], images: Dict[st
         for author, count in list(top_coauthors.items())[:20]:
             orcid_link = coauthors_with_orcid.get(author, '')
             if orcid_link:
-                story.append(Paragraph(f"• {author}: {count} совместных работ (ORCID: {orcid_link})", styles['Normal']))
+                story.append(Paragraph(f"• {author}: {count} совместных работ (ORCID: {orcid_link})", normal_style))
             else:
-                story.append(Paragraph(f"• {author}: {count} совместных работ", styles['Normal']))
+                story.append(Paragraph(f"• {author}: {count} совместных работ", normal_style))
         story.append(Spacer(1, 20))
     
     story.append(PageBreak())
@@ -3820,19 +3873,19 @@ def generate_pdf_report(profile: Dict, publications: List[Dict], images: Dict[st
             ('BACKGROUND', (0, 0), (-1, 0), primary_color),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Times-Bold'),
+            ('FONTNAME', (0, 0), (-1, 0), custom_font_name),
             ('FONTSIZE', (0, 0), (-1, 0), 9),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
             ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-            ('FONTNAME', (0, 1), (-1, -1), 'Times-Roman'),
+            ('FONTNAME', (0, 1), (-1, -1), custom_font_name),
             ('FONTSIZE', (0, 1), (-1, -1), 8),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ]))
         story.append(pub_table)
         story.append(Spacer(1, 10))
         if len(publications) > 50:
-            story.append(Paragraph(f"<i>Показано 50 из {len(publications)} публикаций</i>", styles['Normal']))
+            story.append(Paragraph(f"<i>Показано 50 из {len(publications)} публикаций</i>", normal_style))
     
     story.append(Spacer(1, 30))
     footer_style = ParagraphStyle(
@@ -3841,7 +3894,7 @@ def generate_pdf_report(profile: Dict, publications: List[Dict], images: Dict[st
         fontSize=10,
         textColor=colors.HexColor('#7F8C8D'),
         alignment=TA_CENTER,
-        fontName='Times-Roman'
+        fontName=custom_font_name
     )
     story.append(Paragraph("© Author Profile Analysis / Created by daM / Chimica Techno Acta", footer_style))
     story.append(Paragraph("https://chimicatechnoacta.ru", footer_style))
