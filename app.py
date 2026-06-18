@@ -3982,7 +3982,7 @@ def main():
         st.markdown("## 🎨 Цветовая тема")
         
         preset_themes = {
-            "Default (Blue-Purple)": {"primary": "#667eea", "secondary": "#8d0081"},
+            "Default (Blue-Purple)": {"primary": "#667eea", "secondary": "#a9019b"},
             "Emerald (Green-Teal)": {"primary": "#2ecc71", "secondary": "#27ae60"},
             "Sunset (Orange-Coral)": {"primary": "#e74c3c", "secondary": "#c0392b"},
             "Ocean (Deep Blue)": {"primary": "#3498db", "secondary": "#2980b9"},
