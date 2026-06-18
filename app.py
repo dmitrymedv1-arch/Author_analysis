@@ -196,7 +196,25 @@ LANG = {
         'data_not_found': 'Data not found. Check ORCID correctness.',
         'error_occurred': 'Error occurred',
         'retracted_publications': 'retracted publications',
-        'possible_unethical': 'Possible unethical practices detected!'
+        'possible_unethical': 'Possible unethical practices detected!',
+        'analyzing_authors': 'Analyzing {count} author(s)...',
+        'starting_analysis': 'Starting analysis...',
+        'fetching_data': 'Fetching data',
+        'analysis_complete_text': 'Analysis complete',
+        'creating_charts': 'Creating charts',
+        'anomalous_productivity': 'Abnormally high productivity (>30 papers per year)',
+        'retractions_in_profile': 'retractions in profile',
+        'single_journal_warning': '>30% of publications in one journal',
+        'suspicious_journals_warning': 'Publications in journals with low selectivity',
+        'low_thematic_diversity': 'Low thematic diversity',
+        'low_international_collab': 'Low level of international collaboration',
+        'multiple_red_flags': 'Additional verification required. Multiple red flags detected.',
+        'caution_recommended': 'Caution recommended. There are individual warnings.',
+        'outstanding_scholar': 'Outstanding scholar. High productivity and growing h-index.',
+        'strong_candidate': 'Strong candidate. Stable publication activity.',
+        'promising_scholar': 'Promising scholar. Recommended for consideration.',
+        'early_career_researcher': 'Early career researcher. Expert evaluation required.',
+        'young_researcher': 'Young researcher. Articles require careful peer review.'
     },
     'ru': {
         'app_title': 'Анализ профиля ученого',
@@ -330,7 +348,25 @@ LANG = {
         'data_not_found': 'Данные не найдены. Проверьте правильность ORCID.',
         'error_occurred': 'Произошла ошибка',
         'retracted_publications': 'ретрагированных публикаций',
-        'possible_unethical': 'Обнаружены возможные неэтичные практики!'
+        'possible_unethical': 'Обнаружены возможные неэтичные практики!',
+        'analyzing_authors': 'Анализирую {count} авторов...',
+        'starting_analysis': 'Начинаем анализ...',
+        'fetching_data': 'Получение данных',
+        'analysis_complete_text': 'Анализ завершен',
+        'creating_charts': 'Создание графиков',
+        'anomalous_productivity': 'Аномально высокая продуктивность (>30 статей в год)',
+        'retractions_in_profile': 'ретракций в профиле',
+        'single_journal_warning': '>30% публикаций в одном журнале',
+        'suspicious_journals_warning': 'Публикации в журналах с низкой селективностью',
+        'low_thematic_diversity': 'Низкое тематическое разнообразие',
+        'low_international_collab': 'Низкий уровень международного сотрудничества',
+        'multiple_red_flags': 'Требуется дополнительная проверка. Обнаружены множественные красные флаги.',
+        'caution_recommended': 'Рекомендуется осторожность. Есть отдельные предупреждения.',
+        'outstanding_scholar': 'Выдающийся ученый. Высокая продуктивность и растущий h-index.',
+        'strong_candidate': 'Сильный кандидат. Стабильная публикационная активность.',
+        'promising_scholar': 'Перспективный ученый. Рекомендуется к рассмотрению.',
+        'early_career_researcher': 'Начинающий исследователь. Требуется экспертная оценка.',
+        'young_researcher': 'Молодой ученый. Статьи требуют тщательного рецензирования.'
     }
 }
 
@@ -2041,6 +2077,7 @@ class ScholarProfileAnalyzer:
     
     def _assess_risks(self) -> List[str]:
         """Оценивает риски и возвращает список предупреждений"""
+        current_lang = st.session_state.get('language', 'en')
         flags = []
         
         # Проверка на ретракции - добавляем в начало списка для немедленного предупреждения
@@ -2049,52 +2086,53 @@ class ScholarProfileAnalyzer:
             flags.append(f"🔴 RETRACTION WARNING: {retractions_count} retracted publications detected - possible unethical practices!")
         
         if self.profile.get('papers_per_year', 0) > 30:
-            flags.append("⚠️ Аномально высокая продуктивность (>30 статей в год)")
+            flags.append("⚠️ " + translate('anomalous_productivity', current_lang))
         
         if self.profile.get('retractions', 0) > 1:
-            flags.append(f"🔴 {self.profile['retractions']} ретракций в профиле")
+            flags.append(f"🔴 {self.profile['retractions']} " + translate('retractions_in_profile', current_lang))
         
         if self.profile.get('top_journals'):
             top_ratio = list(self.profile['top_journals'].values())[0] / self.profile['total_publications']
             if top_ratio > 0.3:
-                flags.append("⚠️ >30% публикаций в одном журнале")
+                flags.append("⚠️ " + translate('single_journal_warning', current_lang))
         
         suspicious_journals = ['Cureus', 'PLoS ONE', 'Scientific Reports']
         suspicious_pubs = [j for j in self.profile.get('journals', {}).keys() if any(s in j for s in suspicious_journals)]
         if suspicious_pubs:
-            flags.append(f"⚠️ Публикации в журналах с низкой селективностью: {', '.join(suspicious_pubs[:3])}")
+            flags.append(f"⚠️ " + translate('suspicious_journals_warning', current_lang) + f": {', '.join(suspicious_pubs[:3])}")
         
         if self.profile.get('unique_concepts', 0) < 5 and self.profile.get('total_publications', 0) > 10:
-            flags.append("⚠️ Низкое тематическое разнообразие")
+            flags.append("⚠️ " + translate('low_thematic_diversity', current_lang))
         
         # Исправленная проверка на международное сотрудничество
         international_ratio = self.profile.get('international_papers_ratio', 0)
         if international_ratio < 0.1 and self.profile.get('total_publications', 0) > 20:
-            flags.append("⚠️ Низкий уровень международного сотрудничества")
+            flags.append("⚠️ " + translate('low_international_collab', current_lang))
         
         return flags
     
     def _generate_recommendation(self) -> str:
         """Генерирует рекомендацию для редактора"""
+        current_lang = st.session_state.get('language', 'en')
         risk_count = len(self.profile.get('risk_flags', []))
         total_pubs = self.profile.get('total_publications', 0)
         h_index = self.profile.get('h_index', 0)
         trend = self.profile.get('trend_direction', 'stable')
         
         if risk_count >= 3:
-            return "🔴 Требуется дополнительная проверка. Обнаружены множественные красные флаги."
+            return "🔴 " + translate('multiple_red_flags', current_lang)
         elif risk_count >= 1:
-            return "🟡 Рекомендуется осторожность. Есть отдельные предупреждения."
+            return "🟡 " + translate('caution_recommended', current_lang)
         elif total_pubs >= 30 and h_index >= 15 and trend in ['up', 'strong_up']:
-            return "🟢 Выдающийся ученый. Высокая продуктивность и растущий h-index."
+            return "🟢 " + translate('outstanding_scholar', current_lang)
         elif total_pubs >= 20 and h_index >= 10:
-            return "🟢 Сильный кандидат. Стабильная публикационная активность."
+            return "🟢 " + translate('strong_candidate', current_lang)
         elif total_pubs >= 10 and h_index >= 5:
-            return "🟢 Перспективный ученый. Рекомендуется к рассмотрению."
+            return "🟢 " + translate('promising_scholar', current_lang)
         elif total_pubs >= 5:
-            return "🟢 Начинающий исследователь. Требуется экспертная оценка."
+            return "🟢 " + translate('early_career_researcher', current_lang)
         else:
-            return "🟢 Молодой ученый. Статьи требуют тщательного рецензирования."
+            return "🟢 " + translate('young_researcher', current_lang)
     
     def get_profile_data(self) -> Dict:
         """Возвращает полный профиль"""
@@ -3927,17 +3965,22 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
 def run_profile_analysis(orcid_list: List[str], show_all_authors: bool, journal_logo: Optional[Dict] = None):
     """Запускает полный анализ профиля ученого для одного или нескольких ORCID"""
     
+    # Get current language for translations
+    current_lang = st.session_state.get('language', 'en')
+    def t(key: str, **kwargs) -> str:
+        return translate(key, current_lang, **kwargs)
+    
     if not orcid_list:
-        st.error("⚠️ Введите хотя бы один ORCID")
+        st.error("⚠️ " + t('no_orcid'))
         return
         
     st.cache_data.clear()
     
-    st.info(f"🔍 Анализирую {len(orcid_list)} авторов...")
+    st.info(f"🔍 " + t('analyzing_authors', count=len(orcid_list)))
     
     progress_container = st.empty()
     status_container = st.empty()
-    analysis_progress = st.progress(0, text="Начинаем анализ...")
+    analysis_progress = st.progress(0, text=t('starting_analysis'))
     
     try:
         journal_logo_base64 = None
@@ -3962,8 +4005,8 @@ def run_profile_analysis(orcid_list: List[str], show_all_authors: bool, journal_
         
         def progress_callback(current, total, orcid):
             api_progress = (current / total) * stage_weights['api'] * 100
-            analysis_progress.progress(api_progress / 100, text=f"📡 Загрузка данных: {orcid} ({current}/{total})")
-            status_container.info(f"📡 Получение данных {current}/{total}: {orcid}")
+            analysis_progress.progress(api_progress / 100, text=f"📡 {t('loading_data')}: {orcid} ({current}/{total})")
+            status_container.info(f"📡 {t('fetching_data')} {current}/{total}: {orcid}")
         
         start_time = time.time()
         
@@ -3971,18 +4014,18 @@ def run_profile_analysis(orcid_list: List[str], show_all_authors: bool, journal_
             analyze_multiple_authors(orcid_list, progress_callback)
         )
         
-        analysis_progress.progress(stage_weights['api'], text="📊 Анализ данных...")
+        analysis_progress.progress(stage_weights['api'], text=f"📊 {t('analyzing_data')}...")
         
         elapsed = time.time() - start_time
         
         if not all_authors_data:
-            st.error("❌ Данные не найдены. Проверьте правильность ORCID.")
+            st.error(f"❌ {t('data_not_found')}")
             analysis_progress.empty()
             return
         
         sorted_authors = sort_authors_by_h_index(all_authors_data)
         
-        analysis_progress.progress(stage_weights['api'] + stage_weights['analysis'] * 0.5, text="🎨 Генерация визуализаций...")
+        analysis_progress.progress(stage_weights['api'] + stage_weights['analysis'] * 0.5, text=f"🎨 {t('generating_viz')}...")
         
         for idx, author_data in enumerate(sorted_authors):
             profile = author_data.get('profile', {})
@@ -3990,34 +4033,34 @@ def run_profile_analysis(orcid_list: List[str], show_all_authors: bool, journal_
                 images = create_visualizations(profile)
                 author_data['images'] = images
                 progress_percent = stage_weights['api'] + stage_weights['analysis'] + (idx + 1) / len(sorted_authors) * stage_weights['visualization']
-                analysis_progress.progress(progress_percent, text=f"🎨 Создание графиков {idx+1}/{len(sorted_authors)}...")
+                analysis_progress.progress(progress_percent, text=f"🎨 {t('creating_charts')} {idx+1}/{len(sorted_authors)}...")
         
         st.session_state['all_authors'] = sorted_authors
         st.session_state['show_all_authors'] = show_all_authors
         st.session_state['journal_logo_base64'] = journal_logo_base64
         st.session_state['analysis_complete'] = True
         
-        analysis_progress.progress(1.0, text="✅ Анализ завершен!")
+        analysis_progress.progress(1.0, text=f"✅ {t('analysis_complete_text')}!")
         
-        st.success(f"✅ Анализ завершен! Найдено {len(sorted_authors)} авторов за {elapsed:.1f} сек.")
+        st.success(t('analysis_complete', count=len(sorted_authors), time=elapsed))
         
         if len(sorted_authors) > 1:
             best_author = sorted_authors[0]
-            st.info(f"🏆 Лучший автор: {best_author.get('author_name', 'Unknown')} (h-index: {best_author.get('h_index', 0)})")
+            st.info(t('best_author', name=best_author.get('author_name', 'Unknown'), h_index=best_author.get('h_index', 0)))
         else:
-            st.info(f"👤 Автор: {sorted_authors[0].get('author_name', 'Unknown')} (h-index: {sorted_authors[0].get('h_index', 0)})")
+            st.info(t('single_author', name=sorted_authors[0].get('author_name', 'Unknown'), h_index=sorted_authors[0].get('h_index', 0)))
         
         if show_all_authors and len(sorted_authors) > 1:
-            st.info(f"👥 Показаны все {len(sorted_authors)} авторов (сортировка по h-index)")
+            st.info(t('showing_all', count=len(sorted_authors)))
         elif len(sorted_authors) == 1:
-            st.info("👤 Показан единственный автор")
+            st.info(t('showing_single_only'))
         else:
-            st.info("👤 Показан только лучший автор")
+            st.info(t('showing_single'))
         
         st.balloons()
         
     except Exception as e:
-        st.error(f"❌ Ошибка: {str(e)}")
+        st.error(f"❌ {t('error_occurred')}: {str(e)}")
         import traceback
         st.code(traceback.format_exc())
     finally:
