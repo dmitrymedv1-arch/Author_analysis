@@ -1,3 +1,11 @@
+# app.py
+# ============================================
+# AUTHOR PROFILE ANALYSIS - STREAMLIT APPLICATION
+# ============================================
+# Full-featured application for analyzing researcher profiles
+# using ORCID and OpenAlex APIs with advanced analytics
+# ============================================
+
 import sys
 import warnings
 warnings.filterwarnings('ignore')
@@ -74,8 +82,25 @@ try:
 except ImportError:
     PDF_AVAILABLE = False
 
-# Apply asyncio for Colab/Jupyter compatibility
-nest_asyncio.apply()
+# ============================================
+# FIX FOR STREAMLIT + ASYNCIO COMPATIBILITY
+# ============================================
+
+# Create a custom event loop policy for better compatibility
+class CustomEventLoopPolicy(asyncio.DefaultEventLoopPolicy):
+    def get_event_loop(self):
+        try:
+            return super().get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            return loop
+
+# Apply the custom policy
+try:
+    asyncio.set_event_loop_policy(CustomEventLoopPolicy())
+except:
+    pass
 
 # ============================================
 # CONFIGURATION
@@ -226,6 +251,8 @@ def get_text(key: str, lang: str = 'en') -> str:
 
 def clean_orcid(orcid_input: str) -> str:
     """Clean ORCID from extra characters"""
+    if not orcid_input:
+        return ''
     orcid = orcid_input.strip().upper()
     if 'orcid.org/' in orcid:
         orcid = orcid.split('orcid.org/')[-1]
@@ -238,6 +265,8 @@ def clean_orcid(orcid_input: str) -> str:
 
 def extract_country_from_affiliation(affiliation: str) -> str:
     """Extract country from affiliation string"""
+    if not affiliation:
+        return "Unknown"
     countries = [
         'USA', 'UK', 'China', 'Germany', 'France', 'Japan', 'Russia', 'Italy',
         'Canada', 'Australia', 'Spain', 'Brazil', 'India', 'Netherlands', 'Switzerland',
@@ -246,8 +275,9 @@ def extract_country_from_affiliation(affiliation: str) -> str:
         'New Zealand', 'South Africa', 'Argentina', 'Mexico', 'Chile', 'Colombia',
         'United States', 'United Kingdom', 'England', 'Scotland', 'Wales'
     ]
+    aff_lower = affiliation.lower()
     for country in countries:
-        if country.lower() in affiliation.lower():
+        if country.lower() in aff_lower:
             return country
     return "Unknown"
 
@@ -1107,6 +1137,13 @@ async def collect_scholar_data(orcid: str, batch_size: int = DEFAULT_BATCH_SIZE,
     
     analyzer = ScholarProfileAnalyzer(orcid_clean)
     
+    # Use a new event loop for this async operation
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
     async with aiohttp.ClientSession() as session:
         # Get author info
         author_info = await get_openalex_author(orcid_clean, session)
@@ -1895,6 +1932,25 @@ def init_session_state():
         if key not in st.session_state:
             st.session_state[key] = value
 
+# Fix for Streamlit's asyncio handling
+def run_async_function(func, *args, **kwargs):
+    """Run async function safely in Streamlit"""
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # Already running in asyncio context
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, func(*args, **kwargs))
+                return future.result()
+        else:
+            return loop.run_until_complete(func(*args, **kwargs))
+    except RuntimeError:
+        # No event loop, create one
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        return loop.run_until_complete(func(*args, **kwargs))
+
 def main():
     """Main Streamlit application"""
     
@@ -1989,16 +2045,12 @@ def main():
                 status_text.text("🔍 Fetching data from ORCID and OpenAlex...")
                 progress_bar.progress(20)
                 
-                # Run analysis
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                
-                analyzer, profile, publications = loop.run_until_complete(
-                    collect_scholar_data(
-                        orcid,
-                        batch_size=batch_size,
-                        max_publications=max_pubs
-                    )
+                # Run analysis using the safe wrapper
+                analyzer, profile, publications = run_async_function(
+                    collect_scholar_data,
+                    orcid,
+                    batch_size=batch_size,
+                    max_publications=max_pubs
                 )
                 
                 progress_bar.progress(80)
