@@ -1,25 +1,15 @@
-# Core
 streamlit
+aiohttp
+asyncio
 pandas
 numpy
-
-# API & Networking
-aiohttp
-requests
-nest-asyncio
-
-# Visualization
 matplotlib
 seaborn
 plotly
 wordcloud
-
-# Reports
 reportlab
-
-# Text Processing
 beautifulsoup4
-lxml
-
-# Utilities
+requests
+nest-asyncio
+tenacity
 python-dotenv
