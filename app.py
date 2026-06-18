@@ -630,6 +630,93 @@ def apply_scientific_style():
 apply_scientific_style()
 
 # ============================================
+# ДОПОЛНИТЕЛЬНЫЕ СЛОВАРИ И УТИЛИТЫ
+# ============================================
+
+# Словарь для преобразования кодов стран в полные названия
+COUNTRY_CODE_TO_NAME = {
+    'GR': 'Greece',
+    'CN': 'China',
+    'PT': 'Portugal',
+    'BY': 'Belarus',
+    'PL': 'Poland',
+    'SK': 'Slovakia',
+    'SA': 'Saudi Arabia',
+    'US': 'United States',
+    'AU': 'Australia',
+    'PK': 'Pakistan',
+    'GB': 'United Kingdom',
+    'HK': 'Hong Kong',
+    'DE': 'Germany',
+    'NO': 'Norway',
+    'FR': 'France',
+    'IN': 'India',
+    'KR': 'South Korea',
+    'RU': 'Russia',
+    'UA': 'Ukraine',
+    'IT': 'Italy',
+    'ES': 'Spain',
+    'NL': 'Netherlands',
+    'CH': 'Switzerland',
+    'SE': 'Sweden',
+    'BE': 'Belgium',
+    'AT': 'Austria',
+    'DK': 'Denmark',
+    'FI': 'Finland',
+    'IE': 'Ireland',
+    'NZ': 'New Zealand',
+    'ZA': 'South Africa',
+    'AR': 'Argentina',
+    'MX': 'Mexico',
+    'CL': 'Chile',
+    'CO': 'Colombia',
+    'BR': 'Brazil',
+    'JP': 'Japan',
+    'SG': 'Singapore',
+    'TW': 'Taiwan',
+    'IL': 'Israel',
+    'TR': 'Turkey',
+    'EG': 'Egypt',
+    'NG': 'Nigeria',
+    'KE': 'Kenya',
+}
+
+def get_full_country_name(country_code: str) -> str:
+    """Преобразует код страны в полное название"""
+    if not country_code:
+        return 'Unknown'
+    
+    # Если уже полное название (длиннее 2 символов), возвращаем как есть
+    if len(country_code) > 3:
+        return country_code
+    
+    return COUNTRY_CODE_TO_NAME.get(country_code.upper(), country_code)
+
+def is_author_affiliation(affiliation_name: str, author_affiliations: List[str]) -> bool:
+    """Проверяет, является ли аффилиация аффилиацией самого ученого"""
+    if not affiliation_name or not author_affiliations:
+        return False
+    
+    # Нормализуем для сравнения (убираем лишние пробелы, приводим к нижнему регистру)
+    aff_normalized = affiliation_name.strip().lower()
+    
+    for author_aff in author_affiliations:
+        if not author_aff:
+            continue
+        author_aff_normalized = author_aff.strip().lower()
+        # Проверяем полное совпадение или вхождение (если одна аффилиация является частью другой)
+        if aff_normalized == author_aff_normalized:
+            return True
+        # Проверяем, не является ли аффилиация подразделением основной аффилиации
+        if aff_normalized in author_aff_normalized or author_aff_normalized in aff_normalized:
+            # Если одно название полностью содержит другое, считаем что это та же организация
+            # но только если длина разницы не слишком большая (чтобы не перепутать разные организации)
+            if len(aff_normalized) > 10 and len(author_aff_normalized) > 10:
+                return True
+    
+    return False
+
+# ============================================
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 # ============================================
 
@@ -1191,6 +1278,177 @@ class ScholarProfileAnalyzer:
         """Устанавливает homepage для институтов"""
         self.institution_homepages = homepages
     
+    def _analyze_collaborations(self):
+        """Анализирует коллаборации с детальным разбором по аффилиациям (задача 1 и 4)"""
+        if not self.publications:
+            return
+        
+        # Получаем страны автора из различных источников
+        author_countries_set = set(self.author_countries) if self.author_countries else set()
+        
+        # Если страны не определены, пытаемся извлечь из публикаций
+        if not author_countries_set:
+            for p in self.publications:
+                if p.get('country') and p['country'] != 'Unknown':
+                    author_countries_set.add(p['country'])
+        
+        # Если все еще пусто, используем страны из аффилиаций в публикациях
+        if not author_countries_set:
+            for p in self.publications:
+                for aff in p.get('affiliation_countries', []):
+                    if aff and aff != 'Unknown':
+                        author_countries_set.add(aff)
+        
+        # Если ничего не найдено, считаем что автор из 'Unknown'
+        if not author_countries_set:
+            author_countries_set = {'Unknown'}
+        
+        # Получаем аффилиации автора для исключения их из коллабораций
+        author_affiliations_set = set(self.author_affiliations) if self.author_affiliations else set()
+        
+        # Если аффилиации не определены, пытаемся извлечь из публикаций
+        if not author_affiliations_set:
+            for p in self.publications:
+                for aff in p.get('affiliations', []):
+                    if aff and aff not in author_affiliations_set:
+                        author_affiliations_set.add(aff)
+        
+        self.collaborations = {
+            'domestic': defaultdict(lambda: defaultdict(int)),
+            'international': defaultdict(lambda: defaultdict(int)),
+            'domestic_papers': 0,
+            'international_papers': 0,
+            'mixed_papers': 0,
+            'total_collaborations': 0
+        }
+        
+        domestic_papers = 0
+        international_papers = 0
+        mixed_papers = 0
+        
+        for p in self.publications:
+            institutions = p.get('institutions', [])
+            if not institutions:
+                continue
+            
+            paper_countries = set()
+            paper_affiliations = set()
+            
+            # Собираем уникальные страны и аффилиации из публикации
+            for inst in institutions:
+                country = inst.get('country_code', '')
+                if country:
+                    paper_countries.add(country)
+                affil_name = inst.get('display_name', '')
+                if affil_name:
+                    paper_affiliations.add(affil_name)
+            
+            # Фильтруем пустые и неизвестные страны
+            paper_countries = {c for c in paper_countries if c and c != 'Unknown'}
+            
+            # Если в публикации нет стран, пропускаем её (не можем определить тип коллаборации)
+            if not paper_countries:
+                continue
+            
+            # Определяем, есть ли в публикации страны автора
+            has_author_country = any(c in author_countries_set for c in paper_countries)
+            has_other_countries = any(c not in author_countries_set for c in paper_countries)
+            
+            # Специальный случай: если author_countries_set содержит только 'Unknown',
+            # считаем все коллаборации международными
+            if author_countries_set == {'Unknown'}:
+                # Все коллаборации считаем международными
+                international_papers += 1
+                for inst in institutions:
+                    country = inst.get('country_code', '')
+                    affil_name = inst.get('display_name', '')
+                    # Проверяем, не является ли аффилиация аффилиацией самого ученого
+                    if affil_name and not is_author_affiliation(affil_name, list(author_affiliations_set)):
+                        country_name = get_full_country_name(country) if country else 'Unknown'
+                        self.collaborations['international'][country_name][affil_name] += 1
+            else:
+                if has_author_country and not has_other_countries:
+                    # Только страны автора - внутристрановые
+                    domestic_papers += 1
+                    for inst in institutions:
+                        country = inst.get('country_code', '')
+                        affil_name = inst.get('display_name', '')
+                        # Проверяем, не является ли аффилиация аффилиацией самого ученого
+                        if affil_name and not is_author_affiliation(affil_name, list(author_affiliations_set)):
+                            if country in author_countries_set:
+                                country_name = get_full_country_name(country) if country else 'Unknown'
+                                self.collaborations['domestic'][country_name][affil_name] += 1
+                                
+                elif has_author_country and has_other_countries:
+                    # Смешанные - есть и страны автора, и другие страны
+                    mixed_papers += 1
+                    for inst in institutions:
+                        country = inst.get('country_code', '')
+                        affil_name = inst.get('display_name', '')
+                        # Проверяем, не является ли аффилиация аффилиацией самого ученого
+                        if affil_name and not is_author_affiliation(affil_name, list(author_affiliations_set)):
+                            country_name = get_full_country_name(country) if country else 'Unknown'
+                            if country in author_countries_set:
+                                self.collaborations['domestic'][country_name][affil_name] += 1
+                            else:
+                                self.collaborations['international'][country_name][affil_name] += 1
+                                
+                elif has_other_countries and not has_author_country:
+                    # Только другие страны - международные
+                    international_papers += 1
+                    for inst in institutions:
+                        country = inst.get('country_code', '')
+                        affil_name = inst.get('display_name', '')
+                        # Проверяем, не является ли аффилиация аффилиацией самого ученого
+                        if affil_name and not is_author_affiliation(affil_name, list(author_affiliations_set)):
+                            country_name = get_full_country_name(country) if country else 'Unknown'
+                            self.collaborations['international'][country_name][affil_name] += 1
+        
+        self.collaborations['domestic_papers'] = domestic_papers
+        self.collaborations['international_papers'] = international_papers
+        self.collaborations['mixed_papers'] = mixed_papers
+        self.collaborations['total_collaborations'] = domestic_papers + international_papers + mixed_papers
+        
+        self.profile['collaborations'] = self.collaborations
+        
+        # Рассчитываем проценты от общего числа публикаций
+        total_pubs = len(self.publications)
+        if total_pubs > 0:
+            self.profile['domestic_papers_ratio'] = domestic_papers / total_pubs
+            self.profile['international_papers_ratio'] = international_papers / total_pubs
+        else:
+            self.profile['domestic_papers_ratio'] = 0
+            self.profile['international_papers_ratio'] = 0
+        
+        # Индекс коллабораций = среднее число соавторов на статью - 1
+        self.profile['collaboration_index'] = self.profile.get('avg_authors_per_paper', 0) - 1 if self.profile.get('avg_authors_per_paper', 0) > 0 else 0
+        
+        # Подсчет коллабораций по странам (все страны, включая domestic и international)
+        all_collab = {}
+        for country, affils in self.collaborations['international'].items():
+            total = sum(affils.values())
+            all_collab[country] = all_collab.get(country, 0) + total
+        
+        for country, affils in self.collaborations['domestic'].items():
+            total = sum(affils.values())
+            all_collab[country] = all_collab.get(country, 0) + total
+        
+        # Самая коллаборативная страна (исключая страну автора, если она есть)
+        if all_collab:
+            # Убираем страну автора из рассмотрения, если она есть
+            author_country_names = {get_full_country_name(c) for c in author_countries_set if c and c != 'Unknown'}
+            filtered_collab = {k: v for k, v in all_collab.items() if k not in author_country_names}
+            if filtered_collab:
+                self.profile['most_collaborative_country'] = max(filtered_collab.items(), key=lambda x: x[1])[0]
+            else:
+                self.profile['most_collaborative_country'] = 'None'
+        else:
+            self.profile['most_collaborative_country'] = 'None'
+        
+        # Страновое разнообразие
+        all_countries = set(author_countries_set) | set(all_collab.keys())
+        self.profile['country_diversity'] = len(all_countries)
+    
     def analyze_publications(self):
         """Анализирует все публикации и строит профиль"""
         if not self.publications:
@@ -1473,106 +1731,6 @@ class ScholarProfileAnalyzer:
         
         print("✅ Анализ завершен!")
     
-    def _analyze_collaborations(self):
-        """Анализирует коллаборации с детальным разбором по аффилиациям (задача 1 и 4)"""
-        if not self.publications:
-            return
-        
-        author_countries_set = set(self.author_countries) if self.author_countries else set()
-        
-        if not author_countries_set:
-            for p in self.publications:
-                if p.get('country') and p['country'] != 'Unknown':
-                    author_countries_set.add(p['country'])
-        
-        if not author_countries_set:
-            author_countries_set = {'Unknown'}
-        
-        self.collaborations = {
-            'domestic': defaultdict(lambda: defaultdict(int)),
-            'international': defaultdict(lambda: defaultdict(int)),
-            'domestic_papers': 0,
-            'international_papers': 0,
-            'mixed_papers': 0,
-            'total_collaborations': 0
-        }
-        
-        domestic_papers = 0
-        international_papers = 0
-        mixed_papers = 0
-        
-        for p in self.publications:
-            institutions = p.get('institutions', [])
-            if not institutions:
-                continue
-            
-            paper_countries = set()
-            paper_affiliations = set()
-            
-            for inst in institutions:
-                country = inst.get('country_code', '')
-                if country:
-                    paper_countries.add(country)
-                affil_name = inst.get('display_name', '')
-                if affil_name:
-                    paper_affiliations.add(affil_name)
-            
-            paper_countries = {c for c in paper_countries if c and c != 'Unknown'}
-            
-            if not paper_countries:
-                continue
-            
-            has_author_country = any(c in author_countries_set for c in paper_countries)
-            has_other_countries = any(c not in author_countries_set for c in paper_countries)
-            
-            if has_author_country and not has_other_countries:
-                domestic_papers += 1
-                for inst in institutions:
-                    country = inst.get('country_code', '')
-                    affil_name = inst.get('display_name', '')
-                    if country in author_countries_set and affil_name:
-                        self.collaborations['domestic'][country][affil_name] += 1
-                        
-            elif has_author_country and has_other_countries:
-                mixed_papers += 1
-                for inst in institutions:
-                    country = inst.get('country_code', '')
-                    affil_name = inst.get('display_name', '')
-                    if country in author_countries_set and affil_name:
-                        self.collaborations['domestic'][country][affil_name] += 1
-                    elif country not in author_countries_set and country and affil_name:
-                        self.collaborations['international'][country][affil_name] += 1
-                        
-            elif has_other_countries and not has_author_country:
-                international_papers += 1
-                for inst in institutions:
-                    country = inst.get('country_code', '')
-                    affil_name = inst.get('display_name', '')
-                    if country and country not in author_countries_set and affil_name:
-                        self.collaborations['international'][country][affil_name] += 1
-        
-        self.collaborations['domestic_papers'] = domestic_papers
-        self.collaborations['international_papers'] = international_papers
-        self.collaborations['mixed_papers'] = mixed_papers
-        self.collaborations['total_collaborations'] = domestic_papers + international_papers + mixed_papers
-        
-        self.profile['collaborations'] = self.collaborations
-        self.profile['domestic_papers_ratio'] = domestic_papers / len(self.publications) if self.publications else 0
-        self.profile['international_papers_ratio'] = international_papers / len(self.publications) if self.publications else 0
-        self.profile['collaboration_index'] = self.profile.get('avg_authors_per_paper', 0) - 1 if self.profile.get('avg_authors_per_paper', 0) > 0 else 0
-        
-        all_collab = {}
-        for country, affils in self.collaborations['international'].items():
-            total = sum(affils.values())
-            all_collab[country] = total
-        
-        for country, affils in self.collaborations['domestic'].items():
-            total = sum(affils.values())
-            all_collab[country] = all_collab.get(country, 0) + total
-        
-        self.profile['most_collaborative_country'] = max(all_collab.items(), key=lambda x: x[1])[0] if all_collab else 'None'
-        self.profile['country_diversity'] = len(set(self.author_countries) | set(all_collab.keys()))
-    
     def _assess_risks(self) -> List[str]:
         """Оценивает риски и возвращает список предупреждений"""
         flags = []
@@ -1596,7 +1754,9 @@ class ScholarProfileAnalyzer:
         if self.profile.get('unique_concepts', 0) < 5 and self.profile.get('total_publications', 0) > 10:
             flags.append("⚠️ Низкое тематическое разнообразие")
         
-        if self.profile.get('international_papers_ratio', 0) < 0.1 and self.profile.get('total_publications', 0) > 20:
+        # Исправленная проверка на международное сотрудничество
+        international_ratio = self.profile.get('international_papers_ratio', 0)
+        if international_ratio < 0.1 and self.profile.get('total_publications', 0) > 20:
             flags.append("⚠️ Низкий уровень международного сотрудничества")
         
         return flags
@@ -2609,6 +2769,49 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 margin-top: 5px;
             }}
             
+            /* Новые стили для единообразного оформления тематической структуры */
+            .thematic-grid {{
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                gap: 15px;
+                margin: 15px 0;
+            }}
+            .thematic-card {{
+                background: linear-gradient(135deg, {primary}10 0%, {secondary}10 100%);
+                border-radius: 12px;
+                padding: 16px 20px;
+                border-left: 4px solid {primary};
+                transition: transform 0.2s, box-shadow 0.2s;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            }}
+            .thematic-card:hover {{
+                transform: translateY(-3px);
+                box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+                background: linear-gradient(135deg, {primary}15 0%, {secondary}15 100%);
+            }}
+            .thematic-name {{
+                font-weight: 600;
+                color: {primary};
+                font-size: 14px;
+                font-family: 'Times New Roman', serif;
+            }}
+            .thematic-count {{
+                color: #555;
+                font-size: 13px;
+                margin-top: 4px;
+                font-family: 'Times New Roman', serif;
+            }}
+            .thematic-badge {{
+                display: inline-block;
+                padding: 2px 10px;
+                border-radius: 12px;
+                font-size: 11px;
+                font-weight: 600;
+                background: {primary}20;
+                color: {primary};
+                margin-left: 8px;
+            }}
+            
             @media print {{
                 .sidebar {{ display: none; }}
                 .main-content {{ margin-left: 0; }}
@@ -2616,6 +2819,9 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
             @media (max-width: 768px) {{
                 .sidebar {{ display: none; }}
                 .main-content {{ margin-left: 0; padding: 20px; }}
+                .thematic-grid {{
+                    grid-template-columns: 1fr;
+                }}
             }}
         </style>
     </head>
@@ -2740,30 +2946,60 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
             <div id="thematic" class="section">
                 <div class="section-title">🏷️ Детальная тематическая структура</div>
                 
-                <h3>Topics (Топ 10)</h3>
-                <ul class="thematic-list">
-                    {''.join([f'<li><strong>{topic}</strong>: {count} статей</li>' for topic, count in list(top_primary_topics.items())[:10]])}
-                </ul>
+                <h3 style="color: {primary}; margin-top: 20px;">Topics (Топ 10)</h3>
+                <div class="thematic-grid">
+                    {''.join([
+                        f'<div class="thematic-card">'
+                        f'<div class="thematic-name">{html.escape(topic)}</div>'
+                        f'<div class="thematic-count">📄 {count} статей</div>'
+                        f'</div>'
+                        for topic, count in list(top_primary_topics.items())[:10]
+                    ])}
+                </div>
                 
-                <h3>Subfields (Топ 10)</h3>
-                <ul class="thematic-list">
-                    {''.join([f'<li><strong>{subfield}</strong>: {count} статей</li>' for subfield, count in list(top_subfields.items())[:10]])}
-                </ul>
+                <h3 style="color: {primary}; margin-top: 20px;">Subfields (Топ 10)</h3>
+                <div class="thematic-grid">
+                    {''.join([
+                        f'<div class="thematic-card">'
+                        f'<div class="thematic-name">{html.escape(subfield)}</div>'
+                        f'<div class="thematic-count">📄 {count} статей</div>'
+                        f'</div>'
+                        for subfield, count in list(top_subfields.items())[:10]
+                    ])}
+                </div>
                 
-                <h3>Fields (Топ 10)</h3>
-                <ul class="thematic-list">
-                    {''.join([f'<li><strong>{field}</strong>: {count} статей</li>' for field, count in list(top_fields_new.items())[:10]])}
-                </ul>
+                <h3 style="color: {primary}; margin-top: 20px;">Fields (Топ 10)</h3>
+                <div class="thematic-grid">
+                    {''.join([
+                        f'<div class="thematic-card">'
+                        f'<div class="thematic-name">{html.escape(field)}</div>'
+                        f'<div class="thematic-count">📄 {count} статей</div>'
+                        f'</div>'
+                        for field, count in list(top_fields_new.items())[:10]
+                    ])}
+                </div>
                 
-                <h3>Domains (Топ 5)</h3>
-                <ul>
-                    {''.join([f'<li><strong>{domain}</strong>: {count} статей</li>' for domain, count in list(top_domains_new.items())[:5]])}
-                </ul>
+                <h3 style="color: {primary}; margin-top: 20px;">Domains (Топ 5)</h3>
+                <div class="thematic-grid">
+                    {''.join([
+                        f'<div class="thematic-card">'
+                        f'<div class="thematic-name">{html.escape(domain)}</div>'
+                        f'<div class="thematic-count">📄 {count} статей</div>'
+                        f'</div>'
+                        for domain, count in list(top_domains_new.items())[:5]
+                    ])}
+                </div>
                 
-                <h3>Key Concepts (Топ 20)</h3>
-                <ul class="thematic-list">
-                    {''.join([f'<li>{concept} ({count})</li>' for concept, count in list(top_keywords.items())[:20]])}
-                </ul>
+                <h3 style="color: {primary}; margin-top: 20px;">Key Concepts (Топ 20)</h3>
+                <div class="thematic-grid">
+                    {''.join([
+                        f'<div class="thematic-card">'
+                        f'<div class="thematic-name">{html.escape(concept)}</div>'
+                        f'<div class="thematic-count">📄 {count} вхождений</div>'
+                        f'</div>'
+                        for concept, count in list(top_keywords.items())[:20]
+                    ])}
+                </div>
             </div>
             
             <div id="collaborations" class="section">
@@ -2776,7 +3012,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                         {''.join([
                             f'<div class="collab-country">📍 {country}</div>' +
                             (''.join([
-                                f'<div class="collab-affil-item">• <strong>{affil}</strong>: {count} статей</div>'
+                                f'<div class="collab-affil-item">• <strong>{html.escape(affil)}</strong>: {count} статей</div>'
                                 for affil, count in list(affils.items())[:10]
                             ]) if isinstance(affils, dict) else f'<div class="collab-affil-item">• {affils} статей</div>')
                             for country, affils in list(domestic_collab.items())
@@ -2788,7 +3024,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                         {''.join([
                             f'<div class="collab-country">📍 {country}</div>' +
                             (''.join([
-                                f'<div class="collab-affil-item">• <strong>{affil}</strong>: {count} статей</div>'
+                                f'<div class="collab-affil-item">• <strong>{html.escape(affil)}</strong>: {count} статей</div>'
                                 for affil, count in list(affils.items())[:10]
                             ]) if isinstance(affils, dict) else f'<div class="collab-affil-item">• {affils} статей</div>')
                             for country, affils in list(international_collab.items())
@@ -2809,9 +3045,9 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 <ul>
                     {''.join([
                         f'<li>'
-                        f'<strong>{author}</strong>'
+                        f'<strong>{html.escape(author)}</strong>'
                         f' ({count} совместных работ)'
-                        f'{" — <a href=\"https://orcid.org/' + coauthors_with_orcid.get(author, '') + '\" target=\"_blank\">ORCID</a>" if coauthors_with_orcid.get(author) else ""}'
+                        f'{" — <a href=\"https://orcid.org/' + html.escape(coauthors_with_orcid.get(author, '')) + '\" target=\"_blank\">ORCID</a>" if coauthors_with_orcid.get(author) else ""}'
                         f'</li>'
                         for author, count in list(top_coauthors.items())[:20]
                     ])}
@@ -2856,12 +3092,12 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                                 f"""
                                 <tr>
                                     <td>{i+1}</td>
-                                    <td>{pub.get('title', 'No title')[:100]}</td>
+                                    <td>{html.escape(pub.get('title', 'No title'))[:100]}</td>
                                     <td>{pub.get('publication_year', 'N/A')}</td>
-                                    <td>{pub.get('journal_name', 'Unknown')}</td>
+                                    <td>{html.escape(pub.get('journal_name', 'Unknown'))}</td>
                                     <td>{pub.get('cited_by_count', 0)}</td>
                                     <td>{'✅' if pub.get('is_oa', False) else '❌'}</td>
-                                    <td><a href="https://doi.org/{pub.get('doi', '')}" target="_blank" class="doi-link">{pub.get('doi', '')}</a></td>
+                                    <td><a href="https://doi.org/{html.escape(pub.get('doi', ''))}" target="_blank" class="doi-link">{html.escape(pub.get('doi', ''))}</a></td>
                                 </tr>
                                 """
                                 for i, pub in enumerate(sorted(publications, key=lambda x: x.get('publication_year', 0), reverse=True))
@@ -3151,7 +3387,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
         author_name = author.get('author_name', f'Автор {i+1}')
         h_index = author.get('h_index', 0)
         anchor = f"author_{i}"
-        html_parts.append(f'<a href="#{anchor}"><span>👤 {author_name} (h-index: {h_index})</span></a>')
+        html_parts.append(f'<a href="#{anchor}"><span>👤 {html.escape(author_name)} (h-index: {h_index})</span></a>')
     
     html_parts.append("""
         </div>
@@ -3167,7 +3403,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                 <div class="date">Дата генерации: {datetime.now().strftime('%d.%m.%Y %H:%M')}</div>
                 <div style="margin-top: 15px;">
                     <span class="badge badge-info">Всего авторов: {len(all_authors)}</span>
-                    <span class="badge badge-success">Лучший: {best_author.get('author_name', 'Unknown')} (h-index: {best_author.get('h_index', 0)})</span>
+                    <span class="badge badge-success">Лучший: {html.escape(best_author.get('author_name', 'Unknown'))} (h-index: {best_author.get('h_index', 0)})</span>
     """)
     
     if show_all:
@@ -3205,7 +3441,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                 <div class="author-card {'best' if is_best else ''}">
                     <div>
                         <span class="author-rank">{i+1}.</span>
-                        <span class="author-name-main">{author_name}</span>
+                        <span class="author-name-main">{html.escape(author_name)}</span>
                         <span class="author-hindex">(h-index: {h_index})</span>
                         {'<span class="best-badge">🏆 Лучший</span>' if is_best else ''}
                     </div>
@@ -3259,8 +3495,10 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                     <h3>🤝 Топ соавторы</h3>
                     <ul>
                         {''.join([
-                            f'<li><strong>{author}</strong> ({count} совместных работ)'
-                            f'{" — <a href=\"https://orcid.org/' + coauthors_with_orcid.get(author, '') + '\" target=\"_blank\">ORCID</a>" if coauthors_with_orcid.get(author) else ""}'
+                            f'<li>'
+                            f'<strong>{html.escape(author)}</strong>'
+                            f' ({count} совместных работ)'
+                            f'{" — <a href=\"https://orcid.org/' + html.escape(coauthors_with_orcid.get(author, '')) + '\" target=\"_blank\">ORCID</a>" if coauthors_with_orcid.get(author) else ""}'
                             f'</li>'
                             for author, count in list(top_coauthors.items())[:10]
                         ])}
@@ -3284,11 +3522,11 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                                     f"""
                                     <tr>
                                         <td>{j+1}</td>
-                                        <td>{pub.get('title', 'No title')[:80]}</td>
+                                        <td>{html.escape(pub.get('title', 'No title'))[:80]}</td>
                                         <td>{pub.get('publication_year', 'N/A')}</td>
-                                        <td>{pub.get('journal_name', 'Unknown')}</td>
+                                        <td>{html.escape(pub.get('journal_name', 'Unknown'))}</td>
                                         <td>{pub.get('cited_by_count', 0)}</td>
-                                        <td><a href="https://doi.org/{pub.get('doi', '')}" target="_blank" class="doi-link">{pub.get('doi', '')}</a></td>
+                                        <td><a href="https://doi.org/{html.escape(pub.get('doi', ''))}" target="_blank" class="doi-link">{html.escape(pub.get('doi', ''))}</a></td>
                                     </tr>
                                     """
                                     for j, pub in enumerate(sorted(publications, key=lambda x: x.get('publication_year', 0), reverse=True)[:20])
@@ -3343,8 +3581,17 @@ def generate_pdf_report(profile: Dict, publications: List[Dict], images: Dict[st
     styles = getSampleStyleSheet()
     story = []
     
-    primary_color = colors.HexColor(primary.lstrip('#'))
-    secondary_color = colors.HexColor(secondary.lstrip('#'))
+    # Исправление ошибки: colors.HexColor() ожидает цвет с символом '#'
+    # Проверяем, есть ли '#' в начале строки, и добавляем если нужно
+    if primary.startswith('#'):
+        primary_color = colors.HexColor(primary)
+    else:
+        primary_color = colors.HexColor(f'#{primary}')
+    
+    if secondary.startswith('#'):
+        secondary_color = colors.HexColor(secondary)
+    else:
+        secondary_color = colors.HexColor(f'#{secondary}')
     
     title_style = ParagraphStyle(
         'CustomTitle',
