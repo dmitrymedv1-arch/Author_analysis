@@ -1327,23 +1327,15 @@ class ScholarProfileAnalyzer:
             
             paper_countries = set()
             paper_affiliations = set()
-            paper_has_foreign_affiliation = False
-            paper_has_author_affiliation = False
             
-            # Собираем уникальные страны, аффилиации и проверяем наличие зарубежных аффилиаций
+            # Собираем уникальные страны и аффилиации из публикации
             for inst in institutions:
                 country = inst.get('country_code', '')
                 if country:
                     paper_countries.add(country)
-                
                 affil_name = inst.get('display_name', '')
                 if affil_name:
                     paper_affiliations.add(affil_name)
-                    # Проверяем, является ли аффилиация аффилиацией автора
-                    if affil_name in author_affiliations_set:
-                        paper_has_author_affiliation = True
-                    else:
-                        paper_has_foreign_affiliation = True
             
             # Фильтруем пустые и неизвестные страны
             paper_countries = {c for c in paper_countries if c and c != 'Unknown'}
@@ -1352,40 +1344,76 @@ class ScholarProfileAnalyzer:
             if not paper_countries:
                 continue
             
-            # ====== НОВАЯ ЛОГИКА: считаем по аффилиациям, а не по странам ======
-            # Если в статье есть хотя бы одна аффилиация, не принадлежащая автору,
-            # и есть хотя бы одна аффилиация автора - это международная коллаборация
-            if paper_has_foreign_affiliation and paper_has_author_affiliation:
-                international_papers += 1
-            elif paper_has_foreign_affiliation and not paper_has_author_affiliation:
-                # Статья без аффилиаций автора - тоже международная (возможно, автор не указан)
-                international_papers += 1
-            elif paper_has_author_affiliation and not paper_has_foreign_affiliation:
-                # Только аффилиации автора - domestic
-                domestic_papers += 1
-            else:
-                # Не удалось определить - пропускаем
-                continue
+            # ====== ЛОГИКА ПО СТРАНАМ (как в mixed версии) ======
+            # Определяем, есть ли в публикации страны автора
+            has_author_country = any(c in author_countries_set for c in paper_countries)
+            has_other_countries = any(c not in author_countries_set for c in paper_countries)
             
-            # Добавляем уникальные аффилиации для детального отображения
-            for affil_name in paper_affiliations:
-                # Пропускаем аффилиации автора
-                if affil_name in author_affiliations_set:
-                    continue
-                
-                # Находим страну для этой аффилиации
-                country_name = 'Unknown'
-                for inst in institutions:
-                    if inst.get('display_name', '') == affil_name:
-                        country = inst.get('country_code', '')
-                        country_name = get_full_country_name(country) if country else 'Unknown'
-                        break
-                
-                # Определяем, domestic или international
-                if country_name in [get_full_country_name(c) for c in author_countries_set if c and c != 'Unknown']:
-                    self.collaborations['domestic'][country_name][affil_name] += 1
-                else:
-                    self.collaborations['international'][country_name][affil_name] += 1
+            # Специальный случай: если author_countries_set содержит только 'Unknown'
+            if author_countries_set == {'Unknown'}:
+                # Все коллаборации считаем международными
+                international_papers += 1
+                # Добавляем уникальные аффилиации
+                for affil_name in paper_affiliations:
+                    if affil_name and affil_name not in author_affiliations_set:
+                        country_name = 'Unknown'
+                        for inst in institutions:
+                            if inst.get('display_name', '') == affil_name:
+                                country = inst.get('country_code', '')
+                                country_name = get_full_country_name(country) if country else 'Unknown'
+                                break
+                        self.collaborations['international'][country_name][affil_name] += 1
+            else:
+                if has_author_country and not has_other_countries:
+                    # Только страны автора - внутристрановые
+                    domestic_papers += 1
+                    # Добавляем уникальные аффилиации
+                    for affil_name in paper_affiliations:
+                        if affil_name and affil_name not in author_affiliations_set:
+                            country_name = 'Unknown'
+                            for inst in institutions:
+                                if inst.get('display_name', '') == affil_name:
+                                    country = inst.get('country_code', '')
+                                    if country in author_countries_set:
+                                        country_name = get_full_country_name(country) if country else 'Unknown'
+                                        break
+                            if country_name != 'Unknown':
+                                self.collaborations['domestic'][country_name][affil_name] += 1
+                            
+                elif has_author_country and has_other_countries:
+                    # Есть и страны автора, и другие страны - международные
+                    international_papers += 1
+                    # Добавляем уникальные аффилиации
+                    for affil_name in paper_affiliations:
+                        if affil_name and affil_name not in author_affiliations_set:
+                            country_name = 'Unknown'
+                            for inst in institutions:
+                                if inst.get('display_name', '') == affil_name:
+                                    country = inst.get('country_code', '')
+                                    country_name = get_full_country_name(country) if country else 'Unknown'
+                                    break
+                            if country_name != 'Unknown':
+                                # Определяем domestic или international по стране
+                                author_country_names = {get_full_country_name(c) for c in author_countries_set if c and c != 'Unknown'}
+                                if country_name in author_country_names:
+                                    self.collaborations['domestic'][country_name][affil_name] += 1
+                                else:
+                                    self.collaborations['international'][country_name][affil_name] += 1
+                                    
+                elif has_other_countries and not has_author_country:
+                    # Только другие страны - международные
+                    international_papers += 1
+                    # Добавляем уникальные аффилиации
+                    for affil_name in paper_affiliations:
+                        if affil_name and affil_name not in author_affiliations_set:
+                            country_name = 'Unknown'
+                            for inst in institutions:
+                                if inst.get('display_name', '') == affil_name:
+                                    country = inst.get('country_code', '')
+                                    country_name = get_full_country_name(country) if country else 'Unknown'
+                                    break
+                            if country_name != 'Unknown':
+                                self.collaborations['international'][country_name][affil_name] += 1
         
         self.collaborations['domestic_papers'] = domestic_papers
         self.collaborations['international_papers'] = international_papers
@@ -1402,10 +1430,10 @@ class ScholarProfileAnalyzer:
             self.profile['domestic_papers_ratio'] = 0
             self.profile['international_papers_ratio'] = 0
         
-        # Индекс коллабораций = среднее число соавторов на статью - 1
+        # Индекс коллабораций
         self.profile['collaboration_index'] = self.profile.get('avg_authors_per_paper', 0) - 1 if self.profile.get('avg_authors_per_paper', 0) > 0 else 0
         
-        # Подсчет коллабораций по странам (все страны, включая domestic и international)
+        # Подсчет коллабораций по странам
         all_collab = {}
         for country, affils in self.collaborations['international'].items():
             total = sum(affils.values())
@@ -1415,9 +1443,8 @@ class ScholarProfileAnalyzer:
             total = sum(affils.values())
             all_collab[country] = all_collab.get(country, 0) + total
         
-        # Самая коллаборативная страна (исключая страну автора, если она есть)
+        # Самая коллаборативная страна
         if all_collab:
-            # Убираем страну автора из рассмотрения, если она есть
             author_country_names = {get_full_country_name(c) for c in author_countries_set if c and c != 'Unknown'}
             filtered_collab = {k: v for k, v in all_collab.items() if k not in author_country_names}
             if filtered_collab:
@@ -1432,7 +1459,6 @@ class ScholarProfileAnalyzer:
         self.profile['country_diversity'] = len(all_countries)
         
         # ====== ФИЛЬТРАЦИЯ: Удаляем аффилиации автора из коллабораций ======
-        # Получаем актуальные аффилиации автора из профиля
         author_affils_final = set(self.author_affiliations) if self.author_affiliations else set()
         
         # Фильтруем domestic коллаборации
@@ -1441,7 +1467,6 @@ class ScholarProfileAnalyzer:
             for affil in list(affils_dict.keys()):
                 if affil in author_affils_final:
                     del affils_dict[affil]
-            # Если после удаления словарь пуст, удаляем страну
             if not affils_dict:
                 del self.collaborations['domestic'][country]
         
@@ -1451,7 +1476,6 @@ class ScholarProfileAnalyzer:
             for affil in list(affils_dict.keys()):
                 if affil in author_affils_final:
                     del affils_dict[affil]
-            # Если после удаления словарь пуст, удаляем страну
             if not affils_dict:
                 del self.collaborations['international'][country]
         
