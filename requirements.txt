@@ -9,5 +9,4 @@ wordcloud
 reportlab
 beautifulsoup4
 requests
-tenacity
 python-dotenv
