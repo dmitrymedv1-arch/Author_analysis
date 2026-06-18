@@ -2739,7 +2739,8 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     css_vars = generate_css_variables(primary, secondary)
     
     # Заголовки на выбранном языке
-    t = lambda key: translate(key, lang)
+    def t(key: str, **kwargs) -> str:
+        return translate(key, lang, **kwargs)
     
     html_content = f"""
     <!DOCTYPE html>
@@ -3481,7 +3482,8 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
     else:
         authors_to_show = [best_author]
     
-    t = lambda key: translate(key, lang)
+    def t(key: str, **kwargs) -> str:
+        return translate(key, lang, **kwargs)
     
     html_parts = []
     
