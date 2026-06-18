@@ -2309,7 +2309,7 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         plt.tight_layout()
         
         buf = BytesIO()
-        plt.savefig(buf, format='png', dpi=SAVE_DPI, bbox_inches='tight', optimize=True)
+        plt.savefig(buf, format='png', dpi=SAVE_DPI, bbox_inches='tight')
         buf.seek(0)
         images['years_chart'] = base64.b64encode(buf.getvalue()).decode()
         plt.close()
@@ -2340,7 +2340,7 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         plt.tight_layout()
         
         buf = BytesIO()
-        plt.savefig(buf, format='png', dpi=SAVE_DPI, bbox_inches='tight', optimize=True)
+        plt.savefig(buf, format='png', dpi=SAVE_DPI, bbox_inches='tight')
         buf.seek(0)
         images['journals_chart'] = base64.b64encode(buf.getvalue()).decode()
         plt.close()
@@ -2394,7 +2394,7 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         plt.tight_layout()
         
         buf = BytesIO()
-        plt.savefig(buf, format='png', dpi=SAVE_DPI, bbox_inches='tight', optimize=True)
+        plt.savefig(buf, format='png', dpi=SAVE_DPI, bbox_inches='tight')
         buf.seek(0)
         images['oa_chart'] = base64.b64encode(buf.getvalue()).decode()
         plt.close()
@@ -2416,7 +2416,7 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         plt.tight_layout()
         
         buf = BytesIO()
-        plt.savefig(buf, format='png', dpi=SAVE_DPI, bbox_inches='tight', optimize=True)
+        plt.savefig(buf, format='png', dpi=SAVE_DPI, bbox_inches='tight')
         buf.seek(0)
         images['wordcloud'] = base64.b64encode(buf.getvalue()).decode()
         plt.close()
@@ -2450,7 +2450,7 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         plt.tight_layout()
         
         buf = BytesIO()
-        plt.savefig(buf, format='png', dpi=SAVE_DPI, bbox_inches='tight', optimize=True)
+        plt.savefig(buf, format='png', dpi=SAVE_DPI, bbox_inches='tight')
         buf.seek(0)
         images['publishers_chart'] = base64.b64encode(buf.getvalue()).decode()
         plt.close()
@@ -2482,7 +2482,7 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         plt.tight_layout()
         
         buf = BytesIO()
-        plt.savefig(buf, format='png', dpi=SAVE_DPI, bbox_inches='tight', optimize=True)
+        plt.savefig(buf, format='png', dpi=SAVE_DPI, bbox_inches='tight')
         buf.seek(0)
         images['citations_chart'] = base64.b64encode(buf.getvalue()).decode()
         plt.close()
@@ -2511,7 +2511,7 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         plt.tight_layout()
         
         buf = BytesIO()
-        plt.savefig(buf, format='png', dpi=SAVE_DPI, bbox_inches='tight', optimize=True)
+        plt.savefig(buf, format='png', dpi=SAVE_DPI, bbox_inches='tight')
         buf.seek(0)
         images['affiliations_chart'] = base64.b64encode(buf.getvalue()).decode()
         plt.close()
@@ -2574,7 +2574,7 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
     plt.tight_layout()
     
     buf = BytesIO()
-    plt.savefig(buf, format='png', dpi=SAVE_DPI, bbox_inches='tight', optimize=True)
+    plt.savefig(buf, format='png', dpi=SAVE_DPI, bbox_inches='tight')
     buf.seek(0)
     images['thematic_structure'] = base64.b64encode(buf.getvalue()).decode()
     plt.close()
@@ -2608,7 +2608,7 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         plt.tight_layout()
         
         buf = BytesIO()
-        plt.savefig(buf, format='png', dpi=SAVE_DPI, bbox_inches='tight', optimize=True)
+        plt.savefig(buf, format='png', dpi=SAVE_DPI, bbox_inches='tight')
         buf.seek(0)
         images['citation_distribution'] = base64.b64encode(buf.getvalue()).decode()
         plt.close()
@@ -2644,7 +2644,7 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
             plt.tight_layout()
             
             buf = BytesIO()
-            plt.savefig(buf, format='png', dpi=SAVE_DPI, bbox_inches='tight', optimize=True)
+            plt.savefig(buf, format='png', dpi=SAVE_DPI, bbox_inches='tight')
             buf.seek(0)
             images['radar_chart'] = base64.b64encode(buf.getvalue()).decode()
             plt.close()
