@@ -2876,7 +2876,6 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
         
         <div class="main-content">
             <div class="header">
-                {f'<img src="data:image/png;base64,{logo_base64}" class="header-logo" alt="Логотип">' if logo_base64 else ''}
                 <h1>📊 Профиль ученого</h1>
             </div>
             
