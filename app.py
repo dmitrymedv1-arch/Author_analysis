@@ -1,4 +1,8 @@
 # ============================================
+# app.py - ЕДИНЫЙ ФАЙЛ ПРИЛОЖЕНИЯ
+# ============================================
+
+# ============================================
 # СЕКЦИЯ ПАРАМЕТРОВ (настройка запросов)
 # ============================================
 
@@ -53,34 +57,505 @@ from bs4 import BeautifulSoup
 import os
 import hashlib
 from matplotlib.ticker import MaxNLocator
-import colorsys
 import html
+import colorsys
 from tenacity import retry, stop_after_attempt, wait_exponential, wait_random
-import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from itertools import combinations
 import math
-from tqdm import tqdm
-
-# Для asyncio в Streamlit
-nest_asyncio.apply()
+from itertools import combinations
+import difflib
 
 # Для PDF отчета
 try:
     from reportlab.lib.pagesizes import letter, A4
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak, KeepTogether
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import inch
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
     PDF_AVAILABLE = True
 except ImportError:
     PDF_AVAILABLE = False
-    print("⚠️ ReportLab не установлен. PDF отчет будет недоступен.")
-    print("Установите: pip install reportlab")
 
-# Для asyncio в Colab
+# Для asyncio в Streamlit
 nest_asyncio.apply()
+
+# ============================================
+# COLOR UTILITIES FOR DYNAMIC THEMES (из второго кода)
+# ============================================
+
+def hex_to_rgb(hex_color: str) -> tuple:
+    """Convert hex color to RGB tuple"""
+    hex_color = hex_color.lstrip('#')
+    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+def rgb_to_hex(rgb: tuple) -> str:
+    """Convert RGB tuple to hex color"""
+    return '#{:02x}{:02x}{:02x}'.format(int(rgb[0]), int(rgb[1]), int(rgb[2]))
+
+def get_complementary_color(hex_color: str) -> str:
+    """
+    Generate complementary color by rotating hue by 180 degrees
+    Returns a color that pairs well with the base color
+    """
+    rgb = hex_to_rgb(hex_color)
+    h, s, v = colorsys.rgb_to_hsv(rgb[0]/255.0, rgb[1]/255.0, rgb[2]/255.0)
+    complementary_hue = (h + 0.5) % 1.0
+    complementary_rgb = colorsys.hsv_to_rgb(complementary_hue, s, v)
+    return rgb_to_hex(tuple(int(c * 255) for c in complementary_rgb))
+
+def get_analogous_colors(hex_color: str, count: int = 2) -> List[str]:
+    """Generate analogous colors (colors adjacent on color wheel)"""
+    rgb = hex_to_rgb(hex_color)
+    h, s, v = colorsys.rgb_to_hsv(rgb[0]/255.0, rgb[1]/255.0, rgb[2]/255.0)
+    
+    colors_list = []
+    step = 30 / 360.0
+    
+    for i in range(count):
+        offset = (i + 1) * step
+        new_hue = (h + offset) % 1.0
+        new_rgb = colorsys.hsv_to_rgb(new_hue, s, v)
+        colors_list.append(rgb_to_hex(tuple(int(c * 255) for c in new_rgb)))
+    
+    return colors_list
+
+def get_gradient_colors(hex_color: str, steps: int = 5) -> List[str]:
+    """Generate gradient colors from base color to lighter shades"""
+    rgb = hex_to_rgb(hex_color)
+    colors_list = []
+    
+    for i in range(steps):
+        factor = 0.3 + (i * 0.14)
+        new_rgb = tuple(min(255, int(c * (1 + factor * 0.5))) for c in rgb)
+        colors_list.append(rgb_to_hex(new_rgb))
+    
+    return colors_list
+
+def get_contrast_color(hex_color: str) -> str:
+    """Get contrasting color (black or white) for text on a colored background"""
+    rgb = hex_to_rgb(hex_color)
+    luminance = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255
+    return '#FFFFFF' if luminance < 0.5 else '#000000'
+
+def generate_css_variables(base_color: str, accent_color: str = None) -> Dict[str, str]:
+    """Generate complete CSS variable set for the theme"""
+    if accent_color is None:
+        accent_color = get_complementary_color(base_color)
+    
+    gradient_start = base_color
+    gradient_end = accent_color
+    
+    lighter_base = get_gradient_colors(base_color, 1)[0]
+    lighter_accent = get_gradient_colors(accent_color, 1)[0]
+    
+    base_contrast = get_contrast_color(base_color)
+    accent_contrast = get_contrast_color(accent_color)
+    
+    analogous = get_analogous_colors(base_color, 2)
+    
+    return {
+        '--primary-color': base_color,
+        '--secondary-color': accent_color,
+        '--primary-light': lighter_base,
+        '--secondary-light': lighter_accent,
+        '--primary-contrast': base_contrast,
+        '--secondary-contrast': accent_contrast,
+        '--gradient-start': gradient_start,
+        '--gradient-end': gradient_end,
+        '--accent-1': analogous[0] if len(analogous) > 0 else accent_color,
+        '--accent-2': analogous[1] if len(analogous) > 1 else accent_color,
+        '--hover-light': f"{base_color}20",
+    }
+
+def apply_theme_css(base_color: str, accent_color: str = None):
+    """Apply dynamic CSS theme based on selected colors"""
+    if accent_color is None:
+        accent_color = get_complementary_color(base_color)
+    
+    css_vars = generate_css_variables(base_color, accent_color)
+    
+    theme_css = f"""
+    <style>
+        :root {{
+            --primary: {css_vars['--primary-color']};
+            --secondary: {css_vars['--secondary-color']};
+            --primary-light: {css_vars['--primary-light']};
+            --secondary-light: {css_vars['--secondary-light']};
+            --primary-contrast: {css_vars['--primary-contrast']};
+            --secondary-contrast: {css_vars['--secondary-contrast']};
+            --gradient-start: {css_vars['--gradient-start']};
+            --gradient-end: {css_vars['--gradient-end']};
+            --accent-1: {css_vars['--accent-1']};
+            --accent-2: {css_vars['--accent-2']};
+            --hover-light: {css_vars['--hover-light']};
+        }}
+        
+        .stApp {{
+            background: linear-gradient(135deg, 
+                rgba({int(hex_to_rgb(css_vars['--gradient-start'])[0])}, {int(hex_to_rgb(css_vars['--gradient-start'])[1])}, {int(hex_to_rgb(css_vars['--gradient-start'])[2])}, 0.05) 0%,
+                rgba({int(hex_to_rgb(css_vars['--gradient-end'])[0])}, {int(hex_to_rgb(css_vars['--gradient-end'])[1])}, {int(hex_to_rgb(css_vars['--gradient-end'])[2])}, 0.08) 100%);
+        }}
+        
+        .metric-number {{
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }}
+        
+        .section-header {{
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+        }}
+        
+        .rank-item {{
+            border-left: 3px solid var(--primary);
+        }}
+        
+        .rank-number {{
+            color: var(--primary);
+        }}
+        
+        .progress-fill {{
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+        }}
+        
+        .custom-tab-button.active {{
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+        }}
+        
+        .custom-tab-button:hover {{
+            background: linear-gradient(135deg, var(--primary-light) 0%, var(--secondary-light) 100%);
+        }}
+        
+        .colored-progress-bar {{
+            background: linear-gradient(90deg, 
+                var(--primary) 0%, 
+                var(--secondary) 50%,
+                var(--primary) 100%);
+        }}
+        
+        .section-title {{
+            border-bottom: 3px solid var(--primary);
+        }}
+        
+        .concept-card {{
+            background: linear-gradient(135deg, var(--hover-light) 0%, var(--secondary-light) 100%);
+            border: 1px solid var(--primary-light);
+        }}
+        
+        .concept-name {{
+            color: var(--primary);
+        }}
+        
+        .clickable-link {{
+            color: var(--primary);
+        }}
+        
+        .clickable-link:hover {{
+            color: var(--secondary);
+        }}
+        
+        .badge-success {{
+            background: var(--primary-light);
+            color: var(--primary-contrast);
+        }}
+        
+        .custom-tab-button .custom-tab-title {{
+            color: inherit;
+        }}
+        
+        .metric-card:hover {{
+            box-shadow: 0 6px 12px rgba({int(hex_to_rgb(css_vars['--primary-color'])[0])}, {int(hex_to_rgb(css_vars['--primary-color'])[1])}, {int(hex_to_rgb(css_vars['--primary-color'])[2])}, 0.15);
+        }}
+        
+        * {{
+            transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+        }}
+        
+        .color-preview {{
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            margin-left: 10px;
+            vertical-align: middle;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }}
+        
+        .color-preview:hover {{
+            transform: scale(1.1);
+        }}
+        
+        .complementary-preview {{
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            margin-left: 10px;
+            vertical-align: middle;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+        
+        .theme-info {{
+            background: var(--hover-light);
+            border-radius: 10px;
+            padding: 12px;
+            margin-top: 15px;
+            font-size: 12px;
+            text-align: center;
+        }}
+        
+        .reviewer-card {{
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            border-left: 4px solid var(--primary);
+        }}
+        
+        .reviewer-card:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }}
+        
+        .reviewer-name {{
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 8px;
+        }}
+        
+        .reviewer-orcid {{
+            font-family: monospace;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }}
+        
+        .reviewer-section {{
+            margin-top: 12px;
+            padding-top: 8px;
+            border-top: 1px solid #e0e0e0;
+        }}
+        
+        .reviewer-section-title {{
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 8px;
+            color: #555;
+        }}
+        
+        .external-id-link {{
+            display: inline-block;
+            background: #f0f0f0;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 11px;
+            margin: 3px;
+            text-decoration: none;
+            color: #333;
+            transition: background 0.2s;
+        }}
+        
+        .external-id-link:hover {{
+            background: var(--primary);
+            color: white;
+        }}
+        
+        .reviewer-website {{
+            display: inline-block;
+            margin: 3px 6px 3px 0;
+            font-size: 12px;
+        }}
+        
+        .confidential-banner {{
+            background: linear-gradient(135deg, #fff3cd 0%, #ffe69e 100%);
+            border-left: 4px solid #dc3545;
+            padding: 12px 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            font-weight: 500;
+            text-align: center;
+        }}
+        
+        /* Author card styles for multiple authors */
+        .author-card {{
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-left: 5px solid var(--primary);
+            transition: transform 0.2s;
+        }}
+        
+        .author-card:hover {{
+            transform: translateX(5px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }}
+        
+        .author-card.best {{
+            border-left-color: #FFD700;
+            background: linear-gradient(135deg, #fff9e6 0%, #ffffff 100%);
+        }}
+        
+        .author-rank {{
+            font-size: 20px;
+            font-weight: bold;
+            color: var(--primary);
+            display: inline-block;
+            margin-right: 10px;
+        }}
+        
+        .author-name-main {{
+            font-size: 22px;
+            font-weight: 600;
+            color: var(--primary);
+            display: inline-block;
+        }}
+        
+        .author-hindex {{
+            font-size: 18px;
+            color: #666;
+            margin-left: 10px;
+        }}
+        
+        .best-badge {{
+            background: #FFD700;
+            color: #333;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            display: inline-block;
+            margin-left: 15px;
+        }}
+        
+        /* Color coding for author cards in reports */
+        .author-section {{
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }}
+        
+        .author-section:last-child {{
+            border-bottom: none;
+        }}
+    </style>
+    """
+    st.markdown(theme_css, unsafe_allow_html=True)
+
+def update_colored_progress(progress_percent: float, status_text: str = "", color: str = None, badge_text: str = None):
+    """Update progress bar with theme colors"""
+    if color is None:
+        primary_color = st.session_state.get('primary_color', '#667eea')
+        secondary_color = st.session_state.get('secondary_color', get_complementary_color(primary_color))
+        color = primary_color
+    
+    if badge_text is None:
+        if progress_percent >= 80:
+            badge_text = "✅ Отлично"
+        elif progress_percent >= 60:
+            badge_text = "📊 Хорошо"
+        elif progress_percent >= 40:
+            badge_text = "⚠️ Средне"
+        elif progress_percent >= 20:
+            badge_text = "⚠️ Низко"
+        else:
+            badge_text = "❌ Критично"
+    
+    progress_html = f"""
+    <style>
+    @keyframes shimmer{{
+        0% {{ background-position: -1000px 0; }}
+        100% {{ background-position: 1000px 0; }}
+    }}
+    
+    .colored-progress-container {{
+        width: 100%;
+        background-color: #f0f0f0;
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+        margin: 10px 0;
+    }}
+    
+    .colored-progress-bar {{
+        width: {progress_percent:.1f}%;
+        height: 32px;
+        background: linear-gradient(90deg, 
+            {color} 0%, 
+            {color}DD 25%,
+            {color} 50%,
+            {color}DD 75%,
+            {color} 100%);
+        background-size: 200% 100%;
+        animation: shimmer 2s infinite linear;
+        border-radius: 20px;
+        transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        font-size: 13px;
+        text-shadow: 0 0 2px rgba(0,0,0,0.5);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }}
+    
+    .colored-progress-bar::after {{
+        content: "{progress_percent:.1f}%";
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        white-space: nowrap;
+    }}
+    
+    .progress-stats {{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 8px;
+        font-size: 12px;
+    }}
+    
+    .progress-badge {{
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        background: {color}20;
+        color: {color};
+        border: 1px solid {color}40;
+    }}
+    
+    .progress-status {{
+        font-size: 14px;
+        font-weight: 500;
+        color: #333;
+    }}
+    </style>
+    
+    <div class="colored-progress-container">
+        <div class="colored-progress-bar"></div>
+    </div>
+    <div class="progress-stats">
+        <span class="progress-status">{status_text}</span>
+        <span class="progress-badge">{badge_text}</span>
+    </div>
+    """
+    
+    return progress_html
 
 # ============================================
 # НАСТРОЙКА НАУЧНОГО СТИЛЯ ДЛЯ ГРАФИКОВ
@@ -97,13 +572,11 @@ def apply_scientific_style():
             pass
     
     plt.rcParams.update({
-        # Шрифты
         'font.size': 11,
         'font.family': 'serif',
         'font.serif': ['Times New Roman', 'DejaVu Serif', 'Computer Modern Roman'],
         'mathtext.fontset': 'stix',
         
-        # Оси
         'axes.labelsize': 12,
         'axes.labelweight': 'bold',
         'axes.titlesize': 13,
@@ -117,7 +590,6 @@ def apply_scientific_style():
         'grid.alpha': 0.3,
         'grid.linestyle': '--',
         
-        # Метки
         'xtick.color': '#000000',
         'ytick.color': '#000000',
         'xtick.labelsize': 11,
@@ -133,7 +605,6 @@ def apply_scientific_style():
         'ytick.minor.size': 3,
         'ytick.minor.width': 1.0,
         
-        # Легенда
         'legend.fontsize': 10,
         'legend.frameon': True,
         'legend.framealpha': 0.9,
@@ -143,7 +614,6 @@ def apply_scientific_style():
         'legend.handlelength': 1.5,
         'legend.handletextpad': 0.8,
         
-        # Фигура
         'figure.dpi': 300,
         'savefig.dpi': 300,
         'savefig.bbox': 'tight',
@@ -152,18 +622,15 @@ def apply_scientific_style():
         'figure.constrained_layout.use': True,
         'figure.figsize': (8, 6),
         
-        # Линии
         'lines.linewidth': 2,
         'lines.markersize': 7,
         'lines.markeredgewidth': 1.0,
         'errorbar.capsize': 3,
         
-        # PDF для публикаций
         'pdf.fonttype': 42,
         'ps.fonttype': 42,
     })
 
-# Применяем стиль
 apply_scientific_style()
 
 # ============================================
@@ -215,15 +682,59 @@ def normalize_author_name(name: str) -> str:
     parts = name.split()
     
     if len(parts) >= 2:
-        # Берем первую букву первого слова (имя или инициал)
         first_initial = parts[0][0].upper()
-        # Берем последнее слово (фамилия)
         last_name = parts[-1]
         return f"{first_initial} {last_name}"
     elif len(parts) == 1:
         return parts[0]
     else:
         return name
+
+def format_orcid_id(orcid: str) -> str:
+    """Format ORCID ID to full URL"""
+    if not orcid or not isinstance(orcid, str):
+        return ""
+    
+    if orcid.startswith('https://orcid.org/'):
+        return orcid
+    
+    clean_id = re.sub(r'[^\dXx-]', '', orcid.strip())
+    
+    if '-' in clean_id:
+        if re.match(r'^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$', clean_id, re.IGNORECASE):
+            return f"https://orcid.org/{clean_id}"
+    
+    if len(clean_id) == 16:
+        formatted = f"{clean_id[:4]}-{clean_id[4:8]}-{clean_id[8:12]}-{clean_id[12:]}"
+        return f"https://orcid.org/{formatted}"
+    elif len(clean_id) == 15 and clean_id[15] in ['X', 'x']:
+        formatted = f"{clean_id[:4]}-{clean_id[4:8]}-{clean_id[8:12]}-{clean_id[12:15]}X"
+        return f"https://orcid.org/{formatted}"
+    else:
+        return f"https://orcid.org/{clean_id}"
+
+def parse_orcids(text: str) -> List[str]:
+    """Парсит ORCID из текста. Поддерживает множественный ввод."""
+    if not text or not text.strip():
+        return []
+    
+    # Заменяем разделители на пробелы
+    text = text.replace('\n', ' ').replace('\r', ' ')
+    text = text.replace(',', ' ').replace(';', ' ')
+    
+    # Ищем все ORCID в тексте
+    orcid_pattern = r'\d{4}-\d{4}-\d{4}-\d{3}[\dX]'
+    matches = re.findall(orcid_pattern, text, re.IGNORECASE)
+    
+    # Также ищем URL с ORCID
+    url_pattern = r'orcid\.org/(\d{4}-\d{4}-\d{4}-\d{3}[\dX])'
+    url_matches = re.findall(url_pattern, text, re.IGNORECASE)
+    
+    all_orcids = matches + url_matches
+    
+    # Очищаем и возвращаем уникальные
+    cleaned = [clean_orcid(o) for o in all_orcids]
+    return list(dict.fromkeys(cleaned))
 
 async def fetch_with_retry(session, url, params=None, headers=None, method='GET'):
     """Выполняет запрос с повторными попытками при ошибке"""
@@ -303,151 +814,6 @@ def save_to_cache(orcid: str, data: Dict):
         print(f"⚠️ Ошибка сохранения кэша: {e}")
 
 # ============================================
-# ФУНКЦИИ ДЛЯ РАБОТЫ С ЦВЕТАМИ (ИЗ ВТОРОГО КОДА)
-# ============================================
-
-def hex_to_rgb(hex_color: str) -> tuple:
-    """Convert hex color to RGB tuple"""
-    hex_color = hex_color.lstrip('#')
-    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-
-def rgb_to_hex(rgb: tuple) -> str:
-    """Convert RGB tuple to hex color"""
-    return '#{:02x}{:02x}{:02x}'.format(int(rgb[0]), int(rgb[1]), int(rgb[2]))
-
-def get_complementary_color(hex_color: str) -> str:
-    """
-    Generate complementary color by rotating hue by 180 degrees
-    Returns a color that pairs well with the base color
-    """
-    rgb = hex_to_rgb(hex_color)
-    h, s, v = colorsys.rgb_to_hsv(rgb[0]/255.0, rgb[1]/255.0, rgb[2]/255.0)
-    # Rotate hue by 0.5 (180 degrees)
-    complementary_hue = (h + 0.5) % 1.0
-    complementary_rgb = colorsys.hsv_to_rgb(complementary_hue, s, v)
-    return rgb_to_hex(tuple(int(c * 255) for c in complementary_rgb))
-
-def get_analogous_colors(hex_color: str, count: int = 2) -> List[str]:
-    """
-    Generate analogous colors (colors adjacent on color wheel)
-    Useful for gradients and accents
-    """
-    rgb = hex_to_rgb(hex_color)
-    h, s, v = colorsys.rgb_to_hsv(rgb[0]/255.0, rgb[1]/255.0, rgb[2]/255.0)
-    
-    colors = []
-    step = 30 / 360.0  # 30 degrees in hue space
-    
-    for i in range(count):
-        offset = (i + 1) * step
-        new_hue = (h + offset) % 1.0
-        new_rgb = colorsys.hsv_to_rgb(new_hue, s, v)
-        colors.append(rgb_to_hex(tuple(int(c * 255) for c in new_rgb)))
-    
-    return colors
-
-def get_gradient_colors(hex_color: str, steps: int = 5) -> List[str]:
-    """
-    Generate gradient colors from base color to lighter shades
-    """
-    rgb = hex_to_rgb(hex_color)
-    colors = []
-    
-    for i in range(steps):
-        factor = 0.3 + (i * 0.14)  # 0.3 to 0.86
-        new_rgb = tuple(min(255, int(c * (1 + factor * 0.5))) for c in rgb)
-        colors.append(rgb_to_hex(new_rgb))
-    
-    return colors
-
-def get_contrast_color(hex_color: str) -> str:
-    """
-    Get contrasting color (black or white) for text on a colored background
-    Uses luminance calculation for optimal readability
-    """
-    rgb = hex_to_rgb(hex_color)
-    # Calculate relative luminance (WCAG formula)
-    luminance = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255
-    return '#FFFFFF' if luminance < 0.5 else '#000000'
-
-def generate_css_variables(base_color: str, accent_color: str = None) -> Dict[str, str]:
-    """
-    Generate complete CSS variable set for the theme
-    """
-    if accent_color is None:
-        accent_color = get_complementary_color(base_color)
-    
-    # Generate gradient colors
-    gradient_start = base_color
-    gradient_end = accent_color
-    
-    # Generate lighter shades for backgrounds
-    lighter_base = get_gradient_colors(base_color, 1)[0]
-    lighter_accent = get_gradient_colors(accent_color, 1)[0]
-    
-    # Get contrast colors for text
-    base_contrast = get_contrast_color(base_color)
-    accent_contrast = get_contrast_color(accent_color)
-    
-    # Generate analogous colors for accents
-    analogous = get_analogous_colors(base_color, 2)
-    
-    return {
-        '--primary-color': base_color,
-        '--secondary-color': accent_color,
-        '--primary-light': lighter_base,
-        '--secondary-light': lighter_accent,
-        '--primary-contrast': base_contrast,
-        '--secondary-contrast': accent_contrast,
-        '--gradient-start': gradient_start,
-        '--gradient-end': gradient_end,
-        '--accent-1': analogous[0] if len(analogous) > 0 else accent_color,
-        '--accent-2': analogous[1] if len(analogous) > 1 else accent_color,
-        '--hover-light': f"{base_color}20",
-    }
-
-def hex_to_reportlab_color(hex_color: str):
-    """Convert hex color to reportlab color object"""
-    rgb = hex_to_rgb(hex_color)
-    return colors.Color(rgb[0]/255.0, rgb[1]/255.0, rgb[2]/255.0)
-
-# ============================================
-# ФУНКЦИИ ДЛЯ РАБОТЫ С МНОЖЕСТВЕННЫМИ ORCID (НОВОЕ)
-# ============================================
-
-def parse_orcids(text: str) -> List[str]:
-    """
-    Парсит ORCID из текста.
-    Поддерживает форматы:
-    - 0000-0002-1234-567X
-    - https://orcid.org/0000-0002-1234-567X
-    - 0000-0002-1234-567X, 0000-0002-5678-9012
-    - разделители: запятая, точка с запятой, пробел, новая строка
-    """
-    if not text or not text.strip():
-        return []
-    
-    # Заменяем разделители на пробелы
-    text = text.replace(',', ' ').replace(';', ' ').replace('\n', ' ')
-    
-    # Ищем все ORCID в тексте
-    orcid_pattern = r'(\d{4}-\d{4}-\d{4}-\d{3}[\dX]|\d{16})'
-    matches = re.findall(orcid_pattern, text, re.IGNORECASE)
-    
-    # Очищаем каждый ORCID
-    orcids = []
-    for match in matches:
-        cleaned = clean_orcid(match)
-        if cleaned:
-            orcids.append(cleaned)
-    
-    return list(dict.fromkeys(orcids))  # Убираем дубликаты
-
-def sort_authors_by_h_index(authors: List[Dict]) -> List[Dict]:
-    """Сортирует авторов по убыванию h-index"""
-    return sorted(authors, key=lambda x: x.get('h_index', 0), reverse=True)
-
-# ============================================
 # ФУНКЦИЯ ПАРСИНГА ПУБЛИКАЦИИ ИЗ OPENALEX
 # ============================================
 
@@ -456,16 +822,13 @@ def parse_openalex_publication(item: Dict) -> Dict:
     try:
         pub = {}
         
-        # Базовая информация
         pub['id'] = item.get('id', '')
         pub['doi'] = item.get('doi', '').replace('https://doi.org/', '')
         pub['title'] = item.get('title', 'No title')
         pub['publication_year'] = item.get('publication_year')
         
-        # Тип
         pub['type'] = item.get('type', 'unknown')
         
-        # Журнал и издательство
         if item.get('primary_location'):
             source = item['primary_location'].get('source', {})
             pub['journal_name'] = source.get('display_name', 'Unknown')
@@ -476,16 +839,14 @@ def parse_openalex_publication(item: Dict) -> Dict:
             pub['publisher'] = 'Unknown'
             pub['issn'] = []
         
-        # Открытый доступ
         oa = item.get('open_access', {})
         pub['is_oa'] = oa.get('is_oa', False)
         pub['open_access_status'] = oa.get('oa_status', 'closed')
         pub['oa_url'] = oa.get('oa_url', None)
         
-        # Аффилиации и ИНСТИТУТЫ (расширено для задачи 4)
         affiliations = []
         affiliation_countries = []
-        institutions = []  # Новое поле для хранения детальной информации об институтах
+        institutions = []
         
         for auth in item.get('authorships', []):
             if auth.get('institutions'):
@@ -497,7 +858,6 @@ def parse_openalex_publication(item: Dict) -> Dict:
                         if country:
                             affiliation_countries.append(country)
                         
-                        # Сохраняем детальную информацию об институте
                         institutions.append({
                             'id': inst.get('id', ''),
                             'display_name': inst.get('display_name', ''),
@@ -509,15 +869,13 @@ def parse_openalex_publication(item: Dict) -> Dict:
         
         pub['affiliations'] = affiliations
         pub['affiliation_countries'] = affiliation_countries
-        pub['institutions'] = institutions  # Новое поле
+        pub['institutions'] = institutions
         
-        # Страна (из первой аффилиации)
         if affiliations:
             pub['country'] = extract_country_from_affiliation(affiliations[0])
         else:
             pub['country'] = 'Unknown'
         
-        # Авторы с их ORCID
         authors = []
         author_orcids = []
         for auth in item.get('authorships', []):
@@ -531,10 +889,8 @@ def parse_openalex_publication(item: Dict) -> Dict:
         pub['authors'] = authors
         pub['author_orcids'] = author_orcids
         
-        # Количество авторов
         pub['author_count'] = len(authors)
         
-        # ПЕРВИЧНАЯ ТЕМА
         primary_topic = item.get('primary_topic', {})
         if primary_topic:
             pub['primary_topic'] = {
@@ -547,7 +903,6 @@ def parse_openalex_publication(item: Dict) -> Dict:
         else:
             pub['primary_topic'] = None
         
-        # ТОПИКИ
         topics_list = item.get('topics', [])
         pub['topics'] = [
             {
@@ -560,11 +915,9 @@ def parse_openalex_publication(item: Dict) -> Dict:
             for t in topics_list
         ]
         
-        # КЛЮЧЕВЫЕ СЛОВА
         keywords = item.get('keywords', [])
         pub['keywords'] = [k.get('display_name', '') for k in keywords if k.get('display_name')]
         
-        # Концепты с уровнями
         concepts = []
         concept_levels = {}
         fields = []
@@ -584,7 +937,6 @@ def parse_openalex_publication(item: Dict) -> Dict:
                     'score': concept_score
                 }
             
-            # Распределение по уровням
             if concept_level >= 3:
                 domains.append(concept_name)
             elif concept_level == 2:
@@ -601,11 +953,9 @@ def parse_openalex_publication(item: Dict) -> Dict:
         pub['topics_old'] = topics_old[:15]
         pub['subtopics'] = subtopics[:20]
         
-        # Цитаты
         pub['cited_by_count'] = item.get('cited_by_count', 0)
         pub['cited_by_percentile'] = item.get('cited_by_percentile', {})
         
-        # Ретракции и коррекции
         pub['is_retracted'] = item.get('is_retracted', False)
         pub['is_correction'] = item.get('is_correction', False)
         pub['is_paratext'] = item.get('is_paratext', False)
@@ -613,7 +963,6 @@ def parse_openalex_publication(item: Dict) -> Dict:
         if pub['is_retracted']:
             pub['retraction_info'] = item.get('retraction_info', {})
         
-        # Дополнительные метрики
         pub['publication_date'] = item.get('publication_date')
         pub['created_date'] = item.get('created_date')
         pub['updated_date'] = item.get('updated_date')
@@ -677,7 +1026,6 @@ async def get_openalex_metadata(dois: List[str], session) -> List[Dict]:
     if not dois:
         return []
     
-    # Формируем запрос
     doi_query = '|'.join(dois[:50])
     
     params = {
@@ -765,7 +1113,6 @@ async def get_institution_homepages(institution_ids: List[str], session) -> Dict
     if not institution_ids:
         return {}
     
-    # Убираем дубликаты и пустые ID
     unique_ids = list(set([id for id in institution_ids if id]))
     
     if not unique_ids:
@@ -773,9 +1120,7 @@ async def get_institution_homepages(institution_ids: List[str], session) -> Dict
     
     homepages = {}
     
-    # Разбиваем на батчи по 50
     for batch in chunks(unique_ids, 50):
-        # Формируем запрос к OpenAlex
         id_query = '|'.join([id.replace('https://openalex.org/', '') for id in batch])
         url = f"https://api.openalex.org/institutions"
         params = {
@@ -810,10 +1155,10 @@ class ScholarProfileAnalyzer:
         self.author_countries = []
         self.profile = {}
         self.raw_data = {}
-        self.institution_homepages = {}  # Кэш для homepage институтов
+        self.institution_homepages = {}
         self.collaborations = {
-            'domestic': defaultdict(lambda: defaultdict(int)),  # country -> affiliation -> count
-            'international': defaultdict(lambda: defaultdict(int)),  # country -> affiliation -> count
+            'domestic': defaultdict(lambda: defaultdict(int)),
+            'international': defaultdict(lambda: defaultdict(int)),
             'domestic_papers': 0,
             'international_papers': 0,
             'mixed_papers': 0,
@@ -829,7 +1174,6 @@ class ScholarProfileAnalyzer:
         self.author_info = author_info
         self.author_name = author_info.get('display_name', 'Unknown')
         
-        # Извлекаем аффилиации автора
         for aff in author_info.get('affiliations', []):
             inst_name = aff.get('institution', '')
             country = aff.get('country', '')
@@ -838,7 +1182,6 @@ class ScholarProfileAnalyzer:
                 if country and country not in self.author_countries:
                     self.author_countries.append(country)
         
-        # Если нет аффилиаций из OpenAlex, пробуем извлечь из публикаций
         if not self.author_affiliations and self.publications:
             for pub in self.publications:
                 if pub.get('affiliations'):
@@ -860,40 +1203,33 @@ class ScholarProfileAnalyzer:
         
         print(f"📊 Анализирую {len(self.publications)} публикаций...")
         
-        # 1. Базовая информация
         self.profile['total_publications'] = len(self.publications)
         self.profile['orcid'] = self.orcid
         self.profile['author_name'] = self.author_name or 'Unknown'
         self.profile['author_affiliations'] = self.author_affiliations
         self.profile['author_countries'] = self.author_countries
         
-        # 2. Распределение по годам
         years = [p.get('publication_year') for p in self.publications if p.get('publication_year')]
         self.profile['years_distribution'] = dict(Counter(years))
         self.profile['first_publication'] = min(years) if years else None
         self.profile['last_publication'] = max(years) if years else None
         self.profile['active_years'] = len(set(years)) if years else 0
         
-        # 3. Журналы
         journals = [p.get('journal_name') for p in self.publications if p.get('journal_name')]
         self.profile['journals'] = dict(Counter(journals))
         self.profile['top_journals'] = dict(Counter(journals).most_common(10))
         
-        # 4. Издательства
         publishers = [p.get('publisher') for p in self.publications if p.get('publisher') and p.get('publisher') != 'Unknown']
         self.profile['publishers'] = dict(Counter(publishers))
         
-        # 5. Типы публикаций
         pub_types = [p.get('type') for p in self.publications if p.get('type')]
         self.profile['publication_types'] = dict(Counter(pub_types))
         
-        # 6. Открытый доступ
         oa_statuses = [p.get('open_access_status') for p in self.publications if p.get('open_access_status')]
         self.profile['open_access'] = dict(Counter(oa_statuses))
         self.profile['total_oa'] = sum(1 for p in self.publications if p.get('is_oa', False))
         self.profile['oa_percentage'] = (self.profile['total_oa'] / len(self.publications) * 100) if self.publications else 0
         
-        # 7. Аффилиации
         affiliations = []
         affiliation_countries = []
         all_institutions = []
@@ -911,11 +1247,9 @@ class ScholarProfileAnalyzer:
         self.profile['countries_all'] = dict(Counter(affiliation_countries))
         self.profile['all_institutions'] = all_institutions
         
-        # 8. Страны (основная)
         countries = [p.get('country') for p in self.publications if p.get('country')]
         self.profile['countries'] = dict(Counter(countries))
         
-        # 9. Концепты с детальной иерархией
         all_concepts = []
         all_fields = []
         all_domains = []
@@ -988,17 +1322,14 @@ class ScholarProfileAnalyzer:
         self.profile['keywords'] = dict(Counter(all_keywords))
         self.profile['top_keywords'] = dict(Counter(all_keywords).most_common(20))
         
-        # 10. Ретракции и коррекции
         self.profile['retractions'] = sum(1 for p in self.publications if p.get('is_retracted', False))
         self.profile['corrections'] = sum(1 for p in self.publications if p.get('is_correction', False))
         self.profile['paratexts'] = sum(1 for p in self.publications if p.get('is_paratext', False))
         self.profile['retraction_details'] = [p.get('retraction_info') for p in self.publications if p.get('is_retracted')]
         
-        # 11. Соавторы (исключаем автора через нормализацию - задача 2)
         coauthors = []
         coauthors_with_orcid = {}
         
-        # Получаем нормализованное имя автора для сравнения
         author_name_normalized = normalize_author_name(self.author_name or '')
         author_orcid = self.orcid
         
@@ -1008,16 +1339,13 @@ class ScholarProfileAnalyzer:
                 orcids_list = p.get('author_orcids', [])
                 
                 for idx, name in enumerate(authors_list):
-                    # Проверяем, не является ли этот автор анализируемым
                     is_self = False
                     
-                    # Проверка по нормализованному имени (задача 2)
                     if author_name_normalized:
                         name_normalized = normalize_author_name(name)
                         if name_normalized == author_name_normalized:
                             is_self = True
                     
-                    # Проверка по ORCID
                     if not is_self and orcids_list and idx < len(orcids_list):
                         orcid_val = orcids_list[idx]
                         if orcid_val and (orcid_val == author_orcid or orcid_val.replace('https://orcid.org/', '') == author_orcid):
@@ -1035,7 +1363,6 @@ class ScholarProfileAnalyzer:
         self.profile['coauthors_with_orcid'] = coauthors_with_orcid
         self.profile['unique_coauthors'] = len(set(coauthors))
         
-        # 12. Количество авторов на статью
         author_counts = [p.get('author_count', 0) for p in self.publications if p.get('author_count', 0) > 0]
         if author_counts:
             self.profile['avg_authors_per_paper'] = np.mean(author_counts)
@@ -1043,7 +1370,6 @@ class ScholarProfileAnalyzer:
             self.profile['max_authors_per_paper'] = max(author_counts)
             self.profile['min_authors_per_paper'] = min(author_counts)
         
-        # 13. Цитаты
         citations = [p.get('cited_by_count', 0) for p in self.publications]
         self.profile['total_citations'] = sum(citations)
         self.profile['average_citations'] = sum(citations) / len(citations) if citations else 0
@@ -1051,7 +1377,6 @@ class ScholarProfileAnalyzer:
         self.profile['max_citations'] = max(citations) if citations else 0
         self.profile['citations_per_year'] = self.profile['total_citations'] / self.profile['active_years'] if self.profile['active_years'] > 0 else 0
         
-        # Распределение цитирований
         citation_bins = [0, 1, 5, 10, 20, 50, 100, 500, 1000]
         citation_dist = {}
         for i in range(len(citation_bins)-1):
@@ -1061,7 +1386,6 @@ class ScholarProfileAnalyzer:
         citation_dist[f">{citation_bins[-1]}"] = sum(1 for c in citations if c >= citation_bins[-1])
         self.profile['citation_distribution'] = citation_dist
         
-        # h-index
         citations_sorted = sorted([c for c in citations if c > 0], reverse=True)
         h_index = 0
         for i, c in enumerate(citations_sorted, 1):
@@ -1071,10 +1395,8 @@ class ScholarProfileAnalyzer:
                 break
         self.profile['h_index'] = h_index
         
-        # i10-index
         self.profile['i10_index'] = sum(1 for c in citations if c >= 10)
         
-        # g-index
         total_citations_sorted = 0
         g_index = 0
         for i, c in enumerate(citations_sorted, 1):
@@ -1083,7 +1405,6 @@ class ScholarProfileAnalyzer:
                 g_index = i
         self.profile['g_index'] = g_index
         
-        # 14. Топ цитируемые статьи
         sorted_pubs = sorted(self.publications, key=lambda x: x.get('cited_by_count', 0), reverse=True)
         self.profile['most_cited'] = [
             {
@@ -1096,7 +1417,6 @@ class ScholarProfileAnalyzer:
             for p in sorted_pubs[:10]
         ]
         
-        # 15. Тренд публикаций
         if years:
             sorted_years = sorted(set(years))
             year_counts = Counter(years)
@@ -1127,13 +1447,11 @@ class ScholarProfileAnalyzer:
                 self.profile['trend_direction'] = 'stable'
                 self.profile['trend_correlation'] = 0
         
-        # 16. Оценка продуктивности
         self.profile['papers_per_year'] = len(self.publications) / self.profile['active_years'] if self.profile['active_years'] > 0 else 0
         self.profile['recent_productivity'] = len([y for y in years if y >= (datetime.now().year - 3)]) / 3 if years else 0
         self.profile['productivity_peak_year'] = max(year_counts.items(), key=lambda x: x[1])[0] if year_counts else None
         self.profile['productivity_peak_count'] = max(year_counts.values()) if year_counts else 0
         
-        # 17. Статистика по типам доступа
         oa_types = {'gold': 0, 'green': 0, 'hybrid': 0, 'bronze': 0, 'closed': 0}
         for p in self.publications:
             status = p.get('open_access_status', 'closed')
@@ -1141,7 +1459,6 @@ class ScholarProfileAnalyzer:
                 oa_types[status] += 1
         self.profile['oa_types'] = oa_types
         
-        # 18. Тематическое разнообразие
         if all_concepts:
             concept_counts = Counter(all_concepts)
             total = len(all_concepts)
@@ -1152,13 +1469,10 @@ class ScholarProfileAnalyzer:
             self.profile['thematic_diversity_shannon'] = shannon_index
             self.profile['unique_concepts'] = len(concept_counts)
         
-        # 19. АНАЛИЗ КОЛЛАБОРАЦИЙ (задача 1 и 4 - исправлено)
         self._analyze_collaborations()
         
-        # 20. Флаги риска
         self.profile['risk_flags'] = self._assess_risks()
         
-        # 21. Рекомендация
         self.profile['recommendation'] = self._generate_recommendation()
         
         print("✅ Анализ завершен!")
@@ -1170,17 +1484,14 @@ class ScholarProfileAnalyzer:
         
         author_countries_set = set(self.author_countries) if self.author_countries else set()
         
-        # Если у автора нет стран, пробуем извлечь из публикаций
         if not author_countries_set:
             for p in self.publications:
                 if p.get('country') and p['country'] != 'Unknown':
                     author_countries_set.add(p['country'])
         
-        # Если все еще нет стран, используем 'Unknown'
         if not author_countries_set:
             author_countries_set = {'Unknown'}
         
-        # Сброс коллабораций
         self.collaborations = {
             'domestic': defaultdict(lambda: defaultdict(int)),
             'international': defaultdict(lambda: defaultdict(int)),
@@ -1199,7 +1510,6 @@ class ScholarProfileAnalyzer:
             if not institutions:
                 continue
             
-            # Собираем страны и аффилиации из публикации
             paper_countries = set()
             paper_affiliations = set()
             
@@ -1211,18 +1521,15 @@ class ScholarProfileAnalyzer:
                 if affil_name:
                     paper_affiliations.add(affil_name)
             
-            # Убираем 'Unknown'
             paper_countries = {c for c in paper_countries if c and c != 'Unknown'}
             
             if not paper_countries:
                 continue
             
-            # Проверяем, есть ли страны автора среди стран публикации
             has_author_country = any(c in author_countries_set for c in paper_countries)
             has_other_countries = any(c not in author_countries_set for c in paper_countries)
             
             if has_author_country and not has_other_countries:
-                # Только страны автора (domestic)
                 domestic_papers += 1
                 for inst in institutions:
                     country = inst.get('country_code', '')
@@ -1231,7 +1538,6 @@ class ScholarProfileAnalyzer:
                         self.collaborations['domestic'][country][affil_name] += 1
                         
             elif has_author_country and has_other_countries:
-                # Смешанные (есть страны автора и другие)
                 mixed_papers += 1
                 for inst in institutions:
                     country = inst.get('country_code', '')
@@ -1242,7 +1548,6 @@ class ScholarProfileAnalyzer:
                         self.collaborations['international'][country][affil_name] += 1
                         
             elif has_other_countries and not has_author_country:
-                # Только другие страны (international)
                 international_papers += 1
                 for inst in institutions:
                     country = inst.get('country_code', '')
@@ -1255,13 +1560,11 @@ class ScholarProfileAnalyzer:
         self.collaborations['mixed_papers'] = mixed_papers
         self.collaborations['total_collaborations'] = domestic_papers + international_papers + mixed_papers
         
-        # Добавляем в профиль
         self.profile['collaborations'] = self.collaborations
         self.profile['domestic_papers_ratio'] = domestic_papers / len(self.publications) if self.publications else 0
         self.profile['international_papers_ratio'] = international_papers / len(self.publications) if self.publications else 0
         self.profile['collaboration_index'] = self.profile.get('avg_authors_per_paper', 0) - 1 if self.profile.get('avg_authors_per_paper', 0) > 0 else 0
         
-        # Определяем самую коллаборативную страну
         all_collab = {}
         for country, affils in self.collaborations['international'].items():
             total = sum(affils.values())
@@ -1278,31 +1581,25 @@ class ScholarProfileAnalyzer:
         """Оценивает риски и возвращает список предупреждений"""
         flags = []
         
-        # Очень высокая продуктивность
         if self.profile.get('papers_per_year', 0) > 30:
             flags.append("⚠️ Аномально высокая продуктивность (>30 статей в год)")
         
-        # Много ретракций
         if self.profile.get('retractions', 0) > 1:
             flags.append(f"🔴 {self.profile['retractions']} ретракций в профиле")
         
-        # Более 30% статей в одном журнале
         if self.profile.get('top_journals'):
             top_ratio = list(self.profile['top_journals'].values())[0] / self.profile['total_publications']
             if top_ratio > 0.3:
                 flags.append("⚠️ >30% публикаций в одном журнале")
         
-        # Подозрительные журналы
         suspicious_journals = ['Cureus', 'PLoS ONE', 'Scientific Reports']
         suspicious_pubs = [j for j in self.profile.get('journals', {}).keys() if any(s in j for s in suspicious_journals)]
         if suspicious_pubs:
             flags.append(f"⚠️ Публикации в журналах с низкой селективностью: {', '.join(suspicious_pubs[:3])}")
         
-        # Низкое разнообразие тем
         if self.profile.get('unique_concepts', 0) < 5 and self.profile.get('total_publications', 0) > 10:
             flags.append("⚠️ Низкое тематическое разнообразие")
         
-        # Отсутствие международного сотрудничества
         if self.profile.get('international_papers_ratio', 0) < 0.1 and self.profile.get('total_publications', 0) > 20:
             flags.append("⚠️ Низкий уровень международного сотрудничества")
         
@@ -1353,13 +1650,11 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
     
     print(f"🚀 Начинаем сбор данных для ORCID: {orcid_clean}")
     
-    # Проверяем кэш
     cached_data = load_from_cache(orcid_clean)
     if cached_data:
         print("📦 Использую данные из кэша")
         analyzer = ScholarProfileAnalyzer(orcid_clean)
         
-        # Восстанавливаем данные из кэша
         if 'publications' in cached_data:
             for pub in cached_data['publications']:
                 analyzer.add_publication(pub)
@@ -1379,7 +1674,6 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
     
     async with aiohttp.ClientSession() as session:
         
-        # Шаг 1: Получаем информацию об авторе из OpenAlex
         print("🔍 Получение информации об авторе...")
         author_info = await get_openalex_author(orcid_clean, session)
         if author_info:
@@ -1388,7 +1682,6 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
             if analyzer.author_affiliations:
                 print(f"🏛️ Аффилиации: {', '.join(analyzer.author_affiliations[:3])}")
         
-        # Шаг 2: Получаем DOI из ORCID
         orcid_dois = await get_orcid_dois(orcid_clean, session)
         
         if not orcid_dois:
@@ -1404,30 +1697,35 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
         
         print(f"📝 Всего DOI для анализа: {len(all_dois)}")
         
-        # Шаг 3: Получаем метаданные из OpenAlex
         all_metadata = []
         
-        # Разбиваем на батчи
         doi_batches = list(chunks(all_dois, BATCH_SIZE))
         
-        # Прогресс-бар
+        pbar = tqdm(total=len(doi_batches), desc="📚 Сбор метаданных OpenAlex", unit="batch")
+        
         for batch in doi_batches:
             batch_metadata = await get_openalex_metadata(batch, session)
             all_metadata.extend(batch_metadata)
             
+            pbar.update(1)
+            pbar.set_postfix({
+                'Найдено': len(all_metadata),
+                'Всего': len(all_dois)
+            })
+            
             await asyncio.sleep(DELAY_BETWEEN_BATCHES)
+        
+        pbar.close()
         
         print(f"✅ Собрано метаданных: {len(all_metadata)} записей")
         
-        # Шаг 4: Парсим метаданные и добавляем в анализатор
         print("📊 Обработка публикаций...")
         
-        for item in all_metadata:
+        for item in tqdm(all_metadata, desc="🔄 Обработка публикаций"):
             pub_data = parse_openalex_publication(item)
             if pub_data:
                 analyzer.add_publication(pub_data)
         
-        # Шаг 5: Получаем homepage для институтов (задача 4)
         print("🏛️ Получение homepage для институтов...")
         all_institution_ids = []
         for pub in analyzer.publications:
@@ -1441,10 +1739,8 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
             analyzer.set_institution_homepages(homepages)
             print(f"✅ Получено homepage для {len(homepages)} институтов")
         
-        # Шаг 6: Анализируем профиль
         analyzer.analyze_publications()
         
-        # Шаг 7: Сохраняем в кэш
         cache_data = {
             'publications': analyzer.publications,
             'author_info': analyzer.author_info,
@@ -1457,46 +1753,37 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
         return analyzer, analyzer.profile, analyzer.publications
 
 # ============================================
-# ФУНКЦИЯ ДЛЯ АНАЛИЗА МНОЖЕСТВЕННЫХ ORCID (НОВОЕ)
+# ФУНКЦИИ ДЛЯ АНАЛИЗА МНОЖЕСТВЕННЫХ АВТОРОВ
 # ============================================
 
-async def analyze_multiple_authors(orcid_list: List[str]) -> List[Dict]:
+async def analyze_multiple_authors(orcid_list: List[str], progress_callback=None) -> List[Dict]:
     """Анализирует несколько авторов параллельно"""
-    if not orcid_list:
-        return []
-    
-    print(f"📊 Анализ {len(orcid_list)} авторов...")
-    
-    # Создаем задачи для каждого ORCID
-    tasks = [collect_scholar_data(orcid) for orcid in orcid_list]
-    
-    # Выполняем все задачи параллельно с ограничением на количество одновременных
     results = []
-    for i in range(0, len(tasks), MAX_CONCURRENT_REQUESTS):
-        batch_tasks = tasks[i:i + MAX_CONCURRENT_REQUESTS]
-        batch_results = await asyncio.gather(*batch_tasks)
-        results.extend(batch_results)
+    total = len(orcid_list)
     
-    # Формируем результат
-    authors_data = []
-    for analyzer, profile, publications in results:
-        if analyzer and profile:
-            authors_data.append({
-                'orcid': analyzer.orcid,
-                'author_name': profile.get('author_name', 'Unknown'),
-                'h_index': profile.get('h_index', 0),
-                'g_index': profile.get('g_index', 0),
-                'i10_index': profile.get('i10_index', 0),
-                'total_publications': profile.get('total_publications', 0),
-                'total_citations': profile.get('total_citations', 0),
-                'average_citations': profile.get('average_citations', 0),
+    for idx, orcid in enumerate(orcid_list):
+        if progress_callback:
+            progress_callback(idx + 1, total, orcid)
+        
+        analyzer, profile, publications = await collect_scholar_data(orcid)
+        if profile:
+            results.append({
+                'orcid': orcid,
+                'analyzer': analyzer,
                 'profile': profile,
                 'publications': publications,
-                'analyzer': analyzer,
-                'images': None  # Будет заполнено позже
+                'author_name': profile.get('author_name', 'Unknown'),
+                'h_index': profile.get('h_index', 0),
+                'total_publications': profile.get('total_publications', 0),
+                'total_citations': profile.get('total_citations', 0),
+                'author_affiliations': profile.get('author_affiliations', [])
             })
     
-    return authors_data
+    return results
+
+def sort_authors_by_h_index(authors: List[Dict]) -> List[Dict]:
+    """Сортирует авторов по убыванию h-index"""
+    return sorted(authors, key=lambda x: x.get('h_index', 0), reverse=True)
 
 # ============================================
 # ФУНКЦИИ ДЛЯ ВИЗУАЛИЗАЦИИ (НАУЧНЫЙ СТИЛЬ)
@@ -1506,19 +1793,15 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
     """Создает визуализации в научном стиле и возвращает их в виде base64 изображений"""
     images = {}
     
-    # Применяем научный стиль
     apply_scientific_style()
     
-    # 1. График публикаций по годам (с трендом и целыми числами на оси Y)
     if profile.get('years_distribution'):
         fig, ax = plt.subplots(figsize=(10, 6))
         years = sorted(profile['years_distribution'].keys())
         counts = [profile['years_distribution'][y] for y in years]
         
-        # Столбцы с цветовой градиентной заливкой
         bars = ax.bar(years, counts, color='#2E86AB', alpha=0.7, edgecolor='black', linewidth=1.2)
         
-        # Добавляем значения над столбцами
         for bar, count in zip(bars, counts):
             height = bar.get_height()
             ax.text(bar.get_x() + bar.get_width()/2., height + 0.3,
@@ -1529,33 +1812,26 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         ax.set_title('Динамика публикационной активности', fontsize=13, fontweight='bold')
         ax.grid(True, alpha=0.3, linestyle='--')
         
-        # Устанавливаем целые числа на оси Y
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         
-        # Устанавливаем целые числа на оси X
         ax.set_xticks(years)
         ax.set_xticklabels([str(int(y)) for y in years], rotation=45)
         
-        # Добавляем тренд
         if len(years) >= 2:
             x = np.arange(len(years))
             z = np.polyfit(x, counts, 1)
             p = np.poly1d(z)
             
-            # Экстраполируем тренд
             x_extended = np.arange(len(years) + 2)
             y_extended = p(x_extended)
             
-            # Рисуем линию тренда
             ax.plot(years, p(x), 'r-', linewidth=2.5, alpha=0.8, label='Тренд')
             
-            # Добавляем доверительный интервал (полоса)
             if len(counts) > 3:
                 std_err = np.std(counts - p(x)) / np.sqrt(len(counts))
                 ax.fill_between(years, p(x) - 1.96*std_err, p(x) + 1.96*std_err, 
                                alpha=0.15, color='red', label='Доверительный интервал')
             
-            # Текст с коэффициентом корреляции
             if profile.get('trend_correlation'):
                 corr = profile['trend_correlation']
                 ax.text(0.02, 0.95, f'R² = {corr**2:.3f}', transform=ax.transAxes,
@@ -1572,20 +1848,17 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         images['years_chart'] = base64.b64encode(buf.getvalue()).decode()
         plt.close()
     
-    # 2. Топ журналов (горизонтальная гистограмма)
     if profile.get('top_journals'):
         fig, ax = plt.subplots(figsize=(10, 8))
         journals = list(profile['top_journals'].keys())[:10]
         counts = list(profile['top_journals'].values())[:10]
         
-        # Сортировка по убыванию
         sorted_pairs = sorted(zip(counts, journals), reverse=True)
         counts, journals = zip(*sorted_pairs)
         
         y_pos = np.arange(len(journals))
         bars = ax.barh(y_pos, counts, color='#A23B72', alpha=0.8, edgecolor='black', linewidth=1.2)
         
-        # Добавляем значения на бар
         for i, (bar, count) in enumerate(zip(bars, counts)):
             ax.text(count + 0.5, bar.get_y() + bar.get_height()/2,
                    f'{count}', va='center', fontsize=10)
@@ -1606,11 +1879,9 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         images['journals_chart'] = base64.b64encode(buf.getvalue()).decode()
         plt.close()
     
-    # 3. Открытый доступ (ГИСТОГРАММА)
     if profile.get('open_access'):
         fig, ax = plt.subplots(figsize=(10, 6))
         
-        # Сортируем типы доступа в логическом порядке
         oa_order = ['gold', 'green', 'hybrid', 'bronze', 'closed']
         oa_labels = {
             'gold': 'Gold OA',
@@ -1627,7 +1898,6 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
             'closed': '#95A5A6'
         }
         
-        # Подготавливаем данные
         oa_data = profile.get('open_access', {})
         sorted_labels = []
         sorted_counts = []
@@ -1639,11 +1909,9 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
                 sorted_counts.append(oa_data[oa_type])
                 sorted_colors.append(oa_colors.get(oa_type, '#95A5A6'))
         
-        # Строим вертикальную гистограмму
         bars = ax.bar(sorted_labels, sorted_counts, color=sorted_colors, 
                       alpha=0.8, edgecolor='black', linewidth=1.5)
         
-        # Добавляем значения над столбцами
         for bar, count in zip(bars, sorted_counts):
             height = bar.get_height()
             ax.text(bar.get_x() + bar.get_width()/2., height + 0.3,
@@ -1655,7 +1923,6 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         ax.grid(True, alpha=0.3, linestyle='--', axis='y')
         ax.set_axisbelow(True)
         
-        # Устанавливаем целые числа на оси Y
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         
         plt.tight_layout()
@@ -1666,7 +1933,6 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         images['oa_chart'] = base64.b64encode(buf.getvalue()).decode()
         plt.close()
     
-    # 4. Word Cloud концептов
     if profile.get('concepts'):
         wordcloud = WordCloud(width=1000, height=500, 
                               background_color='white',
@@ -1689,20 +1955,17 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         images['wordcloud'] = base64.b64encode(buf.getvalue()).decode()
         plt.close()
     
-    # 5. Распределение по издательствам
     if profile.get('publishers'):
         fig, ax = plt.subplots(figsize=(10, 6))
         publishers = list(profile['publishers'].keys())[:8]
         counts = [profile['publishers'][p] for p in publishers]
         
-        # Сортировка
         sorted_pairs = sorted(zip(counts, publishers), reverse=True)
         counts, publishers = zip(*sorted_pairs)
         
         bars = ax.bar(range(len(publishers)), counts, color='#5E4B56', alpha=0.8, 
                       edgecolor='black', linewidth=1.2)
         
-        # Добавляем значения
         for bar, count in zip(bars, counts):
             height = bar.get_height()
             ax.text(bar.get_x() + bar.get_width()/2., height + 0.5,
@@ -1716,7 +1979,6 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         ax.grid(True, alpha=0.3, linestyle='--', axis='y')
         ax.set_axisbelow(True)
         
-        # Устанавливаем целые числа на оси Y
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         
         plt.tight_layout()
@@ -1727,21 +1989,18 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         images['publishers_chart'] = base64.b64encode(buf.getvalue()).decode()
         plt.close()
     
-    # 6. Топ цитируемые статьи
     if profile.get('most_cited'):
         fig, ax = plt.subplots(figsize=(10, 8))
         top_pubs = profile['most_cited'][:8]
         titles = [f"{p['title'][:35]}..." for p in top_pubs]
         citations = [p['citations'] for p in top_pubs]
         
-        # Сортировка по цитированиям
         sorted_pairs = sorted(zip(citations, titles), reverse=True)
         citations, titles = zip(*sorted_pairs)
         
         bars = ax.barh(range(len(titles)), citations, color='#F18F01', alpha=0.8,
                        edgecolor='black', linewidth=1.2)
         
-        # Добавляем значения
         for i, (bar, cit) in enumerate(zip(bars, citations)):
             ax.text(cit + 0.5, bar.get_y() + bar.get_height()/2,
                    f'{cit}', va='center', fontsize=10)
@@ -1762,7 +2021,6 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         images['citations_chart'] = base64.b64encode(buf.getvalue()).decode()
         plt.close()
     
-    # 7. Топ аффилиаций
     if profile.get('top_affiliations'):
         fig, ax = plt.subplots(figsize=(10, 6))
         affils = list(profile['top_affiliations'].keys())
@@ -1772,7 +2030,6 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         bars = ax.barh(y_pos, counts, color='#3498DB', alpha=0.8,
                        edgecolor='black', linewidth=1.2)
         
-        # Добавляем значения
         for i, (bar, count) in enumerate(zip(bars, counts)):
             ax.text(count + 0.5, bar.get_y() + bar.get_height()/2,
                    f'{count}', va='center', fontsize=10)
@@ -1793,11 +2050,9 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         images['affiliations_chart'] = base64.b64encode(buf.getvalue()).decode()
         plt.close()
     
-    # 8. Тематическая структура
     fig, axes = plt.subplots(2, 2, figsize=(14, 12))
     fig.suptitle('Тематическая структура исследований', fontsize=14, fontweight='bold')
     
-    # Domains
     if profile.get('top_domains'):
         ax = axes[0, 0]
         domains = list(profile['top_domains'].keys())[:5]
@@ -1811,7 +2066,6 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         ax.grid(True, alpha=0.3, linestyle='--', axis='y')
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
     
-    # Fields
     if profile.get('top_fields'):
         ax = axes[0, 1]
         fields = list(profile['top_fields'].keys())[:5]
@@ -1825,7 +2079,6 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         ax.grid(True, alpha=0.3, linestyle='--', axis='y')
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
     
-    # Topics
     if profile.get('top_topics'):
         ax = axes[1, 0]
         topics = list(profile['top_topics'].keys())[:5]
@@ -1839,7 +2092,6 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         ax.grid(True, alpha=0.3, linestyle='--', axis='x')
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     
-    # Subtopics
     if profile.get('top_subtopics'):
         ax = axes[1, 1]
         subtopics = list(profile['top_subtopics'].keys())[:5]
@@ -1861,11 +2113,9 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
     images['thematic_structure'] = base64.b64encode(buf.getvalue()).decode()
     plt.close()
     
-    # 9. Распределение цитирований (гистограмма)
     if profile.get('citation_distribution'):
         fig, ax = plt.subplots(figsize=(10, 6))
         
-        # Берем только короткие диапазоны для читаемости
         dist = profile['citation_distribution']
         filtered_dist = {k: v for k, v in dist.items() if v > 0}
         
@@ -1875,7 +2125,6 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         bars = ax.bar(range(len(ranges)), counts, color='#8E44AD', alpha=0.8,
                       edgecolor='black', linewidth=1.2)
         
-        # Добавляем значения
         for bar, count in zip(bars, counts):
             height = bar.get_height()
             ax.text(bar.get_x() + bar.get_width()/2., height + 0.5,
@@ -1898,7 +2147,6 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         images['citation_distribution'] = base64.b64encode(buf.getvalue()).decode()
         plt.close()
     
-    # 10. RADAR CHART для тематического профиля
     if profile.get('top_concepts'):
         top_concepts_items = list(profile['top_concepts'].items())[:6]
         if len(top_concepts_items) >= 3:
@@ -1907,11 +2155,9 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
             concepts = [item[0][:20] for item in top_concepts_items]
             values = [item[1] for item in top_concepts_items]
             
-            # Нормализуем значения для radar chart
             max_val = max(values) if values else 1
             normalized = [v / max_val for v in values]
             
-            # Добавляем первое значение в конец для замыкания
             concepts_radar = concepts + [concepts[0]]
             values_radar = normalized + [normalized[0]]
             
@@ -1940,30 +2186,714 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
     return images
 
 # ============================================
-# ФУНКЦИИ ДЛЯ ГЕНЕРАЦИИ ОТЧЕТОВ (ОБНОВЛЕНЫ)
+# ФУНКЦИИ ДЛЯ ГЕНЕРАЦИИ ОТЧЕТОВ
 # ============================================
 
-def generate_html_report_with_authors(
-    all_authors: List[Dict],
-    show_all_authors: bool,
-    journal_logo_base64: Optional[str] = None,
-    program_logo_base64: Optional[str] = None,
-    theme_colors: Optional[Dict] = None,
-    images: Optional[Dict] = None
-) -> str:
+def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[str, str], logo_base64: Optional[str] = None, institution_homepages: Optional[Dict[str, str]] = None, theme_colors: Optional[Dict] = None) -> str:
+    """Генерирует HTML отчет с расширенной информацией и дизайном из второго кода"""
+    
+    if theme_colors is None:
+        theme_colors = {
+            'primary': '#667eea',
+            'secondary': '#f39c12'
+        }
+    
+    primary = theme_colors.get('primary', '#667eea')
+    secondary = theme_colors.get('secondary', '#f39c12')
+    analogous = get_analogous_colors(primary, 2)
+    
+    total_pubs = profile.get('total_publications', 0)
+    h_index = profile.get('h_index', 0)
+    g_index = profile.get('g_index', 0)
+    i10_index = profile.get('i10_index', 0)
+    total_citations = profile.get('total_citations', 0)
+    avg_citations = profile.get('average_citations', 0)
+    median_citations = profile.get('median_citations', 0)
+    max_citations = profile.get('max_citations', 0)
+    oa_percentage = profile.get('oa_percentage', 0)
+    
+    top_journals = profile.get('top_journals', {})
+    top_concepts = profile.get('top_concepts', {})
+    top_domains = profile.get('top_domains', {})
+    top_fields = profile.get('top_fields', {})
+    top_topics = profile.get('top_topics', {})
+    top_subtopics = profile.get('top_subtopics', {})
+    trend = profile.get('trend_direction', 'unknown')
+    trend_corr = profile.get('trend_correlation', 0)
+    
+    risk_flags = profile.get('risk_flags', [])
+    recommendation = profile.get('recommendation', 'No recommendation')
+    
+    unique_coauthors = profile.get('unique_coauthors', 0)
+    avg_authors = profile.get('avg_authors_per_paper', 0)
+    papers_per_year = profile.get('papers_per_year', 0)
+    active_years = profile.get('active_years', 0)
+    
+    retractions = profile.get('retractions', 0)
+    corrections = profile.get('corrections', 0)
+    
+    author_name = profile.get('author_name', 'Unknown')
+    author_affiliations = profile.get('author_affiliations', [])
+    author_countries = profile.get('author_countries', [])
+    
+    top_primary_topics = profile.get('top_primary_topics', {})
+    top_subfields = profile.get('top_subfields', {})
+    top_fields_new = profile.get('top_fields', {})
+    top_domains_new = profile.get('top_domains', {})
+    top_keywords = profile.get('top_keywords', {})
+    
+    collaborations = profile.get('collaborations', {})
+    domestic_papers = collaborations.get('domestic_papers', 0)
+    international_papers = collaborations.get('international_papers', 0)
+    mixed_papers = collaborations.get('mixed_papers', 0)
+    domestic_collab = collaborations.get('domestic', {})
+    international_collab = collaborations.get('international', {})
+    most_collab_country = profile.get('most_collaborative_country', 'None')
+    collab_index = profile.get('collaboration_index', 0)
+    country_diversity = profile.get('country_diversity', 0)
+    
+    top_coauthors = profile.get('top_coauthors', {})
+    coauthors_with_orcid = profile.get('coauthors_with_orcid', {})
+    
+    css_vars = generate_css_variables(primary, secondary)
+    
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Профиль ученого - ORCID {profile.get('orcid', '')}</title>
+        <style>
+            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+            body {{
+                font-family: 'Times New Roman', 'DejaVu Serif', serif;
+                margin: 0;
+                padding: 20px;
+                background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+                color: #333;
+            }}
+            .report-wrapper {{
+                max-width: 1400px;
+                margin: 0 auto;
+                background: white;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+                border-radius: 10px;
+                overflow: hidden;
+            }}
+            .sidebar {{
+                position: fixed;
+                left: 0;
+                top: 0;
+                width: 260px;
+                height: 100vh;
+                background: linear-gradient(135deg, {primary} 0%, {secondary} 100%);
+                color: white;
+                padding: 30px 20px;
+                overflow-y: auto;
+                z-index: 1000;
+            }}
+            .sidebar h3 {{
+                margin-bottom: 20px;
+                font-size: 18px;
+                font-weight: 600;
+                color: white;
+            }}
+            .sidebar a {{
+                color: white;
+                text-decoration: none;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 10px 15px;
+                margin: 5px 0;
+                border-radius: 8px;
+                transition: all 0.3s;
+            }}
+            .sidebar a:hover {{
+                background: rgba(255,255,255,0.2);
+                transform: translateX(5px);
+            }}
+            .sidebar-icon {{
+                width: 22px;
+                height: 22px;
+                display: inline-block;
+                vertical-align: middle;
+            }}
+            .main-content {{
+                margin-left: 260px;
+                padding: 30px 40px;
+            }}
+            .header {{
+                background: linear-gradient(135deg, {primary} 0%, {secondary} 100%);
+                color: white;
+                padding: 40px;
+                border-radius: 15px;
+                margin-bottom: 30px;
+                text-align: center;
+            }}
+            .header h1 {{
+                color: white;
+                border-bottom: none;
+                margin: 0;
+                font-size: 32px;
+            }}
+            .header .date {{
+                opacity: 0.9;
+                margin-top: 10px;
+            }}
+            .header-logo {{
+                max-height: 150px;
+                max-width: 300px;
+                margin-bottom: 15px;
+            }}
+            .author-info {{
+                background: #f8f9fa;
+                padding: 15px;
+                border-radius: 8px;
+                margin-bottom: 20px;
+                border-left: 4px solid {primary};
+            }}
+            .author-name {{
+                font-size: 22px;
+                font-weight: bold;
+                color: #2C3E50;
+            }}
+            .author-affil {{
+                color: #555;
+                font-size: 14px;
+                margin-top: 5px;
+            }}
+            .metrics-grid {{
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 15px;
+                margin: 20px 0;
+            }}
+            .metric-card {{
+                background: #f8f9fa;
+                padding: 15px;
+                border-radius: 8px;
+                border-left: 4px solid {primary};
+                text-align: center;
+                transition: transform 0.3s;
+            }}
+            .metric-card:hover {{
+                transform: translateY(-5px);
+                box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            }}
+            .metric-value {{
+                font-size: 28px;
+                font-weight: bold;
+                color: #2C3E50;
+                font-family: 'Times New Roman', serif;
+            }}
+            .metric-label {{
+                font-size: 12px;
+                color: #7F8C8D;
+                margin-top: 5px;
+                font-family: 'Times New Roman', serif;
+            }}
+            .flag {{
+                padding: 10px;
+                margin: 5px 0;
+                border-radius: 5px;
+                background-color: #FEF9E7;
+                border-left: 4px solid #F39C12;
+                font-family: 'Times New Roman', serif;
+            }}
+            .flag-danger {{
+                background-color: #FDEDEC;
+                border-left-color: #E74C3C;
+            }}
+            .chart-container {{
+                margin: 20px 0;
+                text-align: center;
+            }}
+            .chart-container img {{
+                max-width: 100%;
+                height: auto;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }}
+            .recommendation-box {{
+                padding: 15px;
+                margin: 20px 0;
+                border-radius: 8px;
+                font-size: 16px;
+                font-weight: 500;
+                font-family: 'Times New Roman', serif;
+            }}
+            .rec-green {{ background-color: #D5F5E3; border-left: 4px solid #2ECC71; }}
+            .rec-yellow {{ background-color: #FEF9E7; border-left: 4px solid #F39C12; }}
+            .rec-red {{ background-color: #FDEDEC; border-left: 4px solid #E74C3C; }}
+            .collab-grid {{
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 15px;
+                margin: 15px 0;
+            }}
+            .collab-box {{
+                background: #f8f9fa;
+                padding: 12px;
+                border-radius: 6px;
+                border: 1px solid #ddd;
+            }}
+            .collab-box h4 {{
+                margin: 0 0 8px 0;
+                color: #2C3E50;
+            }}
+            .collab-box ul {{
+                margin: 5px 0;
+                padding-left: 20px;
+            }}
+            .collab-box li {{
+                margin-bottom: 3px;
+            }}
+            .collab-affil {{
+                font-size: 13px;
+                color: #555;
+            }}
+            .collab-site {{
+                font-size: 11px;
+                color: #2980B9;
+            }}
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin: 20px 0;
+                font-family: 'Times New Roman', serif;
+            }}
+            th {{
+                background: linear-gradient(135deg, {primary} 0%, {secondary} 100%);
+                color: white;
+                padding: 12px;
+                text-align: left;
+            }}
+            td {{
+                padding: 10px;
+                border-bottom: 1px solid #BDC3C7;
+            }}
+            tr:hover {{
+                background-color: #f5f5f5;
+            }}
+            .doi-link {{
+                color: #2980B9;
+                text-decoration: none;
+                font-size: 12px;
+                word-break: break-all;
+            }}
+            .doi-link:hover {{
+                text-decoration: underline;
+            }}
+            .footer {{
+                margin-top: 40px;
+                padding-top: 20px;
+                border-top: 1px solid #BDC3C7;
+                text-align: center;
+                color: #7F8C8D;
+                font-size: 12px;
+            }}
+            .footer a {{
+                color: #2980B9;
+                text-decoration: none;
+            }}
+            .footer a:hover {{
+                text-decoration: underline;
+            }}
+            .stats-grid {{
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 15px;
+                margin: 15px 0;
+            }}
+            .stat-item {{
+                padding: 8px;
+                background: #f8f9fa;
+                border-radius: 4px;
+            }}
+            .thematic-list {{
+                columns: 2;
+                column-gap: 30px;
+            }}
+            .thematic-list li {{
+                break-inside: avoid;
+                margin-bottom: 5px;
+            }}
+            .collab-country {{
+                font-weight: bold;
+                color: #2C3E50;
+                margin-top: 8px;
+                font-size: 14px;
+            }}
+            .collab-affil-item {{
+                margin-left: 15px;
+                font-size: 13px;
+            }}
+            .section {{
+                background: white;
+                border-radius: 15px;
+                padding: 25px;
+                margin-bottom: 30px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }}
+            .section-title {{
+                font-size: 24px;
+                font-weight: 600;
+                margin-bottom: 20px;
+                padding-bottom: 10px;
+                border-bottom: 3px solid {primary};
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }}
+            .section-icon {{
+                width: 28px;
+                height: 28px;
+                vertical-align: middle;
+                display: inline-block;
+            }}
+            .rank-item {{
+                border-radius: 10px;
+                padding: 12px;
+                margin-bottom: 10px;
+                transition: all 0.3s;
+                background: #f8f9fa;
+                border-left: 3px solid {primary};
+            }}
+            .rank-item:hover {{
+                transform: translateX(5px);
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }}
+            .rank-number {{
+                font-weight: bold;
+                color: {primary};
+                font-size: 18px;
+                display: inline-block;
+                width: 40px;
+            }}
+            .rank-name {{
+                display: inline-block;
+                font-weight: 500;
+            }}
+            .rank-count {{
+                float: right;
+                color: #666;
+            }}
+            .badge {{
+                display: inline-block;
+                padding: 4px 12px;
+                border-radius: 20px;
+                font-size: 12px;
+                font-weight: 600;
+                margin: 2px;
+            }}
+            .badge-success {{ background: #d4edda; color: #155724; }}
+            .badge-warning {{ background: #fff3cd; color: #856404; }}
+            .badge-danger {{ background: #f8d7da; color: #721c24; }}
+            .badge-info {{ background: #d1ecf1; color: #0c5460; }}
+            .badge-repository {{ background: #e2d5f8; color: #5e2a9e; }}
+            .badge-book {{ background: #bbecde; color: #0e6b5e; }}
+            .badge-proceedings {{ background: #fff2c9; color: #b26b00; }}
+            .concepts-grid {{
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+                gap: 15px;
+                margin-top: 20px;
+            }}
+            .concept-card {{
+                background: linear-gradient(135deg, {primary}15 0%, {secondary}15 100%);
+                border-radius: 10px;
+                padding: 15px;
+                text-align: center;
+                border: 1px solid {primary}30;
+            }}
+            .concept-name {{
+                font-weight: 600;
+                color: {primary};
+            }}
+            .concept-score {{
+                font-size: 12px;
+                color: #666;
+                margin-top: 5px;
+            }}
+            
+            @media print {{
+                .sidebar {{ display: none; }}
+                .main-content {{ margin-left: 0; }}
+            }}
+            @media (max-width: 768px) {{
+                .sidebar {{ display: none; }}
+                .main-content {{ margin-left: 0; padding: 20px; }}
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="sidebar">
+            <h3>📑 Навигация</h3>
+            <a href="#overview"><span>📊 Обзор</span></a>
+            <a href="#metrics"><span>📈 Метрики</span></a>
+            <a href="#visualizations"><span>📊 Визуализации</span></a>
+            <a href="#thematic"><span>🏷️ Тематика</span></a>
+            <a href="#collaborations"><span>🌍 Коллаборации</span></a>
+            <a href="#coauthors"><span>🤝 Соавторы</span></a>
+            <a href="#publications"><span>📚 Публикации</span></a>
+        </div>
+        
+        <div class="main-content">
+            <div class="header">
+                {f'<img src="data:image/png;base64,{logo_base64}" class="header-logo" alt="Логотип">' if logo_base64 else ''}
+                <h1>📊 Профиль ученого</h1>
+                <div class="date">Дата генерации: {datetime.now().strftime('%d.%m.%Y %H:%M')}</div>
+            </div>
+            
+            <div id="overview" class="section">
+                <div class="section-title">📋 Обзор</div>
+                <div class="author-info">
+                    <div class="author-name">{author_name}</div>
+                    <div class="author-affil"><strong>ORCID:</strong> {profile.get('orcid', 'N/A')}</div>
+                    {f'<div class="author-affil"><strong>Аффилиации:</strong> {", ".join(author_affiliations[:5])}</div>' if author_affiliations else ''}
+                    {f'<div class="author-affil"><strong>Страны:</strong> {", ".join(author_countries)}</div>' if author_countries else ''}
+                    <div class="author-affil"><strong>Всего проанализировано публикаций:</strong> {total_pubs}</div>
+                </div>
+                
+                <div class="recommendation-box rec-green">
+                    <strong>Рекомендация редактора:</strong> {recommendation}
+                </div>
+                
+                {'<div class="flag flag-danger">' + '</div><div class="flag flag-danger">'.join(risk_flags) + '</div>' if risk_flags else ''}
+            </div>
+            
+            <div id="metrics" class="section">
+                <div class="section-title">📈 Ключевые метрики</div>
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-value">{total_pubs}</div>
+                        <div class="metric-label">Всего публикаций</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">{h_index}</div>
+                        <div class="metric-label">h-index</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">{g_index}</div>
+                        <div class="metric-label">g-index</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">{i10_index}</div>
+                        <div class="metric-label">i10-index</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">{total_citations:,}</div>
+                        <div class="metric-label">Всего цитирований</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">{avg_citations:.1f}</div>
+                        <div class="metric-label">Среднее цитирований</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">{median_citations:.0f}</div>
+                        <div class="metric-label">Медиана цитирований</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">{oa_percentage:.1f}%</div>
+                        <div class="metric-label">Открытый доступ</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="visualizations" class="section">
+                <div class="section-title">📊 Визуализации</div>
+                
+                <div class="chart-container">
+                    <img src="data:image/png;base64,{images.get('years_chart', '')}" alt="Публикации по годам">
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div class="chart-container">
+                        <img src="data:image/png;base64,{images.get('journals_chart', '')}" alt="Топ журналов">
+                    </div>
+                    <div class="chart-container">
+                        <img src="data:image/png;base64,{images.get('oa_chart', '')}" alt="Открытый доступ">
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div class="chart-container">
+                        <img src="data:image/png;base64,{images.get('publishers_chart', '')}" alt="Издательства">
+                    </div>
+                    <div class="chart-container">
+                        <img src="data:image/png;base64,{images.get('affiliations_chart', '')}" alt="Аффилиации">
+                    </div>
+                </div>
+                
+                <div class="chart-container">
+                    <img src="data:image/png;base64,{images.get('wordcloud', '')}" alt="Word Cloud">
+                </div>
+                
+                <div class="chart-container">
+                    <img src="data:image/png;base64,{images.get('citations_chart', '')}" alt="Самые цитируемые">
+                </div>
+                
+                <div class="chart-container">
+                    <img src="data:image/png;base64,{images.get('citation_distribution', '')}" alt="Распределение цитирований">
+                </div>
+                
+                <div class="chart-container">
+                    <img src="data:image/png;base64,{images.get('thematic_structure', '')}" alt="Тематическая структура">
+                </div>
+                
+                {'<div class="chart-container"><img src="data:image/png;base64,' + images.get('radar_chart', '') + '" alt="Radar Chart"></div>' if images.get('radar_chart') else ''}
+            </div>
+            
+            <div id="thematic" class="section">
+                <div class="section-title">🏷️ Детальная тематическая структура</div>
+                
+                <h3>Topics (Топ 10)</h3>
+                <ul class="thematic-list">
+                    {''.join([f'<li><strong>{topic}</strong>: {count} статей</li>' for topic, count in list(top_primary_topics.items())[:10]])}
+                </ul>
+                
+                <h3>Subfields (Топ 10)</h3>
+                <ul class="thematic-list">
+                    {''.join([f'<li><strong>{subfield}</strong>: {count} статей</li>' for subfield, count in list(top_subfields.items())[:10]])}
+                </ul>
+                
+                <h3>Fields (Топ 10)</h3>
+                <ul class="thematic-list">
+                    {''.join([f'<li><strong>{field}</strong>: {count} статей</li>' for field, count in list(top_fields_new.items())[:10]])}
+                </ul>
+                
+                <h3>Domains (Топ 5)</h3>
+                <ul>
+                    {''.join([f'<li><strong>{domain}</strong>: {count} статей</li>' for domain, count in list(top_domains_new.items())[:5]])}
+                </ul>
+                
+                <h3>Key Concepts (Топ 20)</h3>
+                <ul class="thematic-list">
+                    {''.join([f'<li>{concept} ({count})</li>' for concept, count in list(top_keywords.items())[:20]])}
+                </ul>
+            </div>
+            
+            <div id="collaborations" class="section">
+                <div class="section-title">🌍 Анализ коллабораций</div>
+                
+                <div class="collab-grid">
+                    <div class="collab-box">
+                        <h4>🇷🇺 Внутристрановые коллаборации</h4>
+                        <p><strong>Статей:</strong> {domestic_papers}</p>
+                        {''.join([
+                            f'<div class="collab-country">📍 {country}</div>' +
+                            (''.join([
+                                f'<div class="collab-affil-item">• <strong>{affil}</strong>: {count} статей</div>'
+                                for affil, count in list(affils.items())[:10]
+                            ]) if isinstance(affils, dict) else f'<div class="collab-affil-item">• {affils} статей</div>')
+                            for country, affils in list(domestic_collab.items())
+                        ]) if domestic_collab else '<p>Нет данных</p>'}
+                    </div>
+                    <div class="collab-box">
+                        <h4>🌐 Международные коллаборации</h4>
+                        <p><strong>Статей:</strong> {international_papers}</p>
+                        {''.join([
+                            f'<div class="collab-country">📍 {country}</div>' +
+                            (''.join([
+                                f'<div class="collab-affil-item">• <strong>{affil}</strong>: {count} статей</div>'
+                                for affil, count in list(affils.items())[:10]
+                            ]) if isinstance(affils, dict) else f'<div class="collab-affil-item">• {affils} статей</div>')
+                            for country, affils in list(international_collab.items())
+                        ]) if international_collab else '<p>Нет данных</p>'}
+                    </div>
+                </div>
+                
+                <div class="collab-box" style="margin-top: 10px;">
+                    <p><strong>Смешанных статей:</strong> {mixed_papers}</p>
+                    <p><strong>Индекс коллабораций:</strong> {collab_index:.2f} (среднее число соавторов на статью - 1)</p>
+                    <p><strong>Страновое разнообразие:</strong> {country_diversity} стран</p>
+                    <p><strong>Самая коллаборативная страна:</strong> {most_collab_country}</p>
+                </div>
+            </div>
+            
+            <div id="coauthors" class="section">
+                <div class="section-title">🤝 Топ соавторы</div>
+                <ul>
+                    {''.join([
+                        f'<li>'
+                        f'<strong>{author}</strong>'
+                        f' ({count} совместных работ)'
+                        f'{" — <a href=\"https://orcid.org/' + coauthors_with_orcid.get(author, '') + '\" target=\"_blank\">ORCID</a>" if coauthors_with_orcid.get(author) else ""}'
+                        f'</li>'
+                        for author, count in list(top_coauthors.items())[:20]
+                    ])}
+                </ul>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">📋 Расширенная статистика</div>
+                <div class="stats-grid">
+                    <div class="stat-item"><strong>Период активности:</strong> {profile.get('first_publication', 'N/A')} - {profile.get('last_publication', 'N/A')}</div>
+                    <div class="stat-item"><strong>Активных лет:</strong> {active_years}</div>
+                    <div class="stat-item"><strong>Статей в год:</strong> {papers_per_year:.1f}</div>
+                    <div class="stat-item"><strong>Тренд:</strong> {trend} (R² = {trend_corr**2:.3f})</div>
+                    <div class="stat-item"><strong>Ретракций:</strong> {retractions}</div>
+                    <div class="stat-item"><strong>Коррекций:</strong> {corrections}</div>
+                    <div class="stat-item"><strong>Уникальных соавторов:</strong> {unique_coauthors}</div>
+                    <div class="stat-item"><strong>Среднее авторов на статью:</strong> {avg_authors:.1f}</div>
+                    <div class="stat-item"><strong>Максимум цитирований на статью:</strong> {max_citations}</div>
+                    <div class="stat-item"><strong>Тематическое разнообразие (Shannon):</strong> {profile.get('thematic_diversity_shannon', 0):.3f}</div>
+                    <div class="stat-item"><strong>Доля внутристрановых коллабораций:</strong> {profile.get('domestic_papers_ratio', 0)*100:.1f}%</div>
+                    <div class="stat-item"><strong>Доля международных коллабораций:</strong> {profile.get('international_papers_ratio', 0)*100:.1f}%</div>
+                </div>
+            </div>
+            
+            <div id="publications" class="section">
+                <div class="section-title">📚 Список публикаций</div>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Название</th>
+                                <th>Год</th>
+                                <th>Журнал</th>
+                                <th>Цитаты</th>
+                                <th>OA</th>
+                                <th>DOI</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {''.join([
+                                f"""
+                                <tr>
+                                    <td>{i+1}</td>
+                                    <td>{pub.get('title', 'No title')[:100]}</td>
+                                    <td>{pub.get('publication_year', 'N/A')}</td>
+                                    <td>{pub.get('journal_name', 'Unknown')}</td>
+                                    <td>{pub.get('cited_by_count', 0)}</td>
+                                    <td>{'✅' if pub.get('is_oa', False) else '❌'}</td>
+                                    <td><a href="https://doi.org/{pub.get('doi', '')}" target="_blank" class="doi-link">{pub.get('doi', '')}</a></td>
+                                </tr>
+                                """
+                                for i, pub in enumerate(sorted(publications, key=lambda x: x.get('publication_year', 0), reverse=True))
+                            ])}
+                        </tbody>
+                    </table>
+                    <p><em>Всего публикаций: {len(publications)}</em></p>
+                </div>
+            </div>
+            
+            <div class="footer">
+                <p>© Author Profile Analysis / Created by daM / Chimica Techno Acta</p>
+                <p><a href="https://chimicatechnoacta.ru" target="_blank">https://chimicatechnoacta.ru</a></p>
+            </div>
+        </div>
+    </body>
+    </html>
     """
-    Генерирует HTML отчет с одним или несколькими авторами.
-    Использует дизайн из второго кода.
-    """
     
-    if not all_authors:
-        return "<html><body><p>Нет данных для отчета</p></body></html>"
+    return html
+
+def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all: bool, journal_logo_base64: Optional[str] = None, theme_colors: Optional[Dict] = None) -> str:
+    """Генерирует HTML отчет с множественными авторами"""
     
-    # Сортируем авторов по h-index
-    sorted_authors = sort_authors_by_h_index(all_authors)
-    best_author = sorted_authors[0]
-    
-    # Настройка темы
     if theme_colors is None:
         theme_colors = {
             'primary': '#667eea',
@@ -1973,571 +2903,457 @@ def generate_html_report_with_authors(
     primary = theme_colors.get('primary', '#667eea')
     secondary = theme_colors.get('secondary', '#f39c12')
     
-    # Генерируем CSS переменные
-    css_vars = generate_css_variables(primary, secondary)
+    if not all_authors:
+        return "<html><body><h1>Нет данных для отображения</h1></body></html>"
     
-    # Формируем навигацию
-    sections = []
+    best_author = all_authors[0]
     
-    # Всегда добавляем секцию обзора
-    sections.append(('overview', '📊 Обзор'))
-    
-    if show_all_authors:
-        # Добавляем секцию для каждого автора
-        for idx, author in enumerate(sorted_authors):
-            author_name = author.get('author_name', 'Unknown')
-            h_index = author.get('h_index', 0)
-            section_id = f"author_{idx}"
-            section_title = f"{idx+1}. {author_name} (h-index: {h_index})"
-            sections.append((section_id, section_title))
+    if show_all:
+        authors_to_show = all_authors
     else:
-        # Только лучший автор
-        author_name = best_author.get('author_name', 'Unknown')
-        h_index = best_author.get('h_index', 0)
-        sections.append(('best_author', f"🏆 {author_name} (h-index: {h_index})"))
+        authors_to_show = [best_author]
     
-    # Строим сайдбар навигации
-    sidebar_html = '<div class="sidebar">\n'
-    sidebar_html += '<h3>📑 Навигация</h3>\n'
-    for section_id, section_title in sections:
-        sidebar_html += f'<a href="#{section_id}"><span>{section_title}</span></a>\n'
-    sidebar_html += '</div>\n'
+    html_parts = []
     
-    # Строим основной контент
-    content_html = '<div class="main-content">\n'
-    
-    # Заголовок
-    content_html += '<div class="header">\n'
-    
-    # Программный логотип
-    if program_logo_base64:
-        content_html += f'<div style="display: flex; justify-content: center; margin-bottom: 15px;">\n'
-        content_html += f'<img src="data:image/png;base64,{program_logo_base64}" style="height: 80px; width: auto;" alt="Program Logo">\n'
-        content_html += '</div>\n'
-    
-    # Логотип журнала
-    if journal_logo_base64:
-        content_html += f'<div style="display: flex; justify-content: center; margin-bottom: 15px;">\n'
-        content_html += f'<img src="data:image/png;base64,{journal_logo_base64}" style="height: 150px; width: auto;" alt="Journal Logo">\n'
-        content_html += '</div>\n'
-    
-    content_html += f'<h1>Профиль ученого</h1>\n'
-    content_html += f'<div class="date">Дата генерации: {datetime.now().strftime("%d.%m.%Y %H:%M")}</div>\n'
-    
-    if show_all_authors:
-        content_html += f'<div style="margin-top: 10px;">👥 Всего авторов: {len(sorted_authors)}</div>\n'
-    else:
-        content_html += f'<div style="margin-top: 10px;">👤 Показан лучший автор из {len(sorted_authors)}</div>\n'
-    
-    content_html += '</div>\n'
-    
-    # Секция обзора
-    content_html += '<div id="overview" class="section">\n'
-    content_html += '<div class="section-title">📊 Обзор</div>\n'
-    
-    # Общая статистика
-    content_html += '<div class="stats-grid">\n'
-    
-    total_pubs = sum(a.get('total_publications', 0) for a in sorted_authors)
-    total_citations = sum(a.get('total_citations', 0) for a in sorted_authors)
-    avg_h_index = sum(a.get('h_index', 0) for a in sorted_authors) / len(sorted_authors) if sorted_authors else 0
-    
-    content_html += f'''
-    <div class="stat-card">
-        <div class="stat-number">{len(sorted_authors)}</div>
-        <div class="stat-label">👥 Всего авторов</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-number">{total_pubs}</div>
-        <div class="stat-label">📄 Всего публикаций</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-number">{total_citations:,}</div>
-        <div class="stat-label">📊 Всего цитирований</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-number">{avg_h_index:.1f}</div>
-        <div class="stat-label">📈 Средний h-index</div>
-    </div>
-    '''
-    
-    content_html += '</div>\n'
-    
-    # Топ авторов (кратко)
-    content_html += '<h3>🏆 Рейтинг авторов по h-index</h3>\n'
-    content_html += '<div>\n'
-    for idx, author in enumerate(sorted_authors[:10], 1):
-        author_name = author.get('author_name', 'Unknown')
-        h_index = author.get('h_index', 0)
-        pubs = author.get('total_publications', 0)
-        citations = author.get('total_citations', 0)
-        
-        content_html += f'''
-        <div class="rank-item">
-            <span class="rank-number">{idx}</span>
-            <span class="rank-name">{author_name}</span>
-            <span class="rank-count">h-index: {h_index} | 📄 {pubs} | 📊 {citations}</span>
-            <div class="progress-bar">
-                <div class="progress-fill" style="width: {h_index / (sorted_authors[0].get('h_index', 1)) * 100}%;"></div>
-            </div>
-        </div>
-        '''
-    content_html += '</div>\n'
-    content_html += '</div>\n'
-    
-    # Секции для каждого автора
-    if show_all_authors:
-        for idx, author in enumerate(sorted_authors):
-            section_id = f"author_{idx}"
-            author_name = author.get('author_name', 'Unknown')
-            h_index = author.get('h_index', 0)
-            profile = author.get('profile', {})
-            
-            content_html += f'<div id="{section_id}" class="section">\n'
-            content_html += f'<div class="section-title">👤 {idx+1}. {author_name} (h-index: {h_index})</div>\n'
-            
-            # Метрики автора
-            content_html += '<div class="stats-grid">\n'
-            content_html += f'''
-            <div class="stat-card">
-                <div class="stat-number">{profile.get('total_publications', 0)}</div>
-                <div class="stat-label">📄 Публикаций</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">{profile.get('h_index', 0)}</div>
-                <div class="stat-label">📈 h-index</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">{profile.get('g_index', 0)}</div>
-                <div class="stat-label">📊 g-index</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">{profile.get('i10_index', 0)}</div>
-                <div class="stat-label">📊 i10-index</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">{profile.get('total_citations', 0):,}</div>
-                <div class="stat-label">📖 Всего цитирований</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">{profile.get('average_citations', 0):.1f}</div>
-                <div class="stat-label">⭐ Среднее цитирований</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">{profile.get('oa_percentage', 0):.1f}%</div>
-                <div class="stat-label">🌐 Открытый доступ</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">{profile.get('unique_coauthors', 0)}</div>
-                <div class="stat-label">🤝 Уникальных соавторов</div>
-            </div>
-            '''
-            content_html += '</div>\n'
-            
-            # Рекомендация
-            recommendation = profile.get('recommendation', 'Нет рекомендации')
-            rec_class = 'rec-green' if '🟢' in recommendation else ('rec-yellow' if '🟡' in recommendation else 'rec-red')
-            content_html += f'''
-            <div class="recommendation-box {rec_class}">
-                <strong>💡 Рекомендация:</strong> {recommendation}
-            </div>
-            '''
-            
-            # Флаги риска
-            risk_flags = profile.get('risk_flags', [])
-            if risk_flags:
-                content_html += '<div style="margin-top: 15px;"><strong>⚠️ Флаги риска:</strong></div>\n'
-                for flag in risk_flags:
-                    flag_class = 'flag-danger' if '🔴' in flag else 'flag-warning'
-                    content_html += f'<div class="flag {flag_class}">{flag}</div>\n'
-            
-            # Визуализации
-            if images and idx == 0:  # Показываем визуализации только для лучшего автора
-                content_html += '<h3>📊 Визуализации</h3>\n'
-                content_html += f'<div class="chart-container"><img src="data:image/png;base64,{images.get("years_chart", "")}" alt="Публикации по годам"></div>\n'
-                content_html += f'<div class="chart-container"><img src="data:image/png;base64,{images.get("wordcloud", "")}" alt="Word Cloud"></div>\n'
-                content_html += f'<div class="chart-container"><img src="data:image/png;base64,{images.get("thematic_structure", "")}" alt="Тематическая структура"></div>\n'
-            
-            # ORCID
-            content_html += f'<div style="margin-top: 15px;"><strong>ORCID:</strong> {profile.get("orcid", "N/A")}</div>\n'
-            
-            # Аффилиации
-            affils = profile.get('author_affiliations', [])
-            if affils:
-                content_html += f'<div><strong>🏛️ Аффилиации:</strong> {", ".join(affils[:3])}</div>\n'
-            
-            content_html += '</div>\n'
-    else:
-        # Только лучший автор
-        author = best_author
-        profile = author.get('profile', {})
-        
-        content_html += '<div id="best_author" class="section">\n'
-        content_html += f'<div class="section-title">🏆 {author.get("author_name", "Unknown")} (h-index: {author.get("h_index", 0)})</div>\n'
-        
-        # Метрики автора
-        content_html += '<div class="stats-grid">\n'
-        content_html += f'''
-        <div class="stat-card">
-            <div class="stat-number">{profile.get('total_publications', 0)}</div>
-            <div class="stat-label">📄 Публикаций</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-number">{profile.get('h_index', 0)}</div>
-            <div class="stat-label">📈 h-index</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-number">{profile.get('g_index', 0)}</div>
-            <div class="stat-label">📊 g-index</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-number">{profile.get('i10_index', 0)}</div>
-            <div class="stat-label">📊 i10-index</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-number">{profile.get('total_citations', 0):,}</div>
-            <div class="stat-label">📖 Всего цитирований</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-number">{profile.get('average_citations', 0):.1f}</div>
-            <div class="stat-label">⭐ Среднее цитирований</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-number">{profile.get('oa_percentage', 0):.1f}%</div>
-            <div class="stat-label">🌐 Открытый доступ</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-number">{profile.get('unique_coauthors', 0)}</div>
-            <div class="stat-label">🤝 Уникальных соавторов</div>
-        </div>
-        '''
-        content_html += '</div>\n'
-        
-        # Рекомендация
-        recommendation = profile.get('recommendation', 'Нет рекомендации')
-        rec_class = 'rec-green' if '🟢' in recommendation else ('rec-yellow' if '🟡' in recommendation else 'rec-red')
-        content_html += f'''
-        <div class="recommendation-box {rec_class}">
-            <strong>💡 Рекомендация:</strong> {recommendation}
-        </div>
-        '''
-        
-        # Флаги риска
-        risk_flags = profile.get('risk_flags', [])
-        if risk_flags:
-            content_html += '<div style="margin-top: 15px;"><strong>⚠️ Флаги риска:</strong></div>\n'
-            for flag in risk_flags:
-                flag_class = 'flag-danger' if '🔴' in flag else 'flag-warning'
-                content_html += f'<div class="flag {flag_class}">{flag}</div>\n'
-        
-        # Визуализации
-        if images:
-            content_html += '<h3>📊 Визуализации</h3>\n'
-            
-            if images.get('years_chart'):
-                content_html += f'<div class="chart-container"><img src="data:image/png;base64,{images.get("years_chart", "")}" alt="Публикации по годам"></div>\n'
-            
-            if images.get('journals_chart'):
-                content_html += f'<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">\n'
-                content_html += f'<div class="chart-container"><img src="data:image/png;base64,{images.get("journals_chart", "")}" alt="Топ журналов"></div>\n'
-                content_html += f'<div class="chart-container"><img src="data:image/png;base64,{images.get("oa_chart", "")}" alt="Открытый доступ"></div>\n'
-                content_html += '</div>\n'
-            
-            if images.get('wordcloud'):
-                content_html += f'<div class="chart-container"><img src="data:image/png;base64,{images.get("wordcloud", "")}" alt="Word Cloud"></div>\n'
-            
-            if images.get('citations_chart'):
-                content_html += f'<div class="chart-container"><img src="data:image/png;base64,{images.get("citations_chart", "")}" alt="Самые цитируемые"></div>\n'
-            
-            if images.get('thematic_structure'):
-                content_html += f'<div class="chart-container"><img src="data:image/png;base64,{images.get("thematic_structure", "")}" alt="Тематическая структура"></div>\n'
-            
-            if images.get('radar_chart'):
-                content_html += f'<div class="chart-container"><img src="data:image/png;base64,{images.get("radar_chart", "")}" alt="Radar Chart"></div>\n'
-        
-        # ORCID
-        content_html += f'<div style="margin-top: 15px;"><strong>ORCID:</strong> {profile.get("orcid", "N/A")}</div>\n'
-        
-        # Аффилиации
-        affils = profile.get('author_affiliations', [])
-        if affils:
-            content_html += f'<div><strong>🏛️ Аффилиации:</strong> {", ".join(affils[:3])}</div>\n'
-        
-        content_html += '</div>\n'
-    
-    # Footer
-    content_html += '''
-    <div class="footer">
-        © Author Profile Analysis / Created by daM / Chimica Techno Acta<br>
-        <a href="https://chimicatechnoacta.ru" target="_blank">https://chimicatechnoacta.ru</a>
-    </div>
-    '''
-    
-    content_html += '</div>\n'
-    
-    # Полный HTML с CSS
-    css = f'''
-    <style>
-        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-        body {{
-            font-family: 'Times New Roman', 'DejaVu Serif', serif;
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            padding: 0;
-            margin: 0;
-        }}
-        .report-wrapper {{
-            max-width: 1400px;
-            margin: 0 auto;
-            background: white;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-        }}
-        .sidebar {{
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 260px;
-            height: 100vh;
-            background: linear-gradient(135deg, {primary} 0%, {secondary} 100%);
-            color: white;
-            padding: 30px 20px;
-            overflow-y: auto;
-            z-index: 1000;
-        }}
-        .sidebar h3 {{
-            margin-bottom: 20px;
-            font-size: 18px;
-            font-weight: 600;
-        }}
-        .sidebar a {{
-            color: white;
-            text-decoration: none;
-            display: block;
-            padding: 10px 15px;
-            margin: 5px 0;
-            border-radius: 8px;
-            transition: all 0.3s;
-        }}
-        .sidebar a:hover {{
-            background: rgba(255,255,255,0.2);
-            transform: translateX(5px);
-        }}
-        .main-content {{
-            margin-left: 260px;
-            padding: 30px 40px;
-        }}
-        .header {{
-            background: linear-gradient(135deg, {primary} 0%, {secondary} 100%);
-            color: white;
-            padding: 40px;
-            border-radius: 15px;
-            margin-bottom: 30px;
-            text-align: center;
-        }}
-        .header h1 {{
-            font-size: 32px;
-            margin-bottom: 10px;
-            color: white;
-        }}
-        .header .date {{
-            opacity: 0.9;
-            margin-top: 10px;
-        }}
-        .stats-grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 15px;
-            margin: 20px 0;
-        }}
-        .stat-card {{
-            background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
-            border-radius: 15px;
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: transform 0.3s;
-        }}
-        .stat-card:hover {{
-            transform: translateY(-5px);
-        }}
-        .stat-number {{
-            font-size: 32px;
-            font-weight: bold;
-            background: linear-gradient(135deg, {primary} 0%, {secondary} 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }}
-        .stat-label {{
-            color: #666;
-            margin-top: 8px;
-            font-size: 13px;
-        }}
-        .section {{
-            background: white;
-            border-radius: 15px;
-            padding: 25px;
-            margin-bottom: 30px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }}
-        .section-title {{
-            font-size: 24px;
-            font-weight: 600;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 3px solid {primary};
-        }}
-        .rank-item {{
-            background: white;
-            border-radius: 10px;
-            padding: 12px;
-            margin-bottom: 8px;
-            transition: all 0.3s;
-            border-left: 3px solid {primary};
-        }}
-        .rank-item:hover {{
-            transform: translateX(5px);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }}
-        .rank-number {{
-            font-weight: bold;
-            color: {primary};
-            font-size: 18px;
-            display: inline-block;
-            width: 40px;
-        }}
-        .rank-name {{
-            display: inline-block;
-            width: 300px;
-            font-weight: 500;
-        }}
-        .rank-count {{
-            float: right;
-            color: #666;
-        }}
-        .progress-bar {{
-            background: #e0e0e0;
-            border-radius: 10px;
-            height: 8px;
-            margin-top: 8px;
-            overflow: hidden;
-        }}
-        .progress-fill {{
-            background: linear-gradient(90deg, {primary}, {secondary});
-            height: 100%;
-            border-radius: 10px;
-        }}
-        .chart-container {{
-            margin: 20px 0;
-            text-align: center;
-        }}
-        .chart-container img {{
-            max-width: 100%;
-            height: auto;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }}
-        .recommendation-box {{
-            padding: 15px;
-            margin: 20px 0;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 500;
-        }}
-        .rec-green {{ background-color: #D5F5E3; border-left: 4px solid #2ECC71; }}
-        .rec-yellow {{ background-color: #FEF9E7; border-left: 4px solid #F39C12; }}
-        .rec-red {{ background-color: #FDEDEC; border-left: 4px solid #E74C3C; }}
-        .flag {{
-            padding: 10px;
-            margin: 5px 0;
-            border-radius: 5px;
-            background-color: #FEF9E7;
-            border-left: 4px solid #F39C12;
-        }}
-        .flag-danger {{
-            background-color: #FDEDEC;
-            border-left-color: #E74C3C;
-        }}
-        .flag-warning {{
-            background-color: #FEF9E7;
-            border-left-color: #F39C12;
-        }}
-        .footer {{
-            text-align: center;
-            padding: 20px;
-            color: #666;
-            font-size: 12px;
-            border-top: 1px solid #e0e0e0;
-            margin-top: 30px;
-        }}
-        .footer a {{
-            color: {primary};
-            text-decoration: none;
-        }}
-        .footer a:hover {{
-            text-decoration: underline;
-        }}
-        @media (max-width: 768px) {{
-            .sidebar {{ display: none; }}
-            .main-content {{ margin-left: 0; padding: 20px; }}
-        }}
-    </style>
-    '''
-    
-    html = f'''
+    html_parts.append(f"""
     <!DOCTYPE html>
     <html>
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Профиль ученого</title>
-        {css}
+        <title>Профили ученых - Анализ {len(all_authors)} авторов</title>
+        <style>
+            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+            body {{
+                font-family: 'Times New Roman', 'DejaVu Serif', serif;
+                margin: 0;
+                padding: 20px;
+                background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+                color: #333;
+            }}
+            .report-wrapper {{
+                max-width: 1400px;
+                margin: 0 auto;
+                background: white;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+                border-radius: 10px;
+                overflow: hidden;
+            }}
+            .sidebar {{
+                position: fixed;
+                left: 0;
+                top: 0;
+                width: 260px;
+                height: 100vh;
+                background: linear-gradient(135deg, {primary} 0%, {secondary} 100%);
+                color: white;
+                padding: 30px 20px;
+                overflow-y: auto;
+                z-index: 1000;
+            }}
+            .sidebar h3 {{
+                margin-bottom: 20px;
+                font-size: 18px;
+                font-weight: 600;
+                color: white;
+            }}
+            .sidebar a {{
+                color: white;
+                text-decoration: none;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 10px 15px;
+                margin: 5px 0;
+                border-radius: 8px;
+                transition: all 0.3s;
+            }}
+            .sidebar a:hover {{
+                background: rgba(255,255,255,0.2);
+                transform: translateX(5px);
+            }}
+            .main-content {{
+                margin-left: 260px;
+                padding: 30px 40px;
+            }}
+            .header {{
+                background: linear-gradient(135deg, {primary} 0%, {secondary} 100%);
+                color: white;
+                padding: 40px;
+                border-radius: 15px;
+                margin-bottom: 30px;
+                text-align: center;
+            }}
+            .header h1 {{
+                color: white;
+                border-bottom: none;
+                margin: 0;
+                font-size: 32px;
+            }}
+            .header .date {{
+                opacity: 0.9;
+                margin-top: 10px;
+            }}
+            .header-logo {{
+                max-height: 150px;
+                max-width: 300px;
+                margin-bottom: 15px;
+            }}
+            .author-card {{
+                background: white;
+                border-radius: 15px;
+                padding: 25px;
+                margin-bottom: 30px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                border-left: 5px solid {primary};
+                transition: transform 0.2s;
+            }}
+            .author-card:hover {{
+                transform: translateX(5px);
+                box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+            }}
+            .author-card.best {{
+                border-left-color: #FFD700;
+                background: linear-gradient(135deg, #fff9e6 0%, #ffffff 100%);
+            }}
+            .author-rank {{
+                font-size: 20px;
+                font-weight: bold;
+                color: {primary};
+                display: inline-block;
+                margin-right: 10px;
+            }}
+            .author-name-main {{
+                font-size: 22px;
+                font-weight: 600;
+                color: {primary};
+                display: inline-block;
+            }}
+            .author-hindex {{
+                font-size: 18px;
+                color: #666;
+                margin-left: 10px;
+            }}
+            .best-badge {{
+                background: #FFD700;
+                color: #333;
+                padding: 4px 12px;
+                border-radius: 20px;
+                font-size: 14px;
+                font-weight: bold;
+                display: inline-block;
+                margin-left: 15px;
+            }}
+            .metrics-grid {{
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 15px;
+                margin: 20px 0;
+            }}
+            .metric-card {{
+                background: #f8f9fa;
+                padding: 15px;
+                border-radius: 8px;
+                border-left: 4px solid {primary};
+                text-align: center;
+            }}
+            .metric-value {{
+                font-size: 24px;
+                font-weight: bold;
+                color: #2C3E50;
+            }}
+            .metric-label {{
+                font-size: 12px;
+                color: #7F8C8D;
+                margin-top: 5px;
+            }}
+            .chart-container {{
+                margin: 20px 0;
+                text-align: center;
+            }}
+            .chart-container img {{
+                max-width: 100%;
+                height: auto;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }}
+            .author-section {{
+                margin-bottom: 30px;
+                padding-bottom: 20px;
+                border-bottom: 2px solid #e0e0e0;
+            }}
+            .author-section:last-child {{
+                border-bottom: none;
+            }}
+            .flag {{
+                padding: 10px;
+                margin: 5px 0;
+                border-radius: 5px;
+                background-color: #FEF9E7;
+                border-left: 4px solid #F39C12;
+            }}
+            .flag-danger {{
+                background-color: #FDEDEC;
+                border-left-color: #E74C3C;
+            }}
+            .recommendation-box {{
+                padding: 15px;
+                margin: 15px 0;
+                border-radius: 8px;
+                font-size: 16px;
+                font-weight: 500;
+            }}
+            .rec-green {{ background-color: #D5F5E3; border-left: 4px solid #2ECC71; }}
+            .rec-yellow {{ background-color: #FEF9E7; border-left: 4px solid #F39C12; }}
+            .rec-red {{ background-color: #FDEDEC; border-left: 4px solid #E74C3C; }}
+            .footer {{
+                margin-top: 40px;
+                padding-top: 20px;
+                border-top: 1px solid #BDC3C7;
+                text-align: center;
+                color: #7F8C8D;
+                font-size: 12px;
+            }}
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin: 20px 0;
+            }}
+            th {{
+                background: linear-gradient(135deg, {primary} 0%, {secondary} 100%);
+                color: white;
+                padding: 12px;
+                text-align: left;
+            }}
+            td {{
+                padding: 10px;
+                border-bottom: 1px solid #BDC3C7;
+            }}
+            tr:hover {{
+                background-color: #f5f5f5;
+            }}
+            .doi-link {{
+                color: #2980B9;
+                text-decoration: none;
+                font-size: 12px;
+            }}
+            .doi-link:hover {{
+                text-decoration: underline;
+            }}
+            @media print {{
+                .sidebar {{ display: none; }}
+                .main-content {{ margin-left: 0; }}
+            }}
+            @media (max-width: 768px) {{
+                .sidebar {{ display: none; }}
+                .main-content {{ margin-left: 0; padding: 20px; }}
+            }}
+        </style>
     </head>
     <body>
-        <div class="report-wrapper">
-            {sidebar_html}
-            {content_html}
+        <div class="sidebar">
+            <h3>📑 Навигация</h3>
+            <a href="#overview"><span>📊 Обзор</span></a>
+    """)
+    
+    for i, author in enumerate(authors_to_show):
+        author_name = author.get('author_name', f'Автор {i+1}')
+        h_index = author.get('h_index', 0)
+        anchor = f"author_{i}"
+        html_parts.append(f'<a href="#{anchor}"><span>👤 {author_name} (h-index: {h_index})</span></a>')
+    
+    html_parts.append("""
+        </div>
+        <div class="main-content">
+            <div class="header">
+    """)
+    
+    if journal_logo_base64:
+        html_parts.append(f'<img src="data:image/png;base64,{journal_logo_base64}" class="header-logo" alt="Логотип журнала">')
+    
+    html_parts.append(f"""
+                <h1>📊 Анализ профилей ученых</h1>
+                <div class="date">Дата генерации: {datetime.now().strftime('%d.%m.%Y %H:%M')}</div>
+                <div style="margin-top: 15px;">
+                    <span class="badge badge-info">Всего авторов: {len(all_authors)}</span>
+                    <span class="badge badge-success">Лучший: {best_author.get('author_name', 'Unknown')} (h-index: {best_author.get('h_index', 0)})</span>
+    """)
+    
+    if show_all:
+        html_parts.append('<span class="badge badge-info">Показаны все авторы</span>')
+    else:
+        html_parts.append('<span class="badge badge-info">Показан только лучший автор</span>')
+    
+    html_parts.append("""
+                </div>
+            </div>
+    """)
+    
+    if show_all:
+        for i, author_data in enumerate(authors_to_show):
+            is_best = (i == 0)
+            author_name = author_data.get('author_name', f'Автор {i+1}')
+            profile = author_data.get('profile', {})
+            publications = author_data.get('publications', [])
+            images = create_visualizations(profile) if profile else {}
+            
+            h_index = profile.get('h_index', 0)
+            total_pubs = profile.get('total_publications', 0)
+            total_citations = profile.get('total_citations', 0)
+            avg_citations = profile.get('average_citations', 0)
+            oa_percentage = profile.get('oa_percentage', 0)
+            recommendation = profile.get('recommendation', 'Нет рекомендации')
+            risk_flags = profile.get('risk_flags', [])
+            
+            top_journals = profile.get('top_journals', {})
+            top_coauthors = profile.get('top_coauthors', {})
+            coauthors_with_orcid = profile.get('coauthors_with_orcid', {})
+            
+            html_parts.append(f"""
+            <div id="author_{i}" class="author-section">
+                <div class="author-card {'best' if is_best else ''}">
+                    <div>
+                        <span class="author-rank">{i+1}.</span>
+                        <span class="author-name-main">{author_name}</span>
+                        <span class="author-hindex">(h-index: {h_index})</span>
+                        {'<span class="best-badge">🏆 Лучший</span>' if is_best else ''}
+                    </div>
+                    
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-value">{total_pubs}</div>
+                            <div class="metric-label">Публикаций</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">{h_index}</div>
+                            <div class="metric-label">h-index</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">{total_citations:,}</div>
+                            <div class="metric-label">Цитирований</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">{avg_citations:.1f}</div>
+                            <div class="metric-label">Среднее цитирований</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">{oa_percentage:.1f}%</div>
+                            <div class="metric-label">Открытый доступ</div>
+                        </div>
+                    </div>
+                    
+                    <div class="recommendation-box rec-green">
+                        <strong>Рекомендация:</strong> {recommendation}
+                    </div>
+                    
+                    {'<div class="flag flag-danger">' + '</div><div class="flag flag-danger">'.join(risk_flags) + '</div>' if risk_flags else ''}
+                    
+                    <div class="chart-container">
+                        <img src="data:image/png;base64,{images.get('years_chart', '')}" alt="Публикации по годам">
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <div class="chart-container">
+                            <img src="data:image/png;base64,{images.get('journals_chart', '')}" alt="Топ журналов">
+                        </div>
+                        <div class="chart-container">
+                            <img src="data:image/png;base64,{images.get('oa_chart', '')}" alt="Открытый доступ">
+                        </div>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <img src="data:image/png;base64,{images.get('wordcloud', '')}" alt="Word Cloud">
+                    </div>
+                    
+                    <h3>🤝 Топ соавторы</h3>
+                    <ul>
+                        {''.join([
+                            f'<li><strong>{author}</strong> ({count} совместных работ)'
+                            f'{" — <a href=\"https://orcid.org/' + coauthors_with_orcid.get(author, '') + '\" target=\"_blank\">ORCID</a>" if coauthors_with_orcid.get(author) else ""}'
+                            f'</li>'
+                            for author, count in list(top_coauthors.items())[:10]
+                        ])}
+                    </ul>
+                    
+                    <h3>📚 Публикации ({len(publications)})</h3>
+                    <div style="overflow-x: auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Название</th>
+                                    <th>Год</th>
+                                    <th>Журнал</th>
+                                    <th>Цитаты</th>
+                                    <th>DOI</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {''.join([
+                                    f"""
+                                    <tr>
+                                        <td>{j+1}</td>
+                                        <td>{pub.get('title', 'No title')[:80]}</td>
+                                        <td>{pub.get('publication_year', 'N/A')}</td>
+                                        <td>{pub.get('journal_name', 'Unknown')}</td>
+                                        <td>{pub.get('cited_by_count', 0)}</td>
+                                        <td><a href="https://doi.org/{pub.get('doi', '')}" target="_blank" class="doi-link">{pub.get('doi', '')}</a></td>
+                                    </tr>
+                                    """
+                                    for j, pub in enumerate(sorted(publications, key=lambda x: x.get('publication_year', 0), reverse=True)[:20])
+                                ])}
+                            </tbody>
+                        </table>
+                        {f'<p><em>Показано 20 из {len(publications)} публикаций</em></p>' if len(publications) > 20 else ''}
+                    </div>
+                </div>
+            </div>
+            """)
+    
+    else:
+        author_data = authors_to_show[0]
+        author_name = author_data.get('author_name', 'Unknown')
+        profile = author_data.get('profile', {})
+        publications = author_data.get('publications', [])
+        institution_homepages = author_data.get('analyzer', {}).institution_homepages if author_data.get('analyzer') else {}
+        images = create_visualizations(profile) if profile else {}
+        
+        html_parts.append(generate_html_report(profile, publications, images, journal_logo_base64, institution_homepages, theme_colors))
+    
+    html_parts.append("""
+            <div class="footer">
+                <p>© Author Profile Analysis / Created by daM / Chimica Techno Acta</p>
+                <p><a href="https://chimicatechnoacta.ru" target="_blank">https://chimicatechnoacta.ru</a></p>
+            </div>
         </div>
     </body>
     </html>
-    '''
+    """)
     
-    return html
+    return '\n'.join(html_parts)
 
-def generate_pdf_report_with_authors(
-    all_authors: List[Dict],
-    show_all_authors: bool,
-    journal_logo_base64: Optional[str] = None,
-    program_logo_base64: Optional[str] = None,
-    theme_colors: Optional[Dict] = None,
-    images: Optional[Dict] = None,
-    filename: str = "profile_report.pdf"
-):
-    """Генерирует PDF отчет с тем же дизайном, что и HTML"""
+def generate_pdf_report(profile: Dict, publications: List[Dict], images: Dict[str, str], filename: str = "profile_report.pdf", logo_path: Optional[str] = None, institution_homepages: Optional[Dict[str, str]] = None, theme_colors: Optional[Dict] = None):
+    """Генерирует PDF отчет с расширенной информацией и дизайном из второго кода"""
     
     if not PDF_AVAILABLE:
         print("❌ ReportLab не установлен. PDF отчет не может быть сгенерирован.")
-        print("Установите: pip install reportlab")
         return
     
-    if not all_authors:
-        print("❌ Нет данных для отчета")
-        return
-    
-    doc = SimpleDocTemplate(filename, pagesize=A4)
-    styles = getSampleStyleSheet()
-    story = []
-    
-    # Настройка темы
     if theme_colors is None:
         theme_colors = {
             'primary': '#667eea',
             'secondary': '#f39c12'
         }
     
-    primary_color = hex_to_reportlab_color(theme_colors.get('primary', '#667eea'))
-    secondary_color = hex_to_reportlab_color(theme_colors.get('secondary', '#f39c12'))
+    primary = theme_colors.get('primary', '#667eea')
+    secondary = theme_colors.get('secondary', '#f39c12')
     
-    # Создаем стили
+    doc = SimpleDocTemplate(filename, pagesize=A4)
+    styles = getSampleStyleSheet()
+    story = []
+    
+    primary_color = colors.HexColor(primary.lstrip('#'))
+    secondary_color = colors.HexColor(secondary.lstrip('#'))
+    
     title_style = ParagraphStyle(
         'CustomTitle',
         parent=styles['Heading1'],
@@ -2551,205 +3367,246 @@ def generate_pdf_report_with_authors(
     heading_style = ParagraphStyle(
         'CustomHeading',
         parent=styles['Heading2'],
-        fontSize=18,
+        fontSize=16,
         textColor=primary_color,
-        spaceAfter=15,
+        spaceAfter=12,
         fontName='Times-Bold'
     )
     
-    subheading_style = ParagraphStyle(
-        'CustomSubHeading',
-        parent=styles['Heading3'],
-        fontSize=14,
-        textColor=secondary_color,
-        spaceAfter=10,
-        fontName='Times-Bold'
-    )
-    
-    normal_style = styles['Normal']
-    normal_style.fontName = 'Times-Roman'
-    normal_style.fontSize = 11
-    
-    # Заголовок
     story.append(Paragraph("Профиль ученого", title_style))
     
-    # Информация о дате
-    date_style = ParagraphStyle(
-        'DateStyle',
-        parent=normal_style,
-        alignment=TA_CENTER,
-        fontSize=10,
-        textColor=colors.gray
-    )
-    story.append(Paragraph(f"Дата генерации: {datetime.now().strftime('%d.%m.%Y %H:%M')}", date_style))
+    author_name = profile.get('author_name', 'Unknown')
+    story.append(Paragraph(f"<b>{author_name}</b>", styles['Heading2']))
+    story.append(Paragraph(f"ORCID: {profile.get('orcid', 'N/A')}", styles['Normal']))
+    
+    author_affiliations = profile.get('author_affiliations', [])
+    if author_affiliations:
+        story.append(Paragraph(f"Аффилиации: {', '.join(author_affiliations[:3])}", styles['Normal']))
+    
+    author_countries = profile.get('author_countries', [])
+    if author_countries:
+        story.append(Paragraph(f"Страны: {', '.join(author_countries)}", styles['Normal']))
+    
+    story.append(Paragraph(f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}", styles['Normal']))
     story.append(Spacer(1, 20))
     
-    # Общая статистика
-    sorted_authors = sort_authors_by_h_index(all_authors)
-    total_pubs = sum(a.get('total_publications', 0) for a in sorted_authors)
-    total_citations = sum(a.get('total_citations', 0) for a in sorted_authors)
-    avg_h_index = sum(a.get('h_index', 0) for a in sorted_authors) / len(sorted_authors) if sorted_authors else 0
-    
-    stats_data = [
-        ['Показатель', 'Значение'],
-        ['Всего авторов', str(len(sorted_authors))],
-        ['Всего публикаций', str(total_pubs)],
-        ['Всего цитирований', f"{total_citations:,}"],
-        ['Средний h-index', f"{avg_h_index:.1f}"]
+    metrics_data = [
+        ['Метрика', 'Значение', 'Метрика', 'Значение'],
+        ['Всего публикаций', str(profile.get('total_publications', 0)), 
+         'h-index', str(profile.get('h_index', 0))],
+        ['g-index', str(profile.get('g_index', 0)), 
+         'i10-index', str(profile.get('i10_index', 0))],
+        ['Всего цитирований', f"{profile.get('total_citations', 0):,}", 
+         'Среднее цитирований', f"{profile.get('average_citations', 0):.1f}"],
+        ['Медиана цитирований', f"{profile.get('median_citations', 0):.0f}", 
+         'Открытый доступ', f"{profile.get('oa_percentage', 0):.1f}%"],
+        ['Ретракций', str(profile.get('retractions', 0)), 
+         'Коррекций', str(profile.get('corrections', 0))],
+        ['Активных лет', str(profile.get('active_years', 0)), 
+         'Статей в год', f"{profile.get('papers_per_year', 0):.1f}"],
+        ['Уникальных соавторов', str(profile.get('unique_coauthors', 0)), 
+         'Тренд', profile.get('trend_direction', 'unknown')]
     ]
     
-    stats_table = Table(stats_data, colWidths=[3*inch, 2*inch])
-    stats_table.setStyle(TableStyle([
+    table = Table(metrics_data, colWidths=[1.5*inch, 1.5*inch, 1.5*inch, 1.5*inch])
+    table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), primary_color),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('FONTNAME', (0, 0), (-1, 0), 'Times-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
         ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
         ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
         ('FONTNAME', (0, 1), (-1, -1), 'Times-Roman'),
         ('FONTSIZE', (0, 1), (-1, -1), 10),
     ]))
-    story.append(stats_table)
+    story.append(table)
     story.append(Spacer(1, 20))
     
-    # Рейтинг авторов
-    story.append(Paragraph("Рейтинг авторов по h-index", heading_style))
-    
-    for idx, author in enumerate(sorted_authors[:10], 1):
-        author_name = author.get('author_name', 'Unknown')
-        h_index = author.get('h_index', 0)
-        pubs = author.get('total_publications', 0)
-        citations = author.get('total_citations', 0)
-        
-        story.append(Paragraph(
-            f"{idx}. <b>{author_name}</b> — h-index: {h_index}, публикаций: {pubs}, цитирований: {citations}",
-            normal_style
-        ))
-    
+    rec = profile.get('recommendation', 'No recommendation')
+    rec_style = ParagraphStyle(
+        'Recommendation',
+        parent=styles['Normal'],
+        fontSize=13,
+        textColor=colors.HexColor('#2C3E50'),
+        backColor=colors.HexColor('#D5F5E3'),
+        borderPadding=10,
+        borderRadius=5,
+        fontName='Times-Roman'
+    )
+    story.append(Paragraph(f"<b>Рекомендация:</b> {rec}", rec_style))
     story.append(Spacer(1, 20))
     
-    # Секции для авторов
-    if show_all_authors:
-        for idx, author in enumerate(sorted_authors):
+    image_names = {
+        'years_chart': 'Динамика публикационной активности',
+        'journals_chart': 'Топ журналов',
+        'oa_chart': 'Статус открытого доступа',
+        'publishers_chart': 'Распределение по издательствам',
+        'affiliations_chart': 'Топ аффилиаций',
+        'wordcloud': 'Ключевые концепты',
+        'citations_chart': 'Самые цитируемые статьи',
+        'citation_distribution': 'Распределение цитирований',
+        'thematic_structure': 'Тематическая структура'
+    }
+    
+    for img_key, img_title in image_names.items():
+        if img_key in images and images[img_key]:
             story.append(PageBreak())
-            author_name = author.get('author_name', 'Unknown')
-            h_index = author.get('h_index', 0)
-            profile = author.get('profile', {})
-            
-            story.append(Paragraph(f"{idx+1}. {author_name} (h-index: {h_index})", heading_style))
-            
-            # Метрики автора
-            metrics_data = [
-                ['Метрика', 'Значение'],
-                ['Публикаций', str(profile.get('total_publications', 0))],
-                ['h-index', str(profile.get('h_index', 0))],
-                ['g-index', str(profile.get('g_index', 0))],
-                ['i10-index', str(profile.get('i10_index', 0))],
-                ['Всего цитирований', f"{profile.get('total_citations', 0):,}"],
-                ['Среднее цитирований', f"{profile.get('average_citations', 0):.1f}"],
-                ['Открытый доступ', f"{profile.get('oa_percentage', 0):.1f}%"],
-                ['Уникальных соавторов', str(profile.get('unique_coauthors', 0))]
-            ]
-            
-            metrics_table = Table(metrics_data, colWidths=[2*inch, 2*inch])
-            metrics_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), primary_color),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Times-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 10),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-                ('FONTNAME', (0, 1), (-1, -1), 'Times-Roman'),
-                ('FONTSIZE', (0, 1), (-1, -1), 9),
-            ]))
-            story.append(metrics_table)
-            story.append(Spacer(1, 10))
-            
-            # Рекомендация
-            recommendation = profile.get('recommendation', 'Нет рекомендации')
-            story.append(Paragraph(f"<b>Рекомендация:</b> {recommendation}", normal_style))
-            story.append(Spacer(1, 5))
-            
-            # ORCID
-            orcid = profile.get('orcid', 'N/A')
-            story.append(Paragraph(f"<b>ORCID:</b> {orcid}", normal_style))
-            
-            # Аффилиации
-            affils = profile.get('author_affiliations', [])
-            if affils:
-                story.append(Paragraph(f"<b>Аффилиации:</b> {', '.join(affils[:3])}", normal_style))
-            
-            story.append(Spacer(1, 10))
-    else:
-        # Только лучший автор
-        author = sorted_authors[0]
-        profile = author.get('profile', {})
-        
+            story.append(Paragraph(f"<b>{img_title}</b>", heading_style))
+            try:
+                img_data = base64.b64decode(images[img_key])
+                img = Image(BytesIO(img_data), width=6*inch, height=4*inch)
+                story.append(img)
+                story.append(Spacer(1, 20))
+            except Exception as e:
+                print(f"⚠️ Не удалось добавить изображение {img_key}: {e}")
+    
+    if 'radar_chart' in images and images['radar_chart']:
         story.append(PageBreak())
-        story.append(Paragraph(f"🏆 {author.get('author_name', 'Unknown')} (h-index: {author.get('h_index', 0)})", heading_style))
+        story.append(Paragraph("<b>Тематический профиль (Radar Chart)</b>", heading_style))
+        try:
+            img_data = base64.b64decode(images['radar_chart'])
+            img = Image(BytesIO(img_data), width=6*inch, height=6*inch)
+            story.append(img)
+            story.append(Spacer(1, 20))
+        except Exception as e:
+            print(f"⚠️ Не удалось добавить radar chart: {e}")
+    
+    story.append(PageBreak())
+    story.append(Paragraph("<b>Детальная тематическая структура</b>", heading_style))
+    
+    top_primary_topics = profile.get('top_primary_topics', {})
+    if top_primary_topics:
+        story.append(Paragraph("Topics (Топ 10):", styles['Heading3']))
+        for topic, count in list(top_primary_topics.items())[:10]:
+            story.append(Paragraph(f"• {topic}: {count} статей", styles['Normal']))
+        story.append(Spacer(1, 10))
+    
+    top_subfields = profile.get('top_subfields', {})
+    if top_subfields:
+        story.append(Paragraph("Subfields (Топ 10):", styles['Heading3']))
+        for subfield, count in list(top_subfields.items())[:10]:
+            story.append(Paragraph(f"• {subfield}: {count} статей", styles['Normal']))
+        story.append(Spacer(1, 10))
+    
+    top_fields = profile.get('top_fields', {})
+    if top_fields:
+        story.append(Paragraph("Fields (Топ 10):", styles['Heading3']))
+        for field, count in list(top_fields.items())[:10]:
+            story.append(Paragraph(f"• {field}: {count} статей", styles['Normal']))
+        story.append(Spacer(1, 10))
+    
+    top_domains = profile.get('top_domains', {})
+    if top_domains:
+        story.append(Paragraph("Domains (Топ 5):", styles['Heading3']))
+        for domain, count in list(top_domains.items())[:5]:
+            story.append(Paragraph(f"• {domain}: {count} статей", styles['Normal']))
+        story.append(Spacer(1, 10))
+    
+    top_keywords = profile.get('top_keywords', {})
+    if top_keywords:
+        story.append(Paragraph("Key Concepts (Топ 20):", styles['Heading3']))
+        for concept, count in list(top_keywords.items())[:20]:
+            story.append(Paragraph(f"• {concept} ({count})", styles['Normal']))
+        story.append(Spacer(1, 20))
+    
+    collaborations = profile.get('collaborations', {})
+    domestic_papers = collaborations.get('domestic_papers', 0)
+    international_papers = collaborations.get('international_papers', 0)
+    mixed_papers = collaborations.get('mixed_papers', 0)
+    domestic_collab = collaborations.get('domestic', {})
+    international_collab = collaborations.get('international', {})
+    
+    if domestic_papers > 0 or international_papers > 0 or mixed_papers > 0:
+        story.append(PageBreak())
+        story.append(Paragraph("<b>Анализ коллабораций</b>", heading_style))
+        story.append(Paragraph(f"Внутристрановые коллаборации: {domestic_papers} статей", styles['Normal']))
+        for country, affils in list(domestic_collab.items()):
+            story.append(Paragraph(f"  📍 {country}:", styles['Normal']))
+            if isinstance(affils, dict):
+                for affil, count in list(affils.items())[:5]:
+                    story.append(Paragraph(f"    • {affil}: {count} статей", styles['Normal']))
+            else:
+                story.append(Paragraph(f"    • {affils} статей", styles['Normal']))
+        story.append(Spacer(1, 5))
         
-        # Метрики автора
-        metrics_data = [
-            ['Метрика', 'Значение'],
-            ['Публикаций', str(profile.get('total_publications', 0))],
-            ['h-index', str(profile.get('h_index', 0))],
-            ['g-index', str(profile.get('g_index', 0))],
-            ['i10-index', str(profile.get('i10_index', 0))],
-            ['Всего цитирований', f"{profile.get('total_citations', 0):,}"],
-            ['Среднее цитирований', f"{profile.get('average_citations', 0):.1f}"],
-            ['Открытый доступ', f"{profile.get('oa_percentage', 0):.1f}%"],
-            ['Уникальных соавторов', str(profile.get('unique_coauthors', 0))]
-        ]
+        story.append(Paragraph(f"Международные коллаборации: {international_papers} статей", styles['Normal']))
+        for country, affils in list(international_collab.items()):
+            story.append(Paragraph(f"  📍 {country}:", styles['Normal']))
+            if isinstance(affils, dict):
+                for affil, count in list(affils.items())[:5]:
+                    story.append(Paragraph(f"    • {affil}: {count} статей", styles['Normal']))
+            else:
+                story.append(Paragraph(f"    • {affils} статей", styles['Normal']))
+        story.append(Spacer(1, 5))
         
-        metrics_table = Table(metrics_data, colWidths=[2*inch, 2*inch])
-        metrics_table.setStyle(TableStyle([
+        story.append(Paragraph(f"Смешанных статей: {mixed_papers}", styles['Normal']))
+        story.append(Paragraph(f"Индекс коллабораций: {profile.get('collaboration_index', 0):.2f}", styles['Normal']))
+        story.append(Paragraph(f"Страновое разнообразие: {profile.get('country_diversity', 0)} стран", styles['Normal']))
+        story.append(Spacer(1, 20))
+    
+    top_coauthors = profile.get('top_coauthors', {})
+    coauthors_with_orcid = profile.get('coauthors_with_orcid', {})
+    
+    if top_coauthors:
+        story.append(Paragraph("<b>Топ соавторы</b>", heading_style))
+        for author, count in list(top_coauthors.items())[:20]:
+            orcid_link = coauthors_with_orcid.get(author, '')
+            if orcid_link:
+                story.append(Paragraph(f"• {author}: {count} совместных работ (ORCID: {orcid_link})", styles['Normal']))
+            else:
+                story.append(Paragraph(f"• {author}: {count} совместных работ", styles['Normal']))
+        story.append(Spacer(1, 20))
+    
+    story.append(PageBreak())
+    story.append(Paragraph("<b>Список публикаций</b>", heading_style))
+    
+    sorted_pubs = sorted(publications, key=lambda x: x.get('publication_year', 0), reverse=True)
+    
+    pub_table_data = [['#', 'Название', 'Год', 'Журнал', 'Цитаты', 'DOI']]
+    for i, pub in enumerate(sorted_pubs[:50]):
+        pub_table_data.append([
+            str(i+1),
+            pub.get('title', 'No title')[:50],
+            str(pub.get('publication_year', 'N/A')),
+            pub.get('journal_name', 'Unknown')[:30],
+            str(pub.get('cited_by_count', 0)),
+            pub.get('doi', '')
+        ])
+    
+    if pub_table_data:
+        pub_table = Table(pub_table_data, colWidths=[0.3*inch, 2*inch, 0.5*inch, 1.2*inch, 0.5*inch, 1.2*inch])
+        pub_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), primary_color),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Times-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
             ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
             ('FONTNAME', (0, 1), (-1, -1), 'Times-Roman'),
-            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ]))
-        story.append(metrics_table)
+        story.append(pub_table)
         story.append(Spacer(1, 10))
-        
-        # Рекомендация
-        recommendation = profile.get('recommendation', 'Нет рекомендации')
-        story.append(Paragraph(f"<b>Рекомендация:</b> {recommendation}", normal_style))
-        story.append(Spacer(1, 5))
-        
-        # ORCID
-        orcid = profile.get('orcid', 'N/A')
-        story.append(Paragraph(f"<b>ORCID:</b> {orcid}", normal_style))
-        
-        # Аффилиации
-        affils = profile.get('author_affiliations', [])
-        if affils:
-            story.append(Paragraph(f"<b>Аффилиации:</b> {', '.join(affils[:3])}", normal_style))
-        
-        story.append(Spacer(1, 10))
+        if len(publications) > 50:
+            story.append(Paragraph(f"<i>Показано 50 из {len(publications)} публикаций</i>", styles['Normal']))
     
-    # Footer
     story.append(Spacer(1, 30))
     footer_style = ParagraphStyle(
         'Footer',
-        parent=normal_style,
+        parent=styles['Normal'],
         fontSize=10,
-        textColor=colors.gray,
-        alignment=TA_CENTER
+        textColor=colors.HexColor('#7F8C8D'),
+        alignment=TA_CENTER,
+        fontName='Times-Roman'
     )
     story.append(Paragraph("© Author Profile Analysis / Created by daM / Chimica Techno Acta", footer_style))
     story.append(Paragraph("https://chimicatechnoacta.ru", footer_style))
     
-    # Построение PDF
     try:
         doc.build(story)
         print(f"✅ PDF отчет сохранен: {filename}")
@@ -2760,54 +3617,73 @@ def generate_pdf_report_with_authors(
 # ОСНОВНАЯ ФУНКЦИЯ ЗАПУСКА ДЛЯ STREAMLIT
 # ============================================
 
-def run_profile_analysis_streamlit(orcid_input: str, show_all_authors: bool, journal_logo_base64: Optional[str] = None):
-    """Запускает полный анализ профиля ученого в Streamlit"""
+def run_profile_analysis(orcid_list: List[str], show_all_authors: bool, journal_logo: Optional[Dict] = None):
+    """Запускает полный анализ профиля ученого для одного или нескольких ORCID"""
+    
+    if not orcid_list:
+        st.error("⚠️ Введите хотя бы один ORCID")
+        return
+    
+    st.info(f"🔍 Анализирую {len(orcid_list)} авторов...")
+    
+    progress_container = st.empty()
+    status_container = st.empty()
     
     try:
-        # Парсим ORCID
-        orcid_list = parse_orcids(orcid_input)
+        journal_logo_base64 = None
+        if journal_logo:
+            try:
+                for filename, file_info in journal_logo.items():
+                    content = file_info['content'] if hasattr(file_info, 'get') else file_info
+                    if hasattr(content, 'read'):
+                        content = content.read()
+                    journal_logo_base64 = base64.b64encode(content).decode()
+                    st.success(f"✅ Логотип загружен: {filename}")
+                    break
+            except Exception as e:
+                st.warning(f"⚠️ Ошибка загрузки логотипа: {e}")
         
-        if not orcid_list:
-            st.error("⚠️ Введите хотя бы один корректный ORCID")
+        def progress_callback(current, total, orcid):
+            progress_percent = (current / total) * 100
+            progress_html = update_colored_progress(
+                progress_percent, 
+                f"Анализ {orcid} ({current}/{total})"
+            )
+            progress_container.markdown(progress_html, unsafe_allow_html=True)
+            status_container.info(f"📊 Обработка {current}/{total}: {orcid}")
+        
+        start_time = time.time()
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        all_authors_data = loop.run_until_complete(
+            analyze_multiple_authors(orcid_list, progress_callback)
+        )
+        loop.close()
+        
+        elapsed = time.time() - start_time
+        
+        if not all_authors_data:
+            st.error("❌ Данные не найдены. Проверьте правильность ORCID.")
             return
         
-        st.info(f"📊 Найдено {len(orcid_list)} ORCID для анализа")
+        sorted_authors = sort_authors_by_h_index(all_authors_data)
         
-        if len(orcid_list) > 10:
-            st.warning(f"⚠️ Найдено {len(orcid_list)} ORCID. Это может занять время...")
+        st.session_state['all_authors'] = sorted_authors
+        st.session_state['show_all_authors'] = show_all_authors
+        st.session_state['journal_logo_base64'] = journal_logo_base64
+        st.session_state['analysis_complete'] = True
         
-        # Запускаем анализ
-        with st.spinner(f"🔄 Анализ {len(orcid_list)} авторов..."):
-            # Используем asyncio для запуска
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            all_authors = loop.run_until_complete(analyze_multiple_authors(orcid_list))
-            loop.close()
+        st.success(f"✅ Анализ завершен! Найдено {len(sorted_authors)} авторов за {elapsed:.1f} сек.")
         
-        if not all_authors:
-            st.error("❌ Не удалось получить данные ни для одного автора")
-            return
-        
-        # Сортируем авторов
-        sorted_authors = sort_authors_by_h_index(all_authors)
         best_author = sorted_authors[0]
-        
-        st.success(f"✅ Проанализировано {len(sorted_authors)} авторов")
         st.info(f"🏆 Лучший автор: {best_author.get('author_name', 'Unknown')} (h-index: {best_author.get('h_index', 0)})")
         
-        # Сохраняем в session_state
-        ss.all_authors = sorted_authors
-        ss.best_author = best_author
-        ss.show_all_authors = show_all_authors
-        ss.journal_logo_base64 = journal_logo_base64
+        if show_all_authors:
+            st.info(f"👥 Показаны все {len(sorted_authors)} авторов (сортировка по h-index)")
+        else:
+            st.info("👤 Показан только лучший автор")
         
-        # Создаем визуализации для лучшего автора
-        with st.spinner("🎨 Создание визуализаций..."):
-            best_profile = best_author.get('profile', {})
-            images = create_visualizations(best_profile)
-            ss.images = images
-        
-        st.success("✅ Анализ завершен! Перейдите на вкладку 'Профиль ученого' для просмотра результатов")
         st.balloons()
         
     except Exception as e:
@@ -2816,114 +3692,11 @@ def run_profile_analysis_streamlit(orcid_input: str, show_all_authors: bool, jou
         st.code(traceback.format_exc())
 
 # ============================================
-# ОСНОВНАЯ ФУНКЦИЯ ОТОБРАЖЕНИЯ ПРОФИЛЯ
-# ============================================
-
-def display_author_profile_streamlit(author: Dict, show_all: bool, idx: int = 0):
-    """Отображает профиль одного автора в Streamlit"""
-    
-    profile = author.get('profile', {})
-    author_name = author.get('author_name', 'Unknown')
-    h_index = author.get('h_index', 0)
-    
-    if show_all:
-        st.markdown(f"## {idx+1}. {author_name} (h-index: {h_index})")
-    else:
-        st.markdown(f"## 🏆 Лучший автор: {author_name} (h-index: {h_index})")
-    
-    # Метрики
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric("📄 Публикаций", profile.get('total_publications', 0))
-    with col2:
-        st.metric("📈 h-index", profile.get('h_index', 0))
-    with col3:
-        st.metric("📊 g-index", profile.get('g_index', 0))
-    with col4:
-        st.metric("📊 i10-index", profile.get('i10_index', 0))
-    
-    col5, col6, col7, col8 = st.columns(4)
-    
-    with col5:
-        st.metric("📖 Цитирований", f"{profile.get('total_citations', 0):,}")
-    with col6:
-        st.metric("⭐ Среднее", f"{profile.get('average_citations', 0):.1f}")
-    with col7:
-        st.metric("🌐 Открытый доступ", f"{profile.get('oa_percentage', 0):.1f}%")
-    with col8:
-        st.metric("🤝 Соавторов", profile.get('unique_coauthors', 0))
-    
-    # Рекомендация
-    recommendation = profile.get('recommendation', 'Нет рекомендации')
-    if '🟢' in recommendation:
-        st.success(f"💡 {recommendation}")
-    elif '🟡' in recommendation:
-        st.warning(f"💡 {recommendation}")
-    else:
-        st.error(f"💡 {recommendation}")
-    
-    # Флаги риска
-    risk_flags = profile.get('risk_flags', [])
-    if risk_flags:
-        with st.expander("⚠️ Флаги риска"):
-            for flag in risk_flags:
-                if '🔴' in flag:
-                    st.error(flag)
-                else:
-                    st.warning(flag)
-    
-    # Визуализации
-    if ss.get('images'):
-        st.markdown("### 📊 Визуализации")
-        
-        images = ss.images
-        
-        if images.get('years_chart'):
-            st.image(BytesIO(base64.b64decode(images['years_chart'])), use_column_width=True)
-        
-        col_img1, col_img2 = st.columns(2)
-        with col_img1:
-            if images.get('journals_chart'):
-                st.image(BytesIO(base64.b64decode(images['journals_chart'])), use_column_width=True)
-        with col_img2:
-            if images.get('oa_chart'):
-                st.image(BytesIO(base64.b64decode(images['oa_chart'])), use_column_width=True)
-        
-        if images.get('wordcloud'):
-            st.image(BytesIO(base64.b64decode(images['wordcloud'])), use_column_width=True)
-        
-        if images.get('thematic_structure'):
-            st.image(BytesIO(base64.b64decode(images['thematic_structure'])), use_column_width=True)
-        
-        if images.get('radar_chart'):
-            st.image(BytesIO(base64.b64decode(images['radar_chart'])), use_column_width=True)
-    
-    # ORCID
-    st.markdown(f"**ORCID:** {profile.get('orcid', 'N/A')}")
-    
-    # Аффилиации
-    affils = profile.get('author_affiliations', [])
-    if affils:
-        st.markdown(f"**🏛️ Аффилиации:** {', '.join(affils[:3])}")
-    
-    # Топ соавторы
-    top_coauthors = profile.get('top_coauthors', {})
-    if top_coauthors:
-        with st.expander("🤝 Топ соавторы"):
-            for author_name, count in list(top_coauthors.items())[:10]:
-                st.text(f"{author_name}: {count} совместных работ")
-    
-    st.divider()
-
-# ============================================
-# ПОЛНОСТЬЮ НОВЫЙ STREAMLIT ИНТЕРФЕЙС
+# СОЗДАНИЕ WIDGET-ИНТЕРФЕЙСА STREAMLIT
 # ============================================
 
 def main():
-    """Главная функция Streamlit приложения"""
-    
-    # Настройка страницы
+    # Page configuration
     st.set_page_config(
         page_title="Author Profile Analysis",
         page_icon="🔬",
@@ -2931,60 +3704,60 @@ def main():
         initial_sidebar_state="expanded"
     )
     
-    # Инициализация session_state
-    if 'all_authors' not in ss:
-        ss.all_authors = []
-    if 'best_author' not in ss:
-        ss.best_author = None
-    if 'show_all_authors' not in ss:
-        ss.show_all_authors = False
-    if 'journal_logo_base64' not in ss:
-        ss.journal_logo_base64 = None
-    if 'images' not in ss:
-        ss.images = {}
-    if 'primary_color' not in ss:
-        ss.primary_color = '#667eea'
-    if 'secondary_color' not in ss:
-        ss.secondary_color = '#f39c12'
-    if 'use_cache' not in ss:
-        ss.use_cache = True
-    if 'language' not in ss:
-        ss.language = 'ru'
+    # Initialize session state
+    if 'primary_color' not in st.session_state:
+        st.session_state.primary_color = '#667eea'
+    if 'secondary_color' not in st.session_state:
+        st.session_state.secondary_color = '#f39c12'
+    if 'show_all_authors' not in st.session_state:
+        st.session_state.show_all_authors = False
+    if 'all_authors' not in st.session_state:
+        st.session_state.all_authors = []
+    if 'analysis_complete' not in st.session_state:
+        st.session_state.analysis_complete = False
+    if 'journal_logo_base64' not in st.session_state:
+        st.session_state.journal_logo_base64 = None
+    if 'language' not in st.session_state:
+        st.session_state.language = 'en'
     
-    # ========== БОКОВАЯ ПАНЕЛЬ ==========
+    # Apply theme
+    primary = st.session_state.primary_color
+    secondary = st.session_state.secondary_color
+    apply_theme_css(primary, secondary)
+    
+    # Sidebar
     with st.sidebar:
         st.markdown("## ⚙️ Настройки")
         
-        # Язык
-        st.markdown("### 🌐 Язык")
+        # Language selector
         lang_option = st.selectbox(
-            "",
-            options=['ru', 'en'],
-            format_func=lambda x: 'Русский' if x == 'ru' else 'English',
-            index=0 if ss.language == 'ru' else 1
+            "🌐 Язык",
+            options=['en', 'ru'],
+            format_func=lambda x: 'English' if x == 'en' else 'Русский',
+            index=0 if st.session_state.language == 'en' else 1
         )
-        if lang_option != ss.language:
-            ss.language = lang_option
+        if lang_option != st.session_state.language:
+            st.session_state.language = lang_option
             st.rerun()
         
         st.markdown("---")
         
-        # Цветовая тема (из второго кода)
-        st.markdown("### 🎨 Цветовая тема")
+        # Color theme
+        st.markdown("## 🎨 Цветовая тема")
         
         preset_themes = {
-            "По умолчанию (Сине-фиолетовый)": {"primary": "#667eea", "secondary": "#9b59b6"},
-            "Изумруд (Зелено-бирюзовый)": {"primary": "#2ecc71", "secondary": "#27ae60"},
-            "Закат (Оранжево-коралловый)": {"primary": "#e74c3c", "secondary": "#c0392b"},
-            "Океан (Темно-синий)": {"primary": "#3498db", "secondary": "#2980b9"},
-            "Королевский (Фиолетово-розовый)": {"primary": "#9b59b6", "secondary": "#e84393"},
-            "Лес (Темно-зеленый)": {"primary": "#27ae60", "secondary": "#2ecc71"},
-            "Вишня (Красно-розовый)": {"primary": "#e84393", "secondary": "#9b59b6"},
-            "Янтарь (Желто-оранжевый)": {"primary": "#f39c12", "secondary": "#e67e22"},
+            "Default (Blue-Purple)": {"primary": "#667eea", "secondary": "#f39c12"},
+            "Emerald (Green-Teal)": {"primary": "#2ecc71", "secondary": "#27ae60"},
+            "Sunset (Orange-Coral)": {"primary": "#e74c3c", "secondary": "#c0392b"},
+            "Ocean (Deep Blue)": {"primary": "#3498db", "secondary": "#2980b9"},
+            "Royal (Purple-Pink)": {"primary": "#9b59b6", "secondary": "#e84393"},
+            "Forest (Dark Green)": {"primary": "#27ae60", "secondary": "#2ecc71"},
+            "Cherry (Red-Pink)": {"primary": "#e84393", "secondary": "#9b59b6"},
+            "Amber (Yellow-Orange)": {"primary": "#f39c12", "secondary": "#e67e22"},
         }
         
         theme_option = st.selectbox(
-            "Пресеты тем",
+            "🎨 Пресеты тем",
             options=list(preset_themes.keys()),
             index=0
         )
@@ -2993,239 +3766,389 @@ def main():
         
         if use_preset:
             selected_theme = preset_themes[theme_option]
-            ss.primary_color = selected_theme["primary"]
-            ss.secondary_color = selected_theme["secondary"]
+            st.session_state.primary_color = selected_theme["primary"]
+            st.session_state.secondary_color = selected_theme["secondary"]
         else:
             selected_color = st.color_picker(
-                "Выберите основной цвет",
-                value=ss.primary_color
+                "🎨 Выберите основной цвет",
+                value=st.session_state.primary_color
             )
-            ss.primary_color = selected_color
-            ss.secondary_color = get_complementary_color(selected_color)
+            st.session_state.primary_color = selected_color
+            st.session_state.secondary_color = get_complementary_color(selected_color)
         
-        # Превью цветов
         col1, col2 = st.columns(2)
         with col1:
             st.markdown(
-                f'<div style="background: {ss.primary_color}; height: 30px; border-radius: 8px; text-align: center; color: white; padding: 5px;">Primary</div>',
+                f'<div style="text-align: center;">'
+                f'<div class="color-preview" style="background: {st.session_state.primary_color};"></div>'
+                f'<div style="font-size: 11px; margin-top: 5px;">Основной</div>'
+                f'</div>',
                 unsafe_allow_html=True
             )
         with col2:
             st.markdown(
-                f'<div style="background: {ss.secondary_color}; height: 30px; border-radius: 8px; text-align: center; color: white; padding: 5px;">Secondary</div>',
+                f'<div style="text-align: center;">'
+                f'<div class="color-preview" style="background: {st.session_state.secondary_color};"></div>'
+                f'<div style="font-size: 11px; margin-top: 5px;">Дополнительный</div>'
+                f'</div>',
                 unsafe_allow_html=True
             )
         
+        st.markdown(
+            f'<div class="complementary-preview" style="height: 8px; width: 100%; margin: 10px 0;"></div>',
+            unsafe_allow_html=True
+        )
+        
         st.markdown("---")
         
-        # Настройки кэша
-        st.markdown("### 💾 Кэширование")
-        ss.use_cache = st.checkbox("Использовать кэш", value=ss.use_cache)
+        st.markdown("## 📊 Параметры анализа")
         
-        if st.button("🗑️ Очистить кэш", use_container_width=True):
+        use_cache = st.checkbox("💾 Использовать кэш", value=USE_CACHE)
+        global USE_CACHE
+        USE_CACHE = use_cache
+        
+        if st.button("🗑️ Очистить кэш"):
+            import shutil
             if os.path.exists('cache'):
                 shutil.rmtree('cache')
-                os.makedirs('cache')
-            st.cache_data.clear()
-            st.success("✅ Кэш очищен!")
+                st.cache_data.clear()
+                st.success("✅ Кэш очищен!")
         
         st.markdown("---")
         
-        # Информация
-        st.markdown("### 📌 Инструкция")
         st.markdown("""
-        1. Введите ORCID авторов        2. Загрузите логотип журнала (опционально)
-        3. Выберите режим отображения
-        4. Нажмите 'Анализировать'
-        5. Просмотрите результаты на вкладках
-        """)
-        
-        st.markdown("---")
-        st.markdown("© Chimica Techno Acta")
-        st.markdown("[chimicatechnoacta.ru](https://chimicatechnoacta.ru)")
+        <div style="font-size: 11px; color: #666; text-align: center;">
+            🔬 Author Profile Analysis v2.0<br>
+            © daM / Chimica Techno Acta
+        </div>
+        """, unsafe_allow_html=True)
     
-    # ========== ОСНОВНОЙ ИНТЕРФЕЙС ==========
+    # Main content
+    st.image("logo.png", width=250) if os.path.exists("logo.png") else None
     
-    # Заголовок
-    st.image("assets/logo.png", width=200) if os.path.exists("assets/logo.png") else None
-    st.title("🔬 Author Profile Analysis")
-    st.caption("Анализ профиля ученого по ORCID с расширенными метриками")
+    st.markdown("---")
+    st.markdown("### 📊 Комплексный анализ профиля ученого по ORCID")
     st.markdown("---")
     
-    # Вкладки
-    tab1, tab2, tab3 = st.tabs(["📥 Загрузка данных", "📊 Профиль ученого", "📄 Отчеты"])
+    # Tabs
+    tab1, tab2, tab3 = st.tabs([
+        "📥 Загрузка данных",
+        "📊 Профиль ученого",
+        "📄 Отчеты"
+    ])
     
-    # ========== ВКЛАДКА 1: ЗАГРУЗКА ДАННЫХ ==========
     with tab1:
-        st.markdown("### 📥 Введите ORCID автора(ов)")
+        st.markdown('<div class="custom-tab fade-in">', unsafe_allow_html=True)
+        st.header("Загрузка ORCID и параметры анализа")
         
-        col1, col2 = st.columns([2, 1])
+        orcid_text = st.text_area(
+            "ORCID автора(ов)",
+            placeholder="0000-0002-1234-567X\n0000-0002-5678-9012\nили: 0000-0002-1234-567X, 0000-0002-5678-9012\nили: https://orcid.org/0000-0002-1234-567X",
+            help="Введите один или несколько ORCID. Разделители: запятая, пробел, новая строка",
+            height=100
+        )
+        
+        col1, col2 = st.columns([1, 1])
         
         with col1:
-            orcid_input = st.text_area(
-                "ORCID (один или несколько)",
-                placeholder="0000-0002-1234-567X\n0000-0002-5678-9012\nили через запятую: 0000-0002-1234-567X, 0000-0002-5678-9012",
-                help="Введите один или несколько ORCID. Разделители: запятая, пробел, новая строка",
-                height=100
+            journal_logo_upload = st.file_uploader(
+                "Загрузить логотип журнала (опционально)",
+                type=['png', 'jpg', 'jpeg', 'svg'],
+                help="Логотип будет отображаться в отчетах"
             )
         
         with col2:
-            st.markdown("### 📎 Логотип журнала")
-            journal_logo = st.file_uploader(
-                "Загрузить логотип (опционально)",
-                type=['png', 'jpg', 'jpeg', 'svg'],
-                key="journal_logo_uploader"
+            show_all_authors = st.checkbox(
+                "👥 Show data for all co-authors",
+                value=st.session_state.show_all_authors,
+                help="При включении показывает информацию о всех авторах, отсортированных по h-index"
             )
-            
-            journal_logo_base64 = None
-            if journal_logo:
-                try:
-                    journal_logo_base64 = base64.b64encode(journal_logo.read()).decode()
-                    st.success("✅ Логотип загружен")
-                except Exception as e:
-                    st.error(f"Ошибка загрузки: {e}")
+            st.session_state.show_all_authors = show_all_authors
         
-        # Настройки
-        st.markdown("### ⚙️ Настройки анализа")
-        
-        show_all_authors = st.checkbox(
-            "👥 Show data for all co-authors",
-            value=ss.show_all_authors,
-            help="При включении показывает информацию о всех авторах, отсортированных по h-index"
-        )
-        ss.show_all_authors = show_all_authors
-        
-        # Кнопка анализа
         if st.button("🔍 Анализировать профиль(и)", type="primary", use_container_width=True):
-            if not orcid_input or not orcid_input.strip():
+            orcids = parse_orcids(orcid_text)
+            
+            if not orcids:
                 st.error("⚠️ Введите хотя бы один ORCID")
+            elif len(orcids) > 20:
+                st.warning(f"⚠️ Найдено {len(orcids)} ORCID. Это может занять много времени...")
             else:
-                # Запускаем анализ
-                run_profile_analysis_streamlit(orcid_input, show_all_authors, journal_logo_base64)
+                journal_logo_data = None
+                if journal_logo_upload:
+                    journal_logo_data = {
+                        journal_logo_upload.name: {
+                            'content': journal_logo_upload.read()
+                        }
+                    }
+                
+                run_profile_analysis(orcids, show_all_authors, journal_logo_data)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
     
-    # ========== ВКЛАДКА 2: ПРОФИЛЬ УЧЕНОГО ==========
     with tab2:
-        if not ss.all_authors:
-            st.info("👈 Загрузите данные на вкладке 'Загрузка данных'")
-        else:
-            show_all = ss.show_all_authors
+        if st.session_state.analysis_complete and st.session_state.all_authors:
+            authors = st.session_state.all_authors
+            show_all = st.session_state.show_all_authors
+            journal_logo_base64 = st.session_state.journal_logo_base64
+            
+            st.markdown("## 📊 Профили ученых")
             
             if show_all:
-                st.markdown(f"### 👥 Все авторы (отсортированы по h-index)")
-                st.markdown(f"*Всего авторов: {len(ss.all_authors)}*")
+                st.info(f"👥 Показаны все {len(authors)} авторов, отсортированных по h-index")
+                st.markdown("---")
                 
-                for idx, author in enumerate(ss.all_authors):
-                    display_author_profile_streamlit(author, True, idx)
+                for idx, author_data in enumerate(authors, 1):
+                    is_best = (idx == 1)
+                    author_name = author_data.get('author_name', f'Автор {idx}')
+                    profile = author_data.get('profile', {})
+                    publications = author_data.get('publications', [])
+                    analyzer = author_data.get('analyzer')
+                    
+                    h_index = profile.get('h_index', 0)
+                    total_pubs = profile.get('total_publications', 0)
+                    total_citations = profile.get('total_citations', 0)
+                    avg_citations = profile.get('average_citations', 0)
+                    oa_percentage = profile.get('oa_percentage', 0)
+                    recommendation = profile.get('recommendation', 'Нет рекомендации')
+                    risk_flags = profile.get('risk_flags', [])
+                    
+                    author_class = "author-card best" if is_best else "author-card"
+                    st.markdown(f"""
+                    <div class="{author_class}">
+                        <div>
+                            <span class="author-rank">{idx}.</span>
+                            <span class="author-name-main">{author_name}</span>
+                            <span class="author-hindex">(h-index: {h_index})</span>
+                            {'<span class="best-badge">🏆 Лучший</span>' if is_best else ''}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    col1, col2, col3, col4, col5 = st.columns(5)
+                    with col1:
+                        st.metric("📄 Публикаций", total_pubs)
+                    with col2:
+                        st.metric("📈 h-index", h_index)
+                    with col3:
+                        st.metric("📊 Цитирований", f"{total_citations:,}")
+                    with col4:
+                        st.metric("⭐ Среднее", f"{avg_citations:.1f}")
+                    with col5:
+                        st.metric("🌐 OA", f"{oa_percentage:.1f}%")
+                    
+                    rec_color = "🟢" if "🟢" in recommendation else ("🟡" if "🟡" in recommendation else "🔴")
+                    st.info(f"{rec_color} {recommendation}")
+                    
+                    if risk_flags:
+                        for flag in risk_flags:
+                            st.warning(flag)
+                    
+                    images = create_visualizations(profile) if profile else {}
+                    
+                    if images.get('years_chart'):
+                        st.image(f"data:image/png;base64,{images['years_chart']}", use_column_width=True)
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if images.get('journals_chart'):
+                            st.image(f"data:image/png;base64,{images['journals_chart']}", use_column_width=True)
+                    with col2:
+                        if images.get('oa_chart'):
+                            st.image(f"data:image/png;base64,{images['oa_chart']}", use_column_width=True)
+                    
+                    if images.get('wordcloud'):
+                        st.image(f"data:image/png;base64,{images['wordcloud']}", use_column_width=True)
+                    
+                    with st.expander(f"📚 Публикации ({len(publications)})"):
+                        if publications:
+                            pub_data = []
+                            for pub in sorted(publications, key=lambda x: x.get('publication_year', 0), reverse=True):
+                                pub_data.append({
+                                    'Название': pub.get('title', 'No title')[:80] + '...' if len(pub.get('title', '')) > 80 else pub.get('title', 'No title'),
+                                    'Год': pub.get('publication_year', 'N/A'),
+                                    'Журнал': pub.get('journal_name', 'Unknown')[:40],
+                                    'Цитаты': pub.get('cited_by_count', 0),
+                                    'DOI': pub.get('doi', '')
+                                })
+                            df = pd.DataFrame(pub_data[:20])
+                            st.dataframe(df, use_container_width=True)
+                            if len(publications) > 20:
+                                st.caption(f"Показано 20 из {len(publications)} публикаций")
+                    
+                    st.markdown("---")
+            
             else:
-                st.markdown(f"### 🏆 Лучший автор")
-                st.markdown(f"*Всего проанализировано авторов: {len(ss.all_authors)}*")
+                best_author = authors[0]
+                author_name = best_author.get('author_name', 'Unknown')
+                profile = best_author.get('profile', {})
+                publications = best_author.get('publications', [])
+                analyzer = best_author.get('analyzer')
                 
-                if ss.best_author:
-                    display_author_profile_streamlit(ss.best_author, False)
-                else:
-                    st.warning("⚠️ Нет данных о лучшем авторе")
-    
-    # ========== ВКЛАДКА 3: ОТЧЕТЫ ==========
-    with tab3:
-        if not ss.all_authors:
-            st.info("👈 Загрузите данные на вкладке 'Загрузка данных'")
+                st.markdown(f"### 🏆 Лучший автор: {author_name} (h-index: {profile.get('h_index', 0)})")
+                
+                images = create_visualizations(profile) if profile else {}
+                
+                # Display full profile using the original format
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("📄 Публикаций", profile.get('total_publications', 0))
+                with col2:
+                    st.metric("📈 h-index", profile.get('h_index', 0))
+                with col3:
+                    st.metric("📊 g-index", profile.get('g_index', 0))
+                with col4:
+                    st.metric("📊 i10-index", profile.get('i10_index', 0))
+                
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("📖 Цитирований", f"{profile.get('total_citations', 0):,}")
+                with col2:
+                    st.metric("⭐ Среднее", f"{profile.get('average_citations', 0):.1f}")
+                with col3:
+                    st.metric("🌐 OA", f"{profile.get('oa_percentage', 0):.1f}%")
+                with col4:
+                    st.metric("📅 Активных лет", profile.get('active_years', 0))
+                
+                st.info(f"💡 {profile.get('recommendation', 'Нет рекомендации')}")
+                
+                if profile.get('risk_flags'):
+                    for flag in profile['risk_flags']:
+                        st.warning(flag)
+                
+                if images.get('years_chart'):
+                    st.image(f"data:image/png;base64,{images['years_chart']}", use_column_width=True)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if images.get('journals_chart'):
+                        st.image(f"data:image/png;base64,{images['journals_chart']}", use_column_width=True)
+                    if images.get('publishers_chart'):
+                        st.image(f"data:image/png;base64,{images['publishers_chart']}", use_column_width=True)
+                with col2:
+                    if images.get('oa_chart'):
+                        st.image(f"data:image/png;base64,{images['oa_chart']}", use_column_width=True)
+                    if images.get('affiliations_chart'):
+                        st.image(f"data:image/png;base64,{images['affiliations_chart']}", use_column_width=True)
+                
+                if images.get('wordcloud'):
+                    st.image(f"data:image/png;base64,{images['wordcloud']}", use_column_width=True)
+                
+                if images.get('citations_chart'):
+                    st.image(f"data:image/png;base64,{images['citations_chart']}", use_column_width=True)
+                
+                if images.get('citation_distribution'):
+                    st.image(f"data:image/png;base64,{images['citation_distribution']}", use_column_width=True)
+                
+                if images.get('thematic_structure'):
+                    st.image(f"data:image/png;base64,{images['thematic_structure']}", use_column_width=True)
+                
+                if images.get('radar_chart'):
+                    st.image(f"data:image/png;base64,{images['radar_chart']}", use_column_width=True)
+                
+                with st.expander("📚 Список публикаций"):
+                    if publications:
+                        pub_data = []
+                        for pub in sorted(publications, key=lambda x: x.get('publication_year', 0), reverse=True):
+                            pub_data.append({
+                                'Название': pub.get('title', 'No title')[:80] + '...' if len(pub.get('title', '')) > 80 else pub.get('title', 'No title'),
+                                'Год': pub.get('publication_year', 'N/A'),
+                                'Журнал': pub.get('journal_name', 'Unknown')[:40],
+                                'Цитаты': pub.get('cited_by_count', 0),
+                                'OA': '✅' if pub.get('is_oa', False) else '❌',
+                                'DOI': pub.get('doi', '')
+                            })
+                        df = pd.DataFrame(pub_data)
+                        st.dataframe(df, use_container_width=True)
         else:
-            st.markdown("### 📄 Генерация отчетов")
+            st.info("👈 Загрузите данные на вкладке 'Загрузка данных' и нажмите 'Анализировать профиль(и)'")
+    
+    with tab3:
+        if st.session_state.analysis_complete and st.session_state.all_authors:
+            authors = st.session_state.all_authors
+            show_all = st.session_state.show_all_authors
+            journal_logo_base64 = st.session_state.journal_logo_base64
             
-            st.info(f"📊 Доступно отчетов: {len(ss.all_authors)} авторов")
+            theme_colors = {
+                'primary': st.session_state.primary_color,
+                'secondary': st.session_state.secondary_color
+            }
             
-            if ss.show_all_authors:
-                st.markdown("👥 **Режим:** Показаны все авторы")
+            st.markdown("## 📄 Генерация отчетов")
+            
+            best_author = authors[0]
+            
+            st.info(f"🏆 Лучший автор: {best_author.get('author_name', 'Unknown')} (h-index: {best_author.get('h_index', 0)})")
+            
+            if show_all:
+                st.info(f"👥 Отчет будет содержать информацию о всех {len(authors)} авторах")
             else:
-                best = ss.best_author
-                st.markdown(f"🏆 **Режим:** Показан лучший автор — {best.get('author_name', 'Unknown')} (h-index: {best.get('h_index', 0)})")
+                st.info("👤 Отчет будет содержать информацию только о лучшем авторе")
             
-            # Кнопки скачивания
             col1, col2 = st.columns(2)
             
             with col1:
-                if st.button("💾 Скачать HTML отчет", use_container_width=True):
+                if st.button("💾 Скачать HTML отчет", use_container_width=True, type="primary"):
                     with st.spinner("Генерация HTML отчета..."):
-                        # Получаем тему
-                        theme = {
-                            'primary': ss.primary_color,
-                            'secondary': ss.secondary_color
-                        }
-                        
-                        # Получаем логотип программы (если есть)
-                        program_logo_base64 = None
-                        if os.path.exists("assets/logo.png"):
-                            with open("assets/logo.png", "rb") as f:
-                                program_logo_base64 = base64.b64encode(f.read()).decode()
-                        
-                        # Генерируем HTML
-                        html_report = generate_html_report_with_authors(
-                            ss.all_authors,
-                            ss.show_all_authors,
-                            ss.journal_logo_base64,
-                            program_logo_base64,
-                            theme,
-                            ss.images
+                        html_report = generate_html_report_with_multiple_authors(
+                            authors,
+                            show_all,
+                            journal_logo_base64,
+                            theme_colors
                         )
                         
-                        # Скачиваем
+                        if show_all:
+                            filename = f"profiles_{len(authors)}_authors_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+                        else:
+                            filename = f"profile_{best_author.get('author_name', 'unknown').replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+                        
                         st.download_button(
                             label="📥 Скачать HTML",
                             data=html_report.encode('utf-8'),
-                            file_name=f"profile_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html",
+                            file_name=filename,
                             mime="text/html",
                             use_container_width=True
                         )
             
             with col2:
-                if st.button("📄 Скачать PDF отчет", use_container_width=True):
-                    if PDF_AVAILABLE:
+                if PDF_AVAILABLE:
+                    if st.button("📄 Скачать PDF отчет", use_container_width=True, type="primary"):
                         with st.spinner("Генерация PDF отчета..."):
-                            # Получаем тему
-                            theme = {
-                                'primary': ss.primary_color,
-                                'secondary': ss.secondary_color
-                            }
-                            
-                            # Получаем логотип программы (если есть)
-                            program_logo_base64 = None
-                            if os.path.exists("assets/logo.png"):
-                                with open("assets/logo.png", "rb") as f:
-                                    program_logo_base64 = base64.b64encode(f.read()).decode()
-                            
-                            # Генерируем PDF
-                            filename = f"profile_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-                            generate_pdf_report_with_authors(
-                                ss.all_authors,
-                                ss.show_all_authors,
-                                ss.journal_logo_base64,
-                                program_logo_base64,
-                                theme,
-                                ss.images,
-                                filename
-                            )
-                            
-                            # Читаем файл для скачивания
-                            with open(filename, "rb") as f:
-                                pdf_bytes = f.read()
-                            
-                            st.download_button(
-                                label="📥 Скачать PDF",
-                                data=pdf_bytes,
-                                file_name=filename,
-                                mime="application/pdf",
-                                use_container_width=True
-                            )
-                            
-                            # Удаляем временный файл
-                            if os.path.exists(filename):
-                                os.remove(filename)
-                    else:
-                        st.error("❌ ReportLab не установлен. Установите: pip install reportlab")
-
-# ============================================
-# ЗАПУСК ПРИЛОЖЕНИЯ
-# ============================================
+                            if not show_all:
+                                profile = best_author.get('profile', {})
+                                publications = best_author.get('publications', [])
+                                images = create_visualizations(profile) if profile else {}
+                                
+                                pdf_filename = f"profile_{best_author.get('author_name', 'unknown').replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                                
+                                generate_pdf_report(
+                                    profile,
+                                    publications,
+                                    images,
+                                    pdf_filename,
+                                    None,
+                                    None,
+                                    theme_colors
+                                )
+                                
+                                with open(pdf_filename, 'rb') as f:
+                                    st.download_button(
+                                        label="📥 Скачать PDF",
+                                        data=f.read(),
+                                        file_name=pdf_filename,
+                                        mime="application/pdf",
+                                        use_container_width=True
+                                    )
+                            else:
+                                st.warning("⚠️ PDF отчет для множественных авторов пока недоступен. Используйте HTML отчет.")
+                else:
+                    st.warning("⚠️ ReportLab не установлен. PDF отчет недоступен.")
+            
+            if show_all:
+                st.markdown("---")
+                st.markdown("### 📋 Предпросмотр HTML отчета")
+                st.info("Нажмите 'Скачать HTML отчет' для полного отчета")
+        else:
+            st.info("👈 Сначала выполните анализ на вкладке 'Загрузка данных'")
 
 if __name__ == "__main__":
     main()
