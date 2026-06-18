@@ -2353,6 +2353,8 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     primary = theme_colors.get('primary', '#667eea')
     secondary = theme_colors.get('secondary', '#f39c12')
     analogous = get_analogous_colors(primary, 2)
+
+    html = ""
     
     total_pubs = profile.get('total_publications', 0)
     h_index = profile.get('h_index', 0)
