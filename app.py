@@ -1314,13 +1314,11 @@ class ScholarProfileAnalyzer:
             'international': defaultdict(lambda: defaultdict(int)),
             'domestic_papers': 0,
             'international_papers': 0,
-            'mixed_papers': 0,
             'total_collaborations': 0
         }
         
         domestic_papers = 0
         international_papers = 0
-        mixed_papers = 0
         
         for p in self.publications:
             institutions = p.get('institutions', [])
@@ -1355,55 +1353,78 @@ class ScholarProfileAnalyzer:
             if author_countries_set == {'Unknown'}:
                 # Все коллаборации считаем международными
                 international_papers += 1
-                for inst in institutions:
-                    country = inst.get('country_code', '')
-                    affil_name = inst.get('display_name', '')
+                # Добавляем уникальные аффилиации (каждая аффилиация учитывается 1 раз на статью)
+                for affil_name in paper_affiliations:
                     # Проверяем, не является ли аффилиация аффилиацией самого ученого
-                    if affil_name and not is_author_affiliation(affil_name, list(author_affiliations_set)):
-                        country_name = get_full_country_name(country) if country else 'Unknown'
+                    if affil_name and affil_name not in author_affiliations_set:
+                        # Находим страну для этой аффилиации
+                        country_name = 'Unknown'
+                        for inst in institutions:
+                            if inst.get('display_name', '') == affil_name:
+                                country = inst.get('country_code', '')
+                                country_name = get_full_country_name(country) if country else 'Unknown'
+                                break
                         self.collaborations['international'][country_name][affil_name] += 1
             else:
                 if has_author_country and not has_other_countries:
                     # Только страны автора - внутристрановые
                     domestic_papers += 1
-                    for inst in institutions:
-                        country = inst.get('country_code', '')
-                        affil_name = inst.get('display_name', '')
+                    # Добавляем уникальные аффилиации (каждая аффилиация учитывается 1 раз на статью)
+                    for affil_name in paper_affiliations:
                         # Проверяем, не является ли аффилиация аффилиацией самого ученого
-                        if affil_name and not is_author_affiliation(affil_name, list(author_affiliations_set)):
-                            if country in author_countries_set:
-                                country_name = get_full_country_name(country) if country else 'Unknown'
+                        if affil_name and affil_name not in author_affiliations_set:
+                            # Находим страну для этой аффилиации
+                            country_name = 'Unknown'
+                            for inst in institutions:
+                                if inst.get('display_name', '') == affil_name:
+                                    country = inst.get('country_code', '')
+                                    if country in author_countries_set:
+                                        country_name = get_full_country_name(country) if country else 'Unknown'
+                                        break
+                            if country_name != 'Unknown':
                                 self.collaborations['domestic'][country_name][affil_name] += 1
-                                
+                            
                 elif has_author_country and has_other_countries:
                     # Смешанные - есть и страны автора, и другие страны
-                    mixed_papers += 1
-                    for inst in institutions:
-                        country = inst.get('country_code', '')
-                        affil_name = inst.get('display_name', '')
+                    international_papers += 1  # Считаем как международные
+                    # Добавляем уникальные аффилиации (каждая аффилиация учитывается 1 раз на статью)
+                    for affil_name in paper_affiliations:
                         # Проверяем, не является ли аффилиация аффилиацией самого ученого
-                        if affil_name and not is_author_affiliation(affil_name, list(author_affiliations_set)):
-                            country_name = get_full_country_name(country) if country else 'Unknown'
-                            if country in author_countries_set:
-                                self.collaborations['domestic'][country_name][affil_name] += 1
-                            else:
-                                self.collaborations['international'][country_name][affil_name] += 1
-                                
+                        if affil_name and affil_name not in author_affiliations_set:
+                            # Находим страну для этой аффилиации
+                            country_name = 'Unknown'
+                            for inst in institutions:
+                                if inst.get('display_name', '') == affil_name:
+                                    country = inst.get('country_code', '')
+                                    if country:
+                                        country_name = get_full_country_name(country) if country else 'Unknown'
+                                        break
+                            if country_name != 'Unknown':
+                                if country_name in [get_full_country_name(c) for c in author_countries_set if c and c != 'Unknown']:
+                                    self.collaborations['domestic'][country_name][affil_name] += 1
+                                else:
+                                    self.collaborations['international'][country_name][affil_name] += 1
+                                    
                 elif has_other_countries and not has_author_country:
                     # Только другие страны - международные
                     international_papers += 1
-                    for inst in institutions:
-                        country = inst.get('country_code', '')
-                        affil_name = inst.get('display_name', '')
+                    # Добавляем уникальные аффилиации (каждая аффилиация учитывается 1 раз на статью)
+                    for affil_name in paper_affiliations:
                         # Проверяем, не является ли аффилиация аффилиацией самого ученого
-                        if affil_name and not is_author_affiliation(affil_name, list(author_affiliations_set)):
-                            country_name = get_full_country_name(country) if country else 'Unknown'
-                            self.collaborations['international'][country_name][affil_name] += 1
+                        if affil_name and affil_name not in author_affiliations_set:
+                            # Находим страну для этой аффилиации
+                            country_name = 'Unknown'
+                            for inst in institutions:
+                                if inst.get('display_name', '') == affil_name:
+                                    country = inst.get('country_code', '')
+                                    country_name = get_full_country_name(country) if country else 'Unknown'
+                                    break
+                            if country_name != 'Unknown':
+                                self.collaborations['international'][country_name][affil_name] += 1
         
         self.collaborations['domestic_papers'] = domestic_papers
         self.collaborations['international_papers'] = international_papers
-        self.collaborations['mixed_papers'] = mixed_papers
-        self.collaborations['total_collaborations'] = domestic_papers + international_papers + mixed_papers
+        self.collaborations['total_collaborations'] = domestic_papers + international_papers
         
         self.profile['collaborations'] = self.collaborations
         
@@ -1444,6 +1465,33 @@ class ScholarProfileAnalyzer:
         # Страновое разнообразие
         all_countries = set(author_countries_set) | set(all_collab.keys())
         self.profile['country_diversity'] = len(all_countries)
+        
+        # ====== ФИЛЬТРАЦИЯ: Удаляем аффилиации автора из коллабораций ======
+        # Получаем актуальные аффилиации автора из профиля
+        author_affils_final = set(self.author_affiliations) if self.author_affiliations else set()
+        
+        # Фильтруем domestic коллаборации
+        for country in list(self.collaborations['domestic'].keys()):
+            affils_dict = self.collaborations['domestic'][country]
+            for affil in list(affils_dict.keys()):
+                if affil in author_affils_final:
+                    del affils_dict[affil]
+            # Если после удаления словарь пуст, удаляем страну
+            if not affils_dict:
+                del self.collaborations['domestic'][country]
+        
+        # Фильтруем international коллаборации
+        for country in list(self.collaborations['international'].keys()):
+            affils_dict = self.collaborations['international'][country]
+            for affil in list(affils_dict.keys()):
+                if affil in author_affils_final:
+                    del affils_dict[affil]
+            # Если после удаления словарь пуст, удаляем страну
+            if not affils_dict:
+                del self.collaborations['international'][country]
+        
+        # Обновляем профиль с отфильтрованными данными
+        self.profile['collaborations'] = self.collaborations
     
     def analyze_publications(self):
         """Анализирует все публикации и строит профиль"""
@@ -2394,9 +2442,24 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     collaborations = profile.get('collaborations', {})
     domestic_papers = collaborations.get('domestic_papers', 0)
     international_papers = collaborations.get('international_papers', 0)
-    mixed_papers = collaborations.get('mixed_papers', 0)
-    domestic_collab = collaborations.get('domestic', {})
-    international_collab = collaborations.get('international', {})
+    
+    # ====== ФИЛЬТРАЦИЯ: Удаляем аффилиации автора из коллабораций при отображении ======
+    author_affils = set(profile.get('author_affiliations', []))
+    
+    # Фильтруем domestic коллаборации для отображения
+    domestic_collab_filtered = {}
+    for country, affils_dict in collaborations.get('domestic', {}).items():
+        filtered_affils = {k: v for k, v in affils_dict.items() if k not in author_affils}
+        if filtered_affils:
+            domestic_collab_filtered[country] = filtered_affils
+    
+    # Фильтруем international коллаборации для отображения
+    international_collab_filtered = {}
+    for country, affils_dict in collaborations.get('international', {}).items():
+        filtered_affils = {k: v for k, v in affils_dict.items() if k not in author_affils}
+        if filtered_affils:
+            international_collab_filtered[country] = filtered_affils
+    
     most_collab_country = profile.get('most_collaborative_country', 'None')
     collab_index = profile.get('collaboration_index', 0)
     country_diversity = profile.get('country_diversity', 0)
@@ -3012,8 +3075,8 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                                 f'<div class="collab-affil-item">• <strong>{html.escape(affil)}</strong>: {count} статей</div>'
                                 for affil, count in list(affils.items())[:10]
                             ]) if isinstance(affils, dict) else f'<div class="collab-affil-item">• {affils} статей</div>')
-                            for country, affils in list(domestic_collab.items())
-                        ]) if domestic_collab else '<p>Нет данных</p>'}
+                            for country, affils in list(domestic_collab_filtered.items())
+                        ]) if domestic_collab_filtered else '<p>Нет данных</p>'}
                     </div>
                     <div class="collab-box">
                         <h4>🌐 Международные коллаборации</h4>
@@ -3024,13 +3087,12 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                                 f'<div class="collab-affil-item">• <strong>{html.escape(affil)}</strong>: {count} статей</div>'
                                 for affil, count in list(affils.items())[:10]
                             ]) if isinstance(affils, dict) else f'<div class="collab-affil-item">• {affils} статей</div>')
-                            for country, affils in list(international_collab.items())
-                        ]) if international_collab else '<p>Нет данных</p>'}
+                            for country, affils in list(international_collab_filtered.items())
+                        ]) if international_collab_filtered else '<p>Нет данных</p>'}
                     </div>
                 </div>
                 
                 <div class="collab-box" style="margin-top: 10px;">
-                    <p><strong>Смешанных статей:</strong> {mixed_papers}</p>
                     <p><strong>Индекс коллабораций:</strong> {collab_index:.2f} (среднее число соавторов на статью - 1)</p>
                     <p><strong>Страновое разнообразие:</strong> {country_diversity} стран</p>
                     <p><strong>Самая коллаборативная страна:</strong> {most_collab_country}</p>
@@ -3800,18 +3862,33 @@ def generate_pdf_report(profile: Dict, publications: List[Dict], images: Dict[st
             story.append(Paragraph(f"• {concept} ({count})", normal_style))
         story.append(Spacer(1, 20))
     
+    # ====== СЕКЦИЯ КОЛЛАБОРАЦИЙ С ФИЛЬТРАЦИЕЙ ======
     collaborations = profile.get('collaborations', {})
     domestic_papers = collaborations.get('domestic_papers', 0)
     international_papers = collaborations.get('international_papers', 0)
-    mixed_papers = collaborations.get('mixed_papers', 0)
-    domestic_collab = collaborations.get('domestic', {})
-    international_collab = collaborations.get('international', {})
     
-    if domestic_papers > 0 or international_papers > 0 or mixed_papers > 0:
+    # ====== ФИЛЬТРАЦИЯ: Удаляем аффилиации автора из коллабораций при отображении ======
+    author_affils = set(profile.get('author_affiliations', []))
+    
+    # Фильтруем domestic коллаборации для отображения
+    domestic_collab_filtered = {}
+    for country, affils_dict in collaborations.get('domestic', {}).items():
+        filtered_affils = {k: v for k, v in affils_dict.items() if k not in author_affils}
+        if filtered_affils:
+            domestic_collab_filtered[country] = filtered_affils
+    
+    # Фильтруем international коллаборации для отображения
+    international_collab_filtered = {}
+    for country, affils_dict in collaborations.get('international', {}).items():
+        filtered_affils = {k: v for k, v in affils_dict.items() if k not in author_affils}
+        if filtered_affils:
+            international_collab_filtered[country] = filtered_affils
+    
+    if domestic_papers > 0 or international_papers > 0:
         story.append(PageBreak())
         story.append(Paragraph("<b>Анализ коллабораций</b>", heading_style))
         story.append(Paragraph(f"Внутристрановые коллаборации: {domestic_papers} статей", normal_style))
-        for country, affils in list(domestic_collab.items()):
+        for country, affils in list(domestic_collab_filtered.items()):
             story.append(Paragraph(f"  📍 {country}:", normal_style))
             if isinstance(affils, dict):
                 for affil, count in list(affils.items())[:5]:
@@ -3821,7 +3898,7 @@ def generate_pdf_report(profile: Dict, publications: List[Dict], images: Dict[st
         story.append(Spacer(1, 5))
         
         story.append(Paragraph(f"Международные коллаборации: {international_papers} статей", normal_style))
-        for country, affils in list(international_collab.items()):
+        for country, affils in list(international_collab_filtered.items()):
             story.append(Paragraph(f"  📍 {country}:", normal_style))
             if isinstance(affils, dict):
                 for affil, count in list(affils.items())[:5]:
@@ -3830,7 +3907,6 @@ def generate_pdf_report(profile: Dict, publications: List[Dict], images: Dict[st
                 story.append(Paragraph(f"    • {affils} статей", normal_style))
         story.append(Spacer(1, 5))
         
-        story.append(Paragraph(f"Смешанных статей: {mixed_papers}", normal_style))
         story.append(Paragraph(f"Индекс коллабораций: {profile.get('collaboration_index', 0):.2f}", normal_style))
         story.append(Paragraph(f"Страновое разнообразие: {profile.get('country_diversity', 0)} стран", normal_style))
         story.append(Spacer(1, 20))
@@ -4247,6 +4323,60 @@ def main():
                     if images.get('wordcloud'):
                         st.image(f"data:image/png;base64,{images['wordcloud']}", use_column_width=True)
                     
+                    # ====== СЕКЦИЯ КОЛЛАБОРАЦИЙ С ФИЛЬТРАЦИЕЙ ======
+                    collaborations = profile.get('collaborations', {})
+                    domestic_papers = collaborations.get('domestic_papers', 0)
+                    international_papers = collaborations.get('international_papers', 0)
+                    
+                    # ====== ФИЛЬТРАЦИЯ: Удаляем аффилиации автора из коллабораций при отображении ======
+                    author_affils = set(profile.get('author_affiliations', []))
+                    
+                    # Фильтруем domestic коллаборации для отображения
+                    domestic_collab_filtered = {}
+                    for country, affils_dict in collaborations.get('domestic', {}).items():
+                        filtered_affils = {k: v for k, v in affils_dict.items() if k not in author_affils}
+                        if filtered_affils:
+                            domestic_collab_filtered[country] = filtered_affils
+                    
+                    # Фильтруем international коллаборации для отображения
+                    international_collab_filtered = {}
+                    for country, affils_dict in collaborations.get('international', {}).items():
+                        filtered_affils = {k: v for k, v in affils_dict.items() if k not in author_affils}
+                        if filtered_affils:
+                            international_collab_filtered[country] = filtered_affils
+                    
+                    st.markdown("### 🌍 Анализ коллабораций")
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.markdown("#### 🇷🇺 Внутристрановые коллаборации")
+                        st.metric("Статей", domestic_papers)
+                        if domestic_collab_filtered:
+                            for country, affils_dict in domestic_collab_filtered.items():
+                                st.markdown(f"**📍 {country}**")
+                                for affil, count in list(affils_dict.items())[:10]:
+                                    st.markdown(f"• {affil}: {count} статей")
+                        else:
+                            st.info("Нет данных")
+                    
+                    with col2:
+                        st.markdown("#### 🌐 Международные коллаборации")
+                        st.metric("Статей", international_papers)
+                        if international_collab_filtered:
+                            for country, affils_dict in international_collab_filtered.items():
+                                st.markdown(f"**📍 {country}**")
+                                for affil, count in list(affils_dict.items())[:10]:
+                                    st.markdown(f"• {affil}: {count} статей")
+                        else:
+                            st.info("Нет данных")
+                    
+                    st.markdown(f"""
+                    **Индекс коллабораций:** {profile.get('collaboration_index', 0):.2f} (среднее число соавторов на статью - 1)  
+                    **Страновое разнообразие:** {profile.get('country_diversity', 0)} стран  
+                    **Самая коллаборативная страна:** {profile.get('most_collaborative_country', 'None')}
+                    """)
+                    
                     with st.expander(f"📚 Публикации ({len(publications)})"):
                         if publications:
                             pub_data = []
@@ -4332,6 +4462,60 @@ def main():
                 
                 if images.get('radar_chart'):
                     st.image(f"data:image/png;base64,{images['radar_chart']}", use_column_width=True)
+                
+                # ====== СЕКЦИЯ КОЛЛАБОРАЦИЙ С ФИЛЬТРАЦИЕЙ ======
+                collaborations = profile.get('collaborations', {})
+                domestic_papers = collaborations.get('domestic_papers', 0)
+                international_papers = collaborations.get('international_papers', 0)
+                
+                # ====== ФИЛЬТРАЦИЯ: Удаляем аффилиации автора из коллабораций при отображении ======
+                author_affils = set(profile.get('author_affiliations', []))
+                
+                # Фильтруем domestic коллаборации для отображения
+                domestic_collab_filtered = {}
+                for country, affils_dict in collaborations.get('domestic', {}).items():
+                    filtered_affils = {k: v for k, v in affils_dict.items() if k not in author_affils}
+                    if filtered_affils:
+                        domestic_collab_filtered[country] = filtered_affils
+                
+                # Фильтруем international коллаборации для отображения
+                international_collab_filtered = {}
+                for country, affils_dict in collaborations.get('international', {}).items():
+                    filtered_affils = {k: v for k, v in affils_dict.items() if k not in author_affils}
+                    if filtered_affils:
+                        international_collab_filtered[country] = filtered_affils
+                
+                st.markdown("### 🌍 Анализ коллабораций")
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("#### 🇷🇺 Внутристрановые коллаборации")
+                    st.metric("Статей", domestic_papers)
+                    if domestic_collab_filtered:
+                        for country, affils_dict in domestic_collab_filtered.items():
+                            st.markdown(f"**📍 {country}**")
+                            for affil, count in list(affils_dict.items())[:10]:
+                                st.markdown(f"• {affil}: {count} статей")
+                    else:
+                        st.info("Нет данных")
+                
+                with col2:
+                    st.markdown("#### 🌐 Международные коллаборации")
+                    st.metric("Статей", international_papers)
+                    if international_collab_filtered:
+                        for country, affils_dict in international_collab_filtered.items():
+                            st.markdown(f"**📍 {country}**")
+                            for affil, count in list(affils_dict.items())[:10]:
+                                st.markdown(f"• {affil}: {count} статей")
+                    else:
+                        st.info("Нет данных")
+                
+                st.markdown(f"""
+                **Индекс коллабораций:** {profile.get('collaboration_index', 0):.2f} (среднее число соавторов на статью - 1)  
+                **Страновое разнообразие:** {profile.get('country_diversity', 0)} стран  
+                **Самая коллаборативная страна:** {profile.get('most_collaborative_country', 'None')}
+                """)
                 
                 with st.expander("📚 Список публикаций"):
                     if publications:
