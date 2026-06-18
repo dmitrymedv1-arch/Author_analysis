@@ -1,15 +1,30 @@
+# Core
 streamlit
-aiohttp
 pandas
 numpy
+
+# Async & Networking
+aiohttp
+requests
+nest-asyncio
+tenacit
+
+# Visualization
 matplotlib
 seaborn
 plotly
 wordcloud
+
+# PDF & HTML Reports
 reportlab
-python-dotenv
-nest-asyncio
 beautifulsoup4
-requests
+
+# Utilities
+python-dotenv
 pydantic
-tenacity
+lxml
+html5lib
+
+# Optional but recommended
+pillow
+openpyxl
