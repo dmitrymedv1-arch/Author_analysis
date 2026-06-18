@@ -3803,8 +3803,8 @@ def main():
         
         st.markdown("## 📊 Параметры анализа")
         
-        use_cache = st.checkbox("💾 Использовать кэш", value=USE_CACHE)
         global USE_CACHE
+        use_cache = st.checkbox("💾 Использовать кэш", value=USE_CACHE)
         USE_CACHE = use_cache
         
         if st.button("🗑️ Очистить кэш"):
