@@ -30,9 +30,6 @@ import aiohttp
 import pandas as pd
 import streamlit as st
 from streamlit import session_state as ss
-import ipywidgets as widgets
-from IPython.display import display, HTML, IFrame
-from tqdm.notebook import tqdm
 import re
 import time
 from datetime import datetime
@@ -63,6 +60,10 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import combinations
 import math
+from tqdm import tqdm
+
+# Для asyncio в Streamlit
+nest_asyncio.apply()
 
 # Для PDF отчета
 try:
