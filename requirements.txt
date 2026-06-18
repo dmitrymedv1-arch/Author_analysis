@@ -1,25 +1,14 @@
-# Core
-streamlit
-pandas
-numpy
-
-# API & Networking
-aiohttp
-requests
-nest-asyncio
-
-# Visualization
-matplotlib
-seaborn
-plotly
-wordcloud
-
-# Reports
-reportlab
-
-# Text Processing
-beautifulsoup4
-lxml
-
-# Utilities
-python-dotenv
+streamlit>=1.28.0
+aiohttp>=3.8.0
+pandas>=2.0.0
+numpy>=1.24.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.14.0
+wordcloud>=1.9.0
+reportlab>=4.0.0
+beautifulsoup4>=4.12.0
+requests>=2.31.0
+nest-asyncio>=1.5.0
+tenacity>=8.2.0
+python-dotenv>=1.0.0
