@@ -235,7 +235,16 @@ LANG = {
         'source_no_doi': 'No DOI available',
         'source_view_link': 'View',
         'source_doi_available': 'DOI available',
-        'source_no_link': 'No link available'
+        'source_no_link': 'No link available',
+        # Новые переводы для соавторов
+        'coauthor_orcid': 'ORCID',
+        'coauthor_scopus': 'Scopus ID',
+        'coauthor_researcherid': 'ResearcherID',
+        'coauthor_website': 'Website',
+        'coauthor_no_ids': 'No external IDs',
+        'coauthor_works': 'joint works',
+        'coauthor_external_ids': 'External IDs',
+        'coauthor_personal_links': 'Personal links'
     },
     'ru': {
         'app_title': 'Анализ профиля ученого',
@@ -408,7 +417,16 @@ LANG = {
         'source_no_doi': 'Нет DOI',
         'source_view_link': 'Смотреть',
         'source_doi_available': 'DOI доступен',
-        'source_no_link': 'Нет ссылки'
+        'source_no_link': 'Нет ссылки',
+        # Новые переводы для соавторов
+        'coauthor_orcid': 'ORCID',
+        'coauthor_scopus': 'Scopus ID',
+        'coauthor_researcherid': 'ResearcherID',
+        'coauthor_website': 'Сайт',
+        'coauthor_no_ids': 'Нет внешних идентификаторов',
+        'coauthor_works': 'совместных работ',
+        'coauthor_external_ids': 'Внешние идентификаторы',
+        'coauthor_personal_links': 'Персональные ссылки'
     }
 }
 
@@ -838,6 +856,60 @@ def apply_theme_css(base_color: str, accent_color: str = None):
         .source-badge-nodoi {{
             background: #f8d7da;
             color: #721c24;
+        }}
+        
+        /* Co-author card styles */
+        .coauthor-card {{
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-bottom: 10px;
+            border-left: 3px solid var(--primary);
+            transition: transform 0.2s;
+        }}
+        
+        .coauthor-card:hover {{
+            transform: translateX(5px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }}
+        
+        .coauthor-name {{
+            font-weight: 600;
+            font-size: 15px;
+            color: #2C3E50;
+        }}
+        
+        .coauthor-count {{
+            color: #666;
+            font-size: 13px;
+        }}
+        
+        .coauthor-links {{
+            margin-top: 5px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }}
+        
+        .coauthor-link {{
+            display: inline-block;
+            background: white;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            text-decoration: none;
+            color: var(--primary);
+            border: 1px solid var(--primary-light);
+            transition: all 0.2s;
+        }}
+        
+        .coauthor-link:hover {{
+            background: var(--primary);
+            color: white;
+        }}
+        
+        .coauthor-link-icon {{
+            margin-right: 3px;
         }}
     </style>
     """
@@ -1416,16 +1488,33 @@ def parse_openalex_publication(item: Dict) -> Dict:
         
         authors = []
         author_orcids = []
+        author_data_list = []  # Для хранения данных о каждом авторе с ORCID
+        
         for auth in item.get('authorships', []):
             if auth.get('author'):
                 author_name = auth['author'].get('display_name', '')
                 author_orcid = auth['author'].get('orcid', '')
+                
+                # Извлекаем внешние идентификаторы из auth, если они есть
+                external_ids = auth.get('external_ids', {})
+                scopus_id = external_ids.get('scopus_id', '')
+                researcher_id = external_ids.get('researcher_id', '')
+                
                 if author_name:
                     authors.append(author_name)
+                    author_data_list.append({
+                        'name': author_name,
+                        'orcid': author_orcid.replace('https://orcid.org/', '') if author_orcid else '',
+                        'scopus_id': scopus_id,
+                        'researcher_id': researcher_id,
+                        'raw_orcid': author_orcid
+                    })
                     if author_orcid:
                         author_orcids.append(author_orcid)
+        
         pub['authors'] = authors
         pub['author_orcids'] = author_orcids
+        pub['author_data'] = author_data_list  # Сохраняем расширенные данные
         
         pub['author_count'] = len(authors)
         
@@ -1705,6 +1794,8 @@ class ScholarProfileAnalyzer:
             'mixed_papers': 0,
             'total_collaborations': 0
         }
+        # Новое поле для хранения данных о соавторах с их внешними идентификаторами
+        self.coauthors_data = {}
         
     def add_publication(self, pub_data: Dict):
         """Добавляет публикацию для анализа"""
@@ -2014,6 +2105,12 @@ class ScholarProfileAnalyzer:
         # Статистика по типам источников
         source_categories = {}
         
+        # Словарь для сбора данных о соавторах с их внешними идентификаторами
+        coauthors_dict = {}  # имя -> {'count': int, 'orcid': str, 'scopus_id': str, 'researcher_id': str}
+        
+        author_name_normalized = normalize_author_name(self.author_name or '')
+        author_orcid = self.orcid
+        
         for p in self.publications:
             if p.get('concepts'):
                 all_concepts.extend(p['concepts'])
@@ -2070,6 +2167,51 @@ class ScholarProfileAnalyzer:
                 'is_oa': p.get('is_oa', False),
                 'any_repository_has_fulltext': p.get('any_repository_has_fulltext', False)
             })
+            
+            # Сбор данных о соавторах
+            author_data_list = p.get('author_data', [])
+            if author_data_list:
+                for author_data in author_data_list:
+                    name = author_data.get('name', '')
+                    if not name:
+                        continue
+                    
+                    # Проверяем, не является ли автор самим ученым
+                    is_self = False
+                    if author_name_normalized:
+                        name_normalized = normalize_author_name(name)
+                        if name_normalized == author_name_normalized:
+                            is_self = True
+                    
+                    if not is_self:
+                        orcid_val = author_data.get('orcid', '')
+                        scopus_val = author_data.get('scopus_id', '')
+                        researcher_val = author_data.get('researcher_id', '')
+                        
+                        if name not in coauthors_dict:
+                            coauthors_dict[name] = {
+                                'count': 0,
+                                'orcid': '',
+                                'scopus_id': '',
+                                'researcher_id': ''
+                            }
+                        
+                        coauthors_dict[name]['count'] += 1
+                        
+                        # Обновляем ORCID, если он есть и еще не записан
+                        if orcid_val and not coauthors_dict[name]['orcid']:
+                            coauthors_dict[name]['orcid'] = orcid_val
+                        
+                        # Обновляем Scopus ID
+                        if scopus_val and not coauthors_dict[name]['scopus_id']:
+                            coauthors_dict[name]['scopus_id'] = scopus_val
+                        
+                        # Обновляем ResearcherID
+                        if researcher_val and not coauthors_dict[name]['researcher_id']:
+                            coauthors_dict[name]['researcher_id'] = researcher_val
+        
+        # Сохраняем данные о соавторах
+        self.coauthors_data = coauthors_dict
         
         # Сохраняем статистику по типам источников
         self.profile['source_categories'] = {
@@ -2106,35 +2248,17 @@ class ScholarProfileAnalyzer:
         self.profile['paratexts'] = sum(1 for p in self.publications if p.get('is_paratext', False))
         self.profile['retraction_details'] = [p.get('retraction_info') for p in self.publications if p.get('is_retracted')]
         
+        # Формируем список соавторов для совместимости со старым кодом
         coauthors = []
-        
-        author_name_normalized = normalize_author_name(self.author_name or '')
-        author_orcid = self.orcid
-        
-        for p in self.publications:
-            if p.get('authors'):
-                authors_list = p['authors']
-                orcids_list = p.get('author_orcids', [])
-                
-                for idx, name in enumerate(authors_list):
-                    is_self = False
-                    
-                    if author_name_normalized:
-                        name_normalized = normalize_author_name(name)
-                        if name_normalized == author_name_normalized:
-                            is_self = True
-                    
-                    if not is_self and orcids_list and idx < len(orcids_list):
-                        orcid_val = orcids_list[idx]
-                        if orcid_val and (orcid_val == author_orcid or orcid_val.replace('https://orcid.org/', '') == author_orcid):
-                            is_self = True
-                    
-                    if not is_self:
-                        coauthors.append(name)
+        for name, data in coauthors_dict.items():
+            coauthors.extend([name] * data['count'])
         
         self.profile['coauthors'] = dict(Counter(coauthors))
         self.profile['top_coauthors'] = dict(Counter(coauthors).most_common(20))
         self.profile['unique_coauthors'] = len(set(coauthors))
+        
+        # Сохраняем расширенные данные о соавторах
+        self.profile['coauthors_data'] = coauthors_dict
         
         author_counts = [p.get('author_count', 0) for p in self.publications if p.get('author_count', 0) > 0]
         if author_counts:
@@ -2318,7 +2442,8 @@ class ScholarProfileAnalyzer:
         return self.publications
 
 # ============================================
-# ОСНОВНАЯ ФУНКЦИЯ СБОРА ДАННЫХ# ============================================
+# ОСНОВНАЯ ФУНКЦИЯ СБОРА ДАННЫХ
+# ============================================
 
 async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict, List[Dict]]:
     """Собирает все данные для профиля ученого"""
@@ -2345,6 +2470,9 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
         
         if 'profile' in cached_data:
             analyzer.profile = cached_data['profile']
+            # Восстанавливаем coauthors_data из профиля
+            if 'coauthors_data' in cached_data['profile']:
+                analyzer.coauthors_data = cached_data['profile']['coauthors_data']
         
         if 'institution_homepages' in cached_data:
             analyzer.set_institution_homepages(cached_data['institution_homepages'])
@@ -2871,7 +2999,7 @@ def create_visualizations(profile: Dict, lang: str = 'en') -> Dict[str, str]:
 # ФУНКЦИИ ДЛЯ ГЕНЕРАЦИИ ОТЧЕТОВ
 # ============================================
 
-def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[str, str], journal_logo_base64: Optional[str] = None, app_logo_base64: Optional[str] = None, institution_homepages: Optional[Dict[str, str]] = None, theme_colors: Optional[Dict] = None, lang: str = 'en') -> str:
+def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[str, str], logo_base64: Optional[str] = None, app_logo_base64: Optional[str] = None, institution_homepages: Optional[Dict[str, str]] = None, theme_colors: Optional[Dict] = None, lang: str = 'en') -> str:
     """Генерирует HTML отчет с расширенной информацией и дизайном из второго кода"""
     
     if theme_colors is None:
@@ -2928,6 +3056,9 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     domestic_papers = collaborations.get('domestic_papers', 0)
     international_papers = collaborations.get('international_papers', 0)
     
+    # Получаем данные о соавторах с их внешними идентификаторами
+    coauthors_data = profile.get('coauthors_data', {})
+    
     # Получаем данные по типам источников
     source_categories = profile.get('source_categories', {})
     
@@ -2969,65 +3100,115 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     def t(key: str, **kwargs) -> str:
         return translate(key, lang, **kwargs)
     
-    # Генерируем HTML для секции типов источников
+    # Генерируем HTML для секции типов источников (исключая 'articles')
     source_section_html = ""
     if source_categories:
-        source_section_html = f"""
-        <div id="sources" class="section">
-            <div class="section-title">{t('source_types')}</div>
-            <table class="source-table">
-                <thead>
-                    <tr>
-                        <th>{t('source_count')}</th>
-                        <th>{t('source_examples')}</th>
-                    </tr>
-                </thead>
-                <tbody>
-        """
+        # Фильтруем категории, исключая 'articles'
+        filtered_categories = {k: v for k, v in source_categories.items() if k != 'articles'}
         
-        # Определяем порядок категорий для отображения
-        category_order = ['articles', 'repositories', 'ebooks', 'proceedings', 'other']
+        if filtered_categories:
+            source_section_html = f"""
+            <div id="sources" class="section">
+                <div class="section-title">{t('source_types')}</div>
+                <table class="source-table">
+                    <thead>
+                        <tr>
+                            <th>{t('source_count')}</th>
+                            <th>{t('source_examples')}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            """
+            
+            # Определяем порядок категорий для отображения
+            category_order = ['repositories', 'ebooks', 'proceedings', 'other']
+            
+            for cat in category_order:
+                if cat in filtered_categories:
+                    cat_data = filtered_categories[cat]
+                    count = cat_data.get('count', 0)
+                    items = cat_data.get('items', [])
+                    
+                    label_key = category_labels.get(cat, {}).get(lang, cat)
+                    label = t(label_key) if label_key else cat
+                    
+                    examples_html = ""
+                    if items:
+                        for item in items[:3]:
+                            title = item.get('title', 'No title')[:60]
+                            doi = item.get('doi', '')
+                            item_id = item.get('id', '')
+                            
+                            if doi:
+                                link = f'https://doi.org/{doi}'
+                                link_text = f'DOI: {doi[:20]}...' if len(doi) > 20 else f'DOI: {doi}'
+                                examples_html += f'<div class="source-example-item">• {html.escape(title)} — <a href="{link}" target="_blank" class="source-example-link">{link_text}</a> <span class="source-badge source-badge-doi">✅ {t("source_doi_available")}</span></div>'
+                            elif item_id:
+                                link = item_id
+                                examples_html += f'<div class="source-example-item">• {html.escape(title)} — <a href="{link}" target="_blank" class="source-example-link">{t("source_view_link")}</a> <span class="source-badge source-badge-nodoi">⚠️ {t("source_no_doi")}</span></div>'
+                            else:
+                                examples_html += f'<div class="source-example-item">• {html.escape(title)} <span class="source-badge source-badge-nodoi">⚠️ {t("source_no_link")}</span></div>'
+                    else:
+                        examples_html = f'<em>{t("no_publications")}</em>'
+                    
+                    source_section_html += f"""
+                        <tr>
+                            <td><strong>{label}</strong><br><span style="font-size:12px;color:#666;">{count} {t("articles") if count > 1 else t("article") if "article" in label else ""}</span></td>
+                            <td>{examples_html}</td>
+                        </tr>
+                    """
+            
+            source_section_html += """
+                    </tbody>
+                </table>
+            </div>
+            """
+    
+    # Генерируем HTML для секции соавторов с их внешними идентификаторами
+    coauthors_html = ""
+    if coauthors_data:
+        # Сортируем соавторов по количеству совместных работ (по убыванию)
+        sorted_coauthors = sorted(coauthors_data.items(), key=lambda x: x[1]['count'], reverse=True)[:20]
         
-        for cat in category_order:
-            if cat in source_categories:
-                cat_data = source_categories[cat]
-                count = cat_data.get('count', 0)
-                items = cat_data.get('items', [])
-                
-                label_key = category_labels.get(cat, {}).get(lang, cat)
-                label = t(label_key) if label_key else cat
-                
-                examples_html = ""
-                if items:
-                    for item in items[:3]:
-                        title = item.get('title', 'No title')[:60]
-                        doi = item.get('doi', '')
-                        item_id = item.get('id', '')
-                        
-                        if doi:
-                            link = f'https://doi.org/{doi}'
-                            link_text = f'DOI: {doi[:20]}...' if len(doi) > 20 else f'DOI: {doi}'
-                            examples_html += f'<div class="source-example-item">• {html.escape(title)} — <a href="{link}" target="_blank" class="source-example-link">{link_text}</a> <span class="source-badge source-badge-doi">✅ {t("source_doi_available")}</span></div>'
-                        elif item_id:
-                            link = item_id
-                            examples_html += f'<div class="source-example-item">• {html.escape(title)} — <a href="{link}" target="_blank" class="source-example-link">{t("source_view_link")}</a> <span class="source-badge source-badge-nodoi">⚠️ {t("source_no_doi")}</span></div>'
-                        else:
-                            examples_html += f'<div class="source-example-item">• {html.escape(title)} <span class="source-badge source-badge-nodoi">⚠️ {t("source_no_link")}</span></div>'
-                else:
-                    examples_html = f'<em>{t("no_publications")}</em>'
-                
-                source_section_html += f"""
-                    <tr>
-                        <td><strong>{label}</strong><br><span style="font-size:12px;color:#666;">{count} {t("articles") if count > 1 else t("article") if "article" in label else ""}</span></td>
-                        <td>{examples_html}</td>
-                    </tr>
-                """
+        coauthors_html = '<div class="section"><div class="section-title">' + t('top_coauthors') + '</div>'
         
-        source_section_html += """
-                </tbody>
-            </table>
-        </div>
-        """
+        for author_name, data in sorted_coauthors:
+            count = data.get('count', 0)
+            orcid = data.get('orcid', '')
+            scopus_id = data.get('scopus_id', '')
+            researcher_id = data.get('researcher_id', '')
+            
+            coauthors_html += f'''
+            <div class="coauthor-card">
+                <div>
+                    <span class="coauthor-name">{html.escape(author_name)}</span>
+                    <span class="coauthor-count">({count} {t("coauthor_works")})</span>
+                </div>
+                <div class="coauthor-links">
+            '''
+            
+            # Добавляем ORCID, если есть
+            if orcid:
+                coauthors_html += f'<a href="https://orcid.org/{orcid}" target="_blank" class="coauthor-link"><span class="coauthor-link-icon">🆔</span> {t("coauthor_orcid")}</a>'
+            
+            # Добавляем Scopus ID, если есть
+            if scopus_id:
+                coauthors_html += f'<a href="https://www.scopus.com/authid/detail.uri?authorId={scopus_id}" target="_blank" class="coauthor-link"><span class="coauthor-link-icon">📄</span> {t("coauthor_scopus")}</a>'
+            
+            # Добавляем ResearcherID, если есть
+            if researcher_id:
+                coauthors_html += f'<a href="https://publons.com/researcher/{researcher_id}/" target="_blank" class="coauthor-link"><span class="coauthor-link-icon">🔬</span> {t("coauthor_researcherid")}</a>'
+            
+            # Если нет никаких идентификаторов
+            if not orcid and not scopus_id and not researcher_id:
+                coauthors_html += f'<span class="coauthor-link" style="background: #f0f0f0; color: #999; border-color: #ddd;">{t("coauthor_no_ids")}</span>'
+            
+            coauthors_html += '''
+                </div>
+            </div>
+            '''
+        
+        coauthors_html += '</div>'
     
     html_content = f"""
     <!DOCTYPE html>
@@ -3117,6 +3298,11 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 max-height: 150px;
                 max-width: 300px;
                 margin-bottom: 15px;
+            }}
+            .header-logo-app {{
+                max-height: 80px;
+                max-width: 240px;
+                margin-bottom: 10px;
             }}
             .author-info {{
                 background: #f8f9fa;
@@ -3401,7 +3587,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
             
             .thematic-grid {{
                 display: grid;
-                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                grid-template-columns: repeat(4, 1fr);
                 gap: 15px;
                 margin: 15px 0;
             }}
@@ -3491,6 +3677,53 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 color: #721c24;
             }}
             
+            /* Co-author card styles */
+            .coauthor-card {{
+                background: #f8f9fa;
+                border-radius: 10px;
+                padding: 12px 16px;
+                margin-bottom: 10px;
+                border-left: 3px solid {primary};
+                transition: transform 0.2s;
+            }}
+            .coauthor-card:hover {{
+                transform: translateX(5px);
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }}
+            .coauthor-name {{
+                font-weight: 600;
+                font-size: 15px;
+                color: #2C3E50;
+            }}
+            .coauthor-count {{
+                color: #666;
+                font-size: 13px;
+            }}
+            .coauthor-links {{
+                margin-top: 5px;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 5px;
+            }}
+            .coauthor-link {{
+                display: inline-block;
+                background: white;
+                padding: 2px 10px;
+                border-radius: 12px;
+                font-size: 11px;
+                text-decoration: none;
+                color: {primary};
+                border: 1px solid {primary}40;
+                transition: all 0.2s;
+            }}
+            .coauthor-link:hover {{
+                background: {primary};
+                color: white;
+            }}
+            .coauthor-link-icon {{
+                margin-right: 3px;
+            }}
+            
             @media print {{
                 .sidebar {{ display: none; }}
                 .main-content {{ margin-left: 0; }}
@@ -3498,6 +3731,11 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
             @media (max-width: 768px) {{
                 .sidebar {{ display: none; }}
                 .main-content {{ margin-left: 0; padding: 20px; }}
+                .thematic-grid {{
+                    grid-template-columns: repeat(2, 1fr);
+                }}
+            }}
+            @media (max-width: 480px) {{
                 .thematic-grid {{
                     grid-template-columns: 1fr;
                 }}
@@ -3514,13 +3752,13 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
             <a href="#collaborations"><span>🌍 {t('collaborations')}</span></a>
             <a href="#coauthors"><span>🤝 {t('top_coauthors')}</span></a>
             <a href="#publications"><span>📚 {t('publications')}</span></a>
-            {f'<a href="#sources"><span>📚 {t("source_types")}</span></a>' if source_categories else ''}
+            {f'<a href="#sources"><span>📚 {t("source_types")}</span></a>' if source_categories and any(cat != 'articles' for cat in source_categories) else ''}
         </div>
         
         <div class="main-content">
             <div class="header">
                 {f'<img src="data:image/png;base64,{app_logo_base64}" class="header-logo header-logo-app" alt="App Logo">' if app_logo_base64 else ''}
-                {f'<img src="data:image/png;base64,{journal_logo_base64}" class="header-logo" alt="Journal Logo">' if journal_logo_base64 else ''}
+                {f'<img src="data:image/png;base64,{logo_base64}" class="header-logo" alt="Journal Logo">' if logo_base64 else ''}
                 <h1>📊 {t('app_title')}</h1>
                 <div class="date">{t('report_preview')}: {datetime.now().strftime('%d.%m.%Y')}</div>
             </div>
@@ -3673,14 +3911,14 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                     ])}
                 </div>
                 
-                <h3 style="color: {primary}; margin-top: 20px;">{t('concepts')} (Top 20)</h3>
+                <h3 style="color: {primary}; margin-top: 20px;">{t('concepts')} (Top 10)</h3>
                 <div class="thematic-grid">
                     {''.join([
                         f'<div class="thematic-card">'
                         f'<div class="thematic-name">{html.escape(concept)}</div>'
                         f'<div class="thematic-count">📄 {count} {t("articles")}</div>'
                         f'</div>'
-                        for concept, count in list(top_keywords.items())[:20]
+                        for concept, count in list(top_keywords.items())[:10]
                     ])}
                 </div>
             </div>
@@ -3722,18 +3960,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 </div>
             </div>
             
-            <div id="coauthors" class="section">
-                <div class="section-title">{t('top_coauthors')}</div>
-                <ul>
-                    {''.join([
-                        f'<li>'
-                        f'<strong>{html.escape(author)}</strong>'
-                        f' ({count} {t("joint_works")})'
-                        f'</li>'
-                        for author, count in list(top_coauthors.items())[:20]
-                    ])}
-                </ul>
-            </div>
+            {coauthors_html}
             
             {source_section_html}
             
@@ -4118,6 +4345,60 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                 color: #721c24;
             }}
             
+            /* Co-author card styles */
+            .coauthor-card {{
+                background: #f8f9fa;
+                border-radius: 10px;
+                padding: 12px 16px;
+                margin-bottom: 10px;
+                border-left: 3px solid {primary};
+                transition: transform 0.2s;
+            }}
+            .coauthor-card:hover {{
+                transform: translateX(5px);
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }}
+            .coauthor-name {{
+                font-weight: 600;
+                font-size: 15px;
+                color: #2C3E50;
+            }}
+            .coauthor-count {{
+                color: #666;
+                font-size: 13px;
+            }}
+            .coauthor-links {{
+                margin-top: 5px;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 5px;
+            }}
+            .coauthor-link {{
+                display: inline-block;
+                background: white;
+                padding: 2px 10px;
+                border-radius: 12px;
+                font-size: 11px;
+                text-decoration: none;
+                color: {primary};
+                border: 1px solid {primary}40;
+                transition: all 0.2s;
+            }}
+            .coauthor-link:hover {{
+                background: {primary};
+                color: white;
+            }}
+            .coauthor-link-icon {{
+                margin-right: 3px;
+            }}
+            
+            .thematic-grid {{
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 15px;
+                margin: 15px 0;
+            }}
+            
             @media print {{
                 .sidebar {{ display: none; }}
                 .main-content {{ margin-left: 0; }}
@@ -4125,6 +4406,14 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
             @media (max-width: 768px) {{
                 .sidebar {{ display: none; }}
                 .main-content {{ margin-left: 0; padding: 20px; }}
+                .thematic-grid {{
+                    grid-template-columns: repeat(2, 1fr);
+                }}
+            }}
+            @media (max-width: 480px) {{
+                .thematic-grid {{
+                    grid-template-columns: 1fr;
+                }}
             }}
         </style>
     </head>
@@ -4145,6 +4434,9 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
         <div class="main-content">
             <div class="header">
     """)
+    
+    if app_logo_base64:
+        html_parts.append(f'<img src="data:image/png;base64,{app_logo_base64}" class="header-logo header-logo-app" alt="Логотип приложения">')
     
     if journal_logo_base64:
         html_parts.append(f'<img src="data:image/png;base64,{journal_logo_base64}" class="header-logo" alt="Логотип журнала">')
@@ -4188,6 +4480,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
             
             top_journals = profile.get('top_journals', {})
             top_coauthors = profile.get('top_coauthors', {})
+            coauthors_data = profile.get('coauthors_data', {})
             
             # Получаем данные по типам источников
             source_categories = profile.get('source_categories', {})
@@ -4200,62 +4493,104 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                 'other': {'en': 'source_other', 'ru': 'source_other'}
             }
             
-            # Генерируем HTML для секции типов источников
+            # Генерируем HTML для секции типов источников (исключая 'articles')
             source_section_html = ""
             if source_categories:
-                source_section_html = f"""
-                <h3>{t('source_types')}</h3>
-                <table class="source-table">
-                    <thead>
-                        <tr>
-                            <th>{t('source_count')}</th>
-                            <th>{t('source_examples')}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                """
+                filtered_categories = {k: v for k, v in source_categories.items() if k != 'articles'}
                 
-                category_order = ['articles', 'repositories', 'ebooks', 'proceedings', 'other']
-                
-                for cat in category_order:
-                    if cat in source_categories:
-                        cat_data = source_categories[cat]
-                        count = cat_data.get('count', 0)
-                        items = cat_data.get('items', [])
-                        
-                        label_key = category_labels.get(cat, {}).get(lang, cat)
-                        label = t(label_key) if label_key else cat
-                        
-                        examples_html = ""
-                        if items:
-                            for item in items[:3]:
-                                title = item.get('title', 'No title')[:60]
-                                doi = item.get('doi', '')
-                                item_id = item.get('id', '')
-                                
-                                if doi:
-                                    link = f'https://doi.org/{doi}'
-                                    link_text = f'DOI: {doi[:20]}...' if len(doi) > 20 else f'DOI: {doi}'
-                                    examples_html += f'<div class="source-example-item">• {html.escape(title)} — <a href="{link}" target="_blank" class="source-example-link">{link_text}</a> <span class="source-badge source-badge-doi">✅ {t("source_doi_available")}</span></div>'
-                                elif item_id:
-                                    link = item_id
-                                    examples_html += f'<div class="source-example-item">• {html.escape(title)} — <a href="{link}" target="_blank" class="source-example-link">{t("source_view_link")}</a> <span class="source-badge source-badge-nodoi">⚠️ {t("source_no_doi")}</span></div>'
-                                else:
-                                    examples_html += f'<div class="source-example-item">• {html.escape(title)} <span class="source-badge source-badge-nodoi">⚠️ {t("source_no_link")}</span></div>'
-                        else:
-                            examples_html = f'<em>{t("no_publications")}</em>'
-                        
-                        source_section_html += f"""
+                if filtered_categories:
+                    source_section_html = f"""
+                    <h3>{t('source_types')}</h3>
+                    <table class="source-table">
+                        <thead>
                             <tr>
-                                <td><strong>{label}</strong><br><span style="font-size:12px;color:#666;">{count} {t("articles") if count > 1 else t("article") if "article" in label else ""}</span></td>
-                                <td>{examples_html}</td>
+                                <th>{t('source_count')}</th>
+                                <th>{t('source_examples')}</th>
                             </tr>
-                        """
+                        </thead>
+                        <tbody>
+                    """
+                    
+                    category_order = ['repositories', 'ebooks', 'proceedings', 'other']
+                    
+                    for cat in category_order:
+                        if cat in filtered_categories:
+                            cat_data = filtered_categories[cat]
+                            count = cat_data.get('count', 0)
+                            items = cat_data.get('items', [])
+                            
+                            label_key = category_labels.get(cat, {}).get(lang, cat)
+                            label = t(label_key) if label_key else cat
+                            
+                            examples_html = ""
+                            if items:
+                                for item in items[:3]:
+                                    title = item.get('title', 'No title')[:60]
+                                    doi = item.get('doi', '')
+                                    item_id = item.get('id', '')
+                                    
+                                    if doi:
+                                        link = f'https://doi.org/{doi}'
+                                        link_text = f'DOI: {doi[:20]}...' if len(doi) > 20 else f'DOI: {doi}'
+                                        examples_html += f'<div class="source-example-item">• {html.escape(title)} — <a href="{link}" target="_blank" class="source-example-link">{link_text}</a> <span class="source-badge source-badge-doi">✅ {t("source_doi_available")}</span></div>'
+                                    elif item_id:
+                                        link = item_id
+                                        examples_html += f'<div class="source-example-item">• {html.escape(title)} — <a href="{link}" target="_blank" class="source-example-link">{t("source_view_link")}</a> <span class="source-badge source-badge-nodoi">⚠️ {t("source_no_doi")}</span></div>'
+                                    else:
+                                        examples_html += f'<div class="source-example-item">• {html.escape(title)} <span class="source-badge source-badge-nodoi">⚠️ {t("source_no_link")}</span></div>'
+                            else:
+                                examples_html = f'<em>{t("no_publications")}</em>'
+                            
+                            source_section_html += f"""
+                                <tr>
+                                    <td><strong>{label}</strong><br><span style="font-size:12px;color:#666;">{count} {t("articles") if count > 1 else t("article") if "article" in label else ""}</span></td>
+                                    <td>{examples_html}</td>
+                                </tr>
+                            """
+                    
+                    source_section_html += """
+                        </tbody>
+                    </table>
+                    """
+            
+            # Генерируем HTML для соавторов с внешними идентификаторами
+            coauthors_html = ""
+            if coauthors_data:
+                sorted_coauthors = sorted(coauthors_data.items(), key=lambda x: x[1]['count'], reverse=True)[:20]
                 
-                source_section_html += """
-                    </tbody>
-                </table>
-                """
+                coauthors_html = '<h3>' + t('top_coauthors') + '</h3>'
+                
+                for coauthor_name, data in sorted_coauthors:
+                    count = data.get('count', 0)
+                    orcid = data.get('orcid', '')
+                    scopus_id = data.get('scopus_id', '')
+                    researcher_id = data.get('researcher_id', '')
+                    
+                    coauthors_html += f'''
+                    <div class="coauthor-card">
+                        <div>
+                            <span class="coauthor-name">{html.escape(coauthor_name)}</span>
+                            <span class="coauthor-count">({count} {t("coauthor_works")})</span>
+                        </div>
+                        <div class="coauthor-links">
+                    '''
+                    
+                    if orcid:
+                        coauthors_html += f'<a href="https://orcid.org/{orcid}" target="_blank" class="coauthor-link"><span class="coauthor-link-icon">🆔</span> {t("coauthor_orcid")}</a>'
+                    
+                    if scopus_id:
+                        coauthors_html += f'<a href="https://www.scopus.com/authid/detail.uri?authorId={scopus_id}" target="_blank" class="coauthor-link"><span class="coauthor-link-icon">📄</span> {t("coauthor_scopus")}</a>'
+                    
+                    if researcher_id:
+                        coauthors_html += f'<a href="https://publons.com/researcher/{researcher_id}/" target="_blank" class="coauthor-link"><span class="coauthor-link-icon">🔬</span> {t("coauthor_researcherid")}</a>'
+                    
+                    if not orcid and not scopus_id and not researcher_id:
+                        coauthors_html += f'<span class="coauthor-link" style="background: #f0f0f0; color: #999; border-color: #ddd;">{t("coauthor_no_ids")}</span>'
+                    
+                    coauthors_html += '''
+                        </div>
+                    </div>
+                    '''
             
             html_parts.append(f"""
             <div id="author_{i}" class="author-section">
@@ -4315,16 +4650,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                         <img src="data:image/png;base64,{images.get('wordcloud', '')}" alt="{t('wordcloud_title')}">
                     </div>
                     
-                    <h3>{t('top_coauthors')}</h3>
-                    <ul>
-                        {''.join([
-                            f'<li>'
-                            f'<strong>{html.escape(author)}</strong>'
-                            f' ({count} {t("joint_works")})'
-                            f'</li>'
-                            for author, count in list(top_coauthors.items())[:10]
-                        ])}
-                    </ul>
+                    {coauthors_html}
                     
                     {source_section_html}
                     
@@ -4364,6 +4690,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
             """)
     
     else:
+        # Для одного автора используем generate_html_report без дублирования заголовка
         author_data = authors_to_show[0]
         author_name = author_data.get('author_name', 'Unknown')
         profile = author_data.get('profile', {})
@@ -4371,6 +4698,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
         institution_homepages = author_data.get('analyzer', {}).institution_homepages if author_data.get('analyzer') else {}
         images = create_visualizations(profile, lang) if profile else {}
         
+        # Используем полный отчет, который уже содержит заголовок с логотипами
         html_parts.append(generate_html_report(profile, publications, images, journal_logo_base64, app_logo_base64, institution_homepages, theme_colors, lang))
     
     html_parts.append("""
@@ -4412,9 +4740,9 @@ def run_profile_analysis(orcid_list: List[str], show_all_authors: bool, journal_
     try:
         # Загружаем логотип приложения
         app_logo_base64 = None
-        if os.path.exists("logo.png"):
+        if os.path.exists("icon.png"):
             try:
-                with open("logo.png", "rb") as f:
+                with open("icon.png", "rb") as f:
                     app_logo_base64 = base64.b64encode(f.read()).decode()
             except Exception as e:
                 print(f"⚠️ Ошибка загрузки логотипа приложения: {e}")
@@ -4844,7 +5172,10 @@ def main():
                     
                     # ====== СЕКЦИЯ ТИПОВ ИСТОЧНИКОВ ======
                     source_categories = profile.get('source_categories', {})
-                    if source_categories:
+                    # Фильтруем, исключая 'articles'
+                    filtered_categories = {k: v for k, v in source_categories.items() if k != 'articles'}
+                    
+                    if filtered_categories:
                         st.markdown(f"### {t('source_types')}")
                         
                         category_labels = {
@@ -4855,11 +5186,11 @@ def main():
                             'other': 'source_other'
                         }
                         
-                        category_order = ['articles', 'repositories', 'ebooks', 'proceedings', 'other']
+                        category_order = ['repositories', 'ebooks', 'proceedings', 'other']
                         
                         for cat in category_order:
-                            if cat in source_categories:
-                                cat_data = source_categories[cat]
+                            if cat in filtered_categories:
+                                cat_data = filtered_categories[cat]
                                 count = cat_data.get('count', 0)
                                 items = cat_data.get('items', [])
                                 label_key = category_labels.get(cat, cat)
@@ -4880,6 +5211,34 @@ def main():
                                                 st.markdown(f"• **{title[:80]}** ⚠️ {t('source_no_link')}")
                                     else:
                                         st.info(t('no_publications'))
+                    
+                    # Секция соавторов с внешними идентификаторами
+                    coauthors_data = profile.get('coauthors_data', {})
+                    if coauthors_data:
+                        st.markdown(f"### {t('top_coauthors')}")
+                        
+                        sorted_coauthors = sorted(coauthors_data.items(), key=lambda x: x[1]['count'], reverse=True)[:20]
+                        
+                        for coauthor_name, data in sorted_coauthors:
+                            count = data.get('count', 0)
+                            orcid = data.get('orcid', '')
+                            scopus_id = data.get('scopus_id', '')
+                            researcher_id = data.get('researcher_id', '')
+                            
+                            coauthor_html = f"**{coauthor_name}** ({count} {t('coauthor_works')})"
+                            links = []
+                            
+                            if orcid:
+                                links.append(f"[{t('coauthor_orcid')}](https://orcid.org/{orcid})")
+                            if scopus_id:
+                                links.append(f"[{t('coauthor_scopus')}](https://www.scopus.com/authid/detail.uri?authorId={scopus_id})")
+                            if researcher_id:
+                                links.append(f"[{t('coauthor_researcherid')}](https://publons.com/researcher/{researcher_id}/)")
+                            
+                            if links:
+                                st.markdown(f"{coauthor_html} — {' | '.join(links)}")
+                            else:
+                                st.markdown(f"{coauthor_html} — {t('coauthor_no_ids')}")
                     
                     with st.expander(f"{t('publications_list')} ({len(publications)})"):
                         if publications:
@@ -5026,7 +5385,10 @@ def main():
                     
                     # ====== СЕКЦИЯ ТИПОВ ИСТОЧНИКОВ ======
                     source_categories = profile.get('source_categories', {})
-                    if source_categories:
+                    # Фильтруем, исключая 'articles'
+                    filtered_categories = {k: v for k, v in source_categories.items() if k != 'articles'}
+                    
+                    if filtered_categories:
                         st.markdown(f"### {t('source_types')}")
                         
                         category_labels = {
@@ -5037,11 +5399,11 @@ def main():
                             'other': 'source_other'
                         }
                         
-                        category_order = ['articles', 'repositories', 'ebooks', 'proceedings', 'other']
+                        category_order = ['repositories', 'ebooks', 'proceedings', 'other']
                         
                         for cat in category_order:
-                            if cat in source_categories:
-                                cat_data = source_categories[cat]
+                            if cat in filtered_categories:
+                                cat_data = filtered_categories[cat]
                                 count = cat_data.get('count', 0)
                                 items = cat_data.get('items', [])
                                 label_key = category_labels.get(cat, cat)
@@ -5062,6 +5424,34 @@ def main():
                                                 st.markdown(f"• **{title[:80]}** ⚠️ {t('source_no_link')}")
                                     else:
                                         st.info(t('no_publications'))
+                    
+                    # Секция соавторов с внешними идентификаторами
+                    coauthors_data = profile.get('coauthors_data', {})
+                    if coauthors_data:
+                        st.markdown(f"### {t('top_coauthors')}")
+                        
+                        sorted_coauthors = sorted(coauthors_data.items(), key=lambda x: x[1]['count'], reverse=True)[:20]
+                        
+                        for coauthor_name, data in sorted_coauthors:
+                            count = data.get('count', 0)
+                            orcid = data.get('orcid', '')
+                            scopus_id = data.get('scopus_id', '')
+                            researcher_id = data.get('researcher_id', '')
+                            
+                            coauthor_html = f"**{coauthor_name}** ({count} {t('coauthor_works')})"
+                            links = []
+                            
+                            if orcid:
+                                links.append(f"[{t('coauthor_orcid')}](https://orcid.org/{orcid})")
+                            if scopus_id:
+                                links.append(f"[{t('coauthor_scopus')}](https://www.scopus.com/authid/detail.uri?authorId={scopus_id})")
+                            if researcher_id:
+                                links.append(f"[{t('coauthor_researcherid')}](https://publons.com/researcher/{researcher_id}/)")
+                            
+                            if links:
+                                st.markdown(f"{coauthor_html} — {' | '.join(links)}")
+                            else:
+                                st.markdown(f"{coauthor_html} — {t('coauthor_no_ids')}")
                     
                     with st.expander(f"{t('publications_list')}"):
                         if publications:
@@ -5203,7 +5593,10 @@ def main():
                     
                     # ====== СЕКЦИЯ ТИПОВ ИСТОЧНИКОВ ======
                     source_categories = profile.get('source_categories', {})
-                    if source_categories:
+                    # Фильтруем, исключая 'articles'
+                    filtered_categories = {k: v for k, v in source_categories.items() if k != 'articles'}
+                    
+                    if filtered_categories:
                         st.markdown(f"### {t('source_types')}")
                         
                         category_labels = {
@@ -5214,11 +5607,11 @@ def main():
                             'other': 'source_other'
                         }
                         
-                        category_order = ['articles', 'repositories', 'ebooks', 'proceedings', 'other']
+                        category_order = ['repositories', 'ebooks', 'proceedings', 'other']
                         
                         for cat in category_order:
-                            if cat in source_categories:
-                                cat_data = source_categories[cat]
+                            if cat in filtered_categories:
+                                cat_data = filtered_categories[cat]
                                 count = cat_data.get('count', 0)
                                 items = cat_data.get('items', [])
                                 label_key = category_labels.get(cat, cat)
@@ -5239,6 +5632,34 @@ def main():
                                                 st.markdown(f"• **{title[:80]}** ⚠️ {t('source_no_link')}")
                                     else:
                                         st.info(t('no_publications'))
+                    
+                    # Секция соавторов с внешними идентификаторами
+                    coauthors_data = profile.get('coauthors_data', {})
+                    if coauthors_data:
+                        st.markdown(f"### {t('top_coauthors')}")
+                        
+                        sorted_coauthors = sorted(coauthors_data.items(), key=lambda x: x[1]['count'], reverse=True)[:20]
+                        
+                        for coauthor_name, data in sorted_coauthors:
+                            count = data.get('count', 0)
+                            orcid = data.get('orcid', '')
+                            scopus_id = data.get('scopus_id', '')
+                            researcher_id = data.get('researcher_id', '')
+                            
+                            coauthor_html = f"**{coauthor_name}** ({count} {t('coauthor_works')})"
+                            links = []
+                            
+                            if orcid:
+                                links.append(f"[{t('coauthor_orcid')}](https://orcid.org/{orcid})")
+                            if scopus_id:
+                                links.append(f"[{t('coauthor_scopus')}](https://www.scopus.com/authid/detail.uri?authorId={scopus_id})")
+                            if researcher_id:
+                                links.append(f"[{t('coauthor_researcherid')}](https://publons.com/researcher/{researcher_id}/)")
+                            
+                            if links:
+                                st.markdown(f"{coauthor_html} — {' | '.join(links)}")
+                            else:
+                                st.markdown(f"{coauthor_html} — {t('coauthor_no_ids')}")
                     
                     with st.expander(f"{t('publications_list')}"):
                         if publications:
@@ -5263,6 +5684,7 @@ def main():
             authors = st.session_state.all_authors
             show_all = st.session_state.show_all_authors
             journal_logo_base64 = st.session_state.journal_logo_base64
+            app_logo_base64 = st.session_state.app_logo_base64
             
             theme_colors = {
                 'primary': st.session_state.primary_color,
@@ -5289,7 +5711,7 @@ def main():
                         authors,
                         show_all,
                         journal_logo_base64,
-                        st.session_state.get('app_logo_base64', None),
+                        app_logo_base64,
                         theme_colors,
                         current_lang
                     )
