@@ -1655,151 +1655,48 @@ def parse_openalex_publication(item: Dict) -> Dict:
 # ФУНКЦИИ ДЛЯ ПОЛУЧЕНИЯ ДАННЫХ ИЗ API
 # ============================================
 
-async def get_author_dois_from_openalex(orcid: str, session) -> Set[str]:
-    """Получает список DOI из OpenAlex по ORCID автора, комбинируя два подхода"""
+async def get_orcid_dois(orcid: str, session) -> Set[str]:
+    """Получает список DOI из профиля ORCID"""
     orcid = clean_orcid(orcid)
     
     if not orcid:
         return set()
     
-    # Берем ORCID без дефисов для поиска
-    orcid_no_dash = orcid.replace('-', '')
+    headers = {'Accept': 'application/json'}
+    url = f"https://pub.orcid.org/v3.0/{orcid}/works"
+    
+    if SHOW_DEBUG_LOGS:
+        print(f"🔍 Запрос к ORCID: {orcid}")
+    
+    data = await fetch_with_retry(session, url, headers=headers)
+    
+    if not data:
+        print(f"❌ Не удалось получить данные из ORCID для {orcid}")
+        return set()
     
     dois = set()
     
-    # ====== ПЕРВЫЙ ПОДХОД: author.orcid:{orcid} ======
-    url = "https://api.openalex.org/works"
-    cursor = '*'
-    count_first = 0
-    
-    while cursor:
-        params = {
-            'filter': f'author.orcid:{orcid}',
-            'per-page': 200,
-            'cursor': cursor
-        }
+    try:
+        works = data.get('group', [])
         
-        if SHOW_DEBUG_LOGS:
-            print(f"🔍 Запрос к OpenAlex (ORCID с дефисами): {orcid}, курсор: {cursor}")
-        
-        data = await fetch_with_retry(session, url, params=params)
-        
-        if not data or not data.get('results'):
-            break
-        
-        for work in data['results']:
-            doi = work.get('doi', '')
-            if doi:
-                doi = doi.replace('https://doi.org/', '')
-                dois.add(doi)
-                count_first += 1
-        
-        cursor = data.get('meta', {}).get('next_cursor')
-        
-        if not cursor:
-            break
-        
-        await asyncio.sleep(DELAY_BETWEEN_BATCHES)
+        for work_group in works:
+            work_summary = work_group.get('work-summary', [])
+            for work in work_summary:
+                external_ids = work.get('external-ids', {})
+                if external_ids:
+                    for ext_id in external_ids.get('external-id', []):
+                        if ext_id.get('external-id-type') == 'doi':
+                            doi = ext_id.get('external-id-value', '').lower()
+                            if doi:
+                                doi = doi.replace('http://dx.doi.org/', '').replace('https://doi.org/', '')
+                                dois.add(doi)
+    except Exception as e:
+        print(f"⚠️ Ошибка парсинга ORCID: {e}")
     
     if SHOW_DEBUG_LOGS:
-        print(f"   Найдено {count_first} DOI через author.orcid:{orcid}")
+        print(f"✅ Найдено {len(dois)} DOI в ORCID")
     
-    # ====== ВТОРОЙ ПОДХОД: author.orcid:{orcid_no_dash} ======
-    # OpenAlex иногда лучше находит по ORCID без дефисов
-    cursor = '*'
-    count_second = 0
-    
-    while cursor:
-        params = {
-            'filter': f'author.orcid:{orcid_no_dash}',
-            'per-page': 200,
-            'cursor': cursor
-        }
-        
-        if SHOW_DEBUG_LOGS:
-            print(f"🔍 Запрос к OpenAlex (ORCID без дефисов): {orcid_no_dash}, курсор: {cursor}")
-        
-        data = await fetch_with_retry(session, url, params=params)
-        
-        if not data or not data.get('results'):
-            break
-        
-        for work in data['results']:
-            doi = work.get('doi', '')
-            if doi:
-                doi = doi.replace('https://doi.org/', '')
-                dois.add(doi)
-                count_second += 1
-        
-        cursor = data.get('meta', {}).get('next_cursor')
-        
-        if not cursor:
-            break
-        
-        await asyncio.sleep(DELAY_BETWEEN_BATCHES)
-    
-    if SHOW_DEBUG_LOGS:
-        print(f"   Найдено {count_second} DOI через author.orcid:{orcid_no_dash}")
-    
-    # ====== ТРЕТИЙ ПОДХОД: через поиск по ORCID как автору ======
-    # Получаем OpenAlex ID автора по ORCID
-    author_id = None
-    author_url = "https://api.openalex.org/authors"
-    params = {
-        'filter': f'orcid:{orcid}',
-        'per-page': 1
-    }
-    
-    data = await fetch_with_retry(session, author_url, params=params)
-    if data and data.get('results'):
-        author_data = data['results'][0]
-        author_id = author_data.get('id', '')
-        if SHOW_DEBUG_LOGS:
-            print(f"🔍 Найден OpenAlex ID автора: {author_id}")
-    
-    # Если нашли OpenAlex ID, запрашиваем работы по нему
-    count_third = 0
-    if author_id:
-        cursor = '*'
-        while cursor:
-            params = {
-                'filter': f'author.id:{author_id}',
-                'per-page': 200,
-                'cursor': cursor
-            }
-            
-            if SHOW_DEBUG_LOGS:
-                print(f"🔍 Запрос к OpenAlex (author.id): {author_id}, курсор: {cursor}")
-            
-            data = await fetch_with_retry(session, url, params=params)
-            
-            if not data or not data.get('results'):
-                break
-            
-            for work in data['results']:
-                doi = work.get('doi', '')
-                if doi:
-                    doi = doi.replace('https://doi.org/', '')
-                    dois.add(doi)
-                    count_third += 1
-            
-            cursor = data.get('meta', {}).get('next_cursor')
-            
-            if not cursor:
-                break
-            
-            await asyncio.sleep(DELAY_BETWEEN_BATCHES)
-        
-        if SHOW_DEBUG_LOGS:
-            print(f"   Найдено {count_third} DOI через author.id:{author_id}")
-    
-    # ====== ОБЪЕДИНЯЕМ И УНИКАЛИЗИРУЕМ ======
-    unique_dois = sorted(dois)
-    
-    if SHOW_DEBUG_LOGS:
-        print(f"✅ Итого уникальных DOI: {len(unique_dois)} (из {count_first + count_second + count_third} найденных)")
-    
-    return set(unique_dois)
+    return dois
 
 async def get_openalex_metadata(dois: List[str], session) -> List[Dict]:
     """Получает полные метаданные из OpenAlex для списка DOI"""
@@ -2689,7 +2586,7 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
             if analyzer.author_affiliations:
                 print(f"🏛️ Аффилиации: {', '.join(analyzer.author_affiliations[:3])}")
         
-        orcid_dois = await get_author_dois_from_openalex(orcid_clean, session)
+        orcid_dois = await get_orcid_dois(orcid_clean, session)
         
         if not orcid_dois:
             print("❌ Не найдено DOI в профиле ORCID")
@@ -5439,7 +5336,8 @@ def main():
         
         st.markdown(f"""
         <div style="font-size: 11px; color: #666; text-align: center;">
-            © daM | Chimica Techno Acta | https://chimicatechnoacta.ru/
+            {t('app_title')} v2.0<br>
+            © daM / Chimica Techno Acta
         </div>
         """, unsafe_allow_html=True)
     
