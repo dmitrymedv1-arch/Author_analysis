@@ -1682,8 +1682,9 @@ async def get_author_dois_from_openalex(orcid: str, session) -> Set[str]:
             break
         
         for work in data['results']:
-            doi = work.get('doi', '').replace('https://doi.org/', '')
+            doi = work.get('doi', '')
             if doi:
+                doi = doi.replace('https://doi.org/', '')
                 dois.add(doi)
         
         cursor = data.get('meta', {}).get('next_cursor')
