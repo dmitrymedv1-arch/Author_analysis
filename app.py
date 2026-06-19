@@ -2871,7 +2871,7 @@ def create_visualizations(profile: Dict, lang: str = 'en') -> Dict[str, str]:
 # ФУНКЦИИ ДЛЯ ГЕНЕРАЦИИ ОТЧЕТОВ
 # ============================================
 
-def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[str, str], logo_base64: Optional[str] = None, institution_homepages: Optional[Dict[str, str]] = None, theme_colors: Optional[Dict] = None, lang: str = 'en') -> str:
+def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[str, str], logo_base64: Optional[str] = None, app_logo_base64: Optional[str] = None, institution_homepages: Optional[Dict[str, str]] = None, theme_colors: Optional[Dict] = None, lang: str = 'en') -> str:
     """Генерирует HTML отчет с расширенной информацией и дизайном из второго кода"""
     
     if theme_colors is None:
@@ -3519,6 +3519,8 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
         
         <div class="main-content">
             <div class="header">
+                {f'<img src="data:image/png;base64,{app_logo_base64}" class="header-logo header-logo-app" alt="App Logo">' if app_logo_base64 else ''}
+                {f'<img src="data:image/png;base64,{journal_logo_base64}" class="header-logo" alt="Journal Logo">' if journal_logo_base64 else ''}
                 <h1>📊 {t('app_title')}</h1>
                 <div class="date">{t('report_preview')}: {datetime.now().strftime('%d.%m.%Y')}</div>
             </div>
@@ -3800,7 +3802,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     
     return html_content
 
-def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all: bool, journal_logo_base64: Optional[str] = None, theme_colors: Optional[Dict] = None, lang: str = 'en') -> str:
+def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all: bool, journal_logo_base64: Optional[str] = None, app_logo_base64: Optional[str] = None, theme_colors: Optional[Dict] = None, lang: str = 'en') -> str:
     """Генерирует HTML отчет с множественными авторами"""
     
     if theme_colors is None:
@@ -3909,6 +3911,11 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                 max-height: 150px;
                 max-width: 300px;
                 margin-bottom: 15px;
+            }}
+            .header-logo-app {{
+                max-height: 80px;
+                max-width: 240px;
+                margin-bottom: 10px;
             }}
             .author-card {{
                 background: white;
@@ -4364,7 +4371,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
         institution_homepages = author_data.get('analyzer', {}).institution_homepages if author_data.get('analyzer') else {}
         images = create_visualizations(profile, lang) if profile else {}
         
-        html_parts.append(generate_html_report(profile, publications, images, journal_logo_base64, institution_homepages, theme_colors, lang))
+        html_parts.append(generate_html_report(profile, publications, images, journal_logo_base64, app_logo_base64, institution_homepages, theme_colors, lang))
     
     html_parts.append("""
             <div class="footer">
@@ -4403,6 +4410,15 @@ def run_profile_analysis(orcid_list: List[str], show_all_authors: bool, journal_
     analysis_progress = st.progress(0, text=t('starting_analysis'))
     
     try:
+        # Загружаем логотип приложения
+        app_logo_base64 = None
+        if os.path.exists("icon.png"):
+            try:
+                with open("icon.png", "rb") as f:
+                    app_logo_base64 = base64.b64encode(f.read()).decode()
+            except Exception as e:
+                print(f"⚠️ Ошибка загрузки логотипа приложения: {e}")
+        
         journal_logo_base64 = None
         if journal_logo:
             try:
@@ -4411,10 +4427,10 @@ def run_profile_analysis(orcid_list: List[str], show_all_authors: bool, journal_
                     if hasattr(content, 'read'):
                         content = content.read()
                     journal_logo_base64 = base64.b64encode(content).decode()
-                    st.success(f"✅ Логотип загружен: {filename}")
+                    st.success(f"✅ Логотип журнала загружен: {filename}")
                     break
             except Exception as e:
-                st.warning(f"⚠️ Ошибка загрузки логотипа: {e}")
+                st.warning(f"⚠️ Ошибка загрузки логотипа журнала: {e}")
         
         total_authors = len(orcid_list)
         stage_weights = {
@@ -4458,6 +4474,7 @@ def run_profile_analysis(orcid_list: List[str], show_all_authors: bool, journal_
         st.session_state['all_authors'] = sorted_authors
         st.session_state['show_all_authors'] = show_all_authors
         st.session_state['journal_logo_base64'] = journal_logo_base64
+        st.session_state['app_logo_base64'] = app_logo_base64
         st.session_state['analysis_complete'] = True
         
         analysis_progress.progress(1.0, text=f"✅ {t('analysis_complete_text')}!")
@@ -4512,6 +4529,8 @@ def main():
         st.session_state.analysis_complete = False
     if 'journal_logo_base64' not in st.session_state:
         st.session_state.journal_logo_base64 = None
+    if 'app_logo_base64' not in st.session_state:
+        st.session_state.app_logo_base64 = None
     if 'language' not in st.session_state:
         st.session_state.language = 'en'  # По умолчанию английский
     
@@ -4629,7 +4648,14 @@ def main():
     st.image("logo.png", width=250) if os.path.exists("logo.png") else None
     
     st.markdown("---")
-    st.markdown(f"### {t('profile_analysis')}")
+    if os.path.exists("icon.png"):
+        col_logo, col_text = st.columns([1, 3])
+        with col_logo:
+            st.image("icon.png", width=100)
+        with col_text:
+            st.markdown(f"### {t('app_title')}")
+    else:
+        st.markdown(f"### {t('profile_analysis')}")
     st.markdown("---")
     
     # Tabs
@@ -5265,6 +5291,7 @@ def main():
                         authors,
                         show_all,
                         journal_logo_base64,
+                        app_logo_base64,
                         theme_colors,
                         current_lang
                     )
