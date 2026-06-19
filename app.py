@@ -4329,9 +4329,9 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                                 f"""
                                 <tr>
                                     <td>{i+1}</td>
-                                    <td>{html.escape(pub.get('title', 'No title'))[:100]}</td>
+                                    <td>{html.escape(pub.get('title') or 'No title')[:100]}</td>
                                     <td>{pub.get('publication_year', 'N/A')}</td>
-                                    <td>{html.escape(pub.get('journal_name', 'Unknown'))}</td>
+                                    <td>{html.escape(pub.get('journal_name') or 'Unknown')}</td>
                                     <td>{pub.get('cited_by_count', 0)}</td>
                                     <td>{'✅' if pub.get('is_oa', False) else '❌'}</td>
                                     <td><a href="https://doi.org/{html.escape(pub.get('doi', ''))}" target="_blank" class="doi-link">{html.escape(pub.get('doi', ''))}</a></td>
@@ -5127,9 +5127,9 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                                     f"""
                                     <tr>
                                         <td>{j+1}</td>
-                                        <td>{html.escape(pub.get('title', 'No title'))[:80]}</td>
+                                        <td>{html.escape(pub.get('title') or 'No title')[:80]}</td>
                                         <td>{pub.get('publication_year', 'N/A')}</td>
-                                        <td>{html.escape(pub.get('journal_name', 'Unknown'))}</td>
+                                        <td>{html.escape(pub.get('journal_name') or 'Unknown')}</td>
                                         <td>{pub.get('cited_by_count', 0)}</td>
                                         <td><a href="https://doi.org/{html.escape(pub.get('doi', ''))}" target="_blank" class="doi-link">{html.escape(pub.get('doi', ''))}</a></td>
                                     </tr>
@@ -5779,9 +5779,9 @@ def main():
                             pub_data = []
                             for pub in sorted(publications, key=lambda x: x.get('publication_year', 0), reverse=True):
                                 pub_data.append({
-                                    t('title'): (pub.get('title') or 'No title')[:80] + '...' if len(pub.get('title') or 'No title') > 80 else (pub.get('title') or 'No title'),
+                                    t('title'): ((pub.get('title') or 'No title')[:80] + '...') if len(pub.get('title') or 'No title') > 80 else (pub.get('title') or 'No title'),
                                     t('year'): pub.get('publication_year', 'N/A'),
-                                    t('journal'): pub.get('journal_name', 'Unknown')[:40],
+                                    t('journal'): (pub.get('journal_name') or 'Unknown')[:40],
                                     t('citations'): pub.get('cited_by_count', 0),
                                     'DOI': pub.get('doi', ''),
                                     'Type': pub.get('source_category', 'unknown')
