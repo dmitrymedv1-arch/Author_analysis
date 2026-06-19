@@ -142,7 +142,7 @@ LANG = {
         'affiliations': 'Affiliations',
         'countries': 'Countries',
         'total_analyzed': 'Total analyzed publications',
-        'editor_recommendation': 'Editor\'s recommendation',
+        'editor_recommendation': "Editor's recommendation",
         'retractions': 'Retractions',
         'corrections': 'Corrections',
         'first_publication': 'First publication',
@@ -214,7 +214,28 @@ LANG = {
         'strong_candidate': 'Strong candidate. Stable publication activity.',
         'promising_scholar': 'Promising scholar. Recommended for consideration.',
         'early_career_researcher': 'Early career researcher. Expert evaluation required.',
-        'young_researcher': 'Young researcher. Articles require careful peer review.'
+        'young_researcher': 'Young researcher. Articles require careful peer review.',
+        # Рекомендации на английском
+        'rec_outstanding_scholar': 'Outstanding scholar. High productivity and growing h-index.',
+        'rec_strong_candidate': 'Strong candidate. Stable publication activity.',
+        'rec_promising_scholar': 'Promising scholar. Recommended for consideration.',
+        'rec_early_career': 'Early career researcher. Expert evaluation required.',
+        'rec_young_researcher': 'Young researcher. Articles require careful peer review.',
+        'rec_multiple_red_flags': 'Additional verification required. Multiple red flags detected.',
+        'rec_caution': 'Caution recommended. There are individual warnings.',
+        # Типы источников
+        'source_types': '📚 Sources by Type',
+        'source_journal_articles': 'Journal articles',
+        'source_repositories': 'Preprints/Repositories',
+        'source_ebooks': 'Electronic books',
+        'source_proceedings': 'Proceedings',
+        'source_other': 'Other items (non-DOI)',
+        'source_count': 'Count',
+        'source_examples': 'Examples',
+        'source_no_doi': 'No DOI available',
+        'source_view_link': 'View',
+        'source_doi_available': 'DOI available',
+        'source_no_link': 'No link available'
     },
     'ru': {
         'app_title': 'Анализ профиля ученого',
@@ -366,7 +387,28 @@ LANG = {
         'strong_candidate': 'Сильный кандидат. Стабильная публикационная активность.',
         'promising_scholar': 'Перспективный ученый. Рекомендуется к рассмотрению.',
         'early_career_researcher': 'Начинающий исследователь. Требуется экспертная оценка.',
-        'young_researcher': 'Молодой ученый. Статьи требуют тщательного рецензирования.'
+        'young_researcher': 'Молодой ученый. Статьи требуют тщательного рецензирования.',
+        # Рекомендации на русском
+        'rec_outstanding_scholar': 'Выдающийся ученый. Высокая продуктивность и растущий h-index.',
+        'rec_strong_candidate': 'Сильный кандидат. Стабильная публикационная активность.',
+        'rec_promising_scholar': 'Перспективный ученый. Рекомендуется к рассмотрению.',
+        'rec_early_career': 'Начинающий исследователь. Требуется экспертная оценка.',
+        'rec_young_researcher': 'Молодой ученый. Статьи требуют тщательного рецензирования.',
+        'rec_multiple_red_flags': 'Требуется дополнительная проверка. Обнаружены множественные красные флаги.',
+        'rec_caution': 'Рекомендуется осторожность. Есть отдельные предупреждения.',
+        # Типы источников
+        'source_types': '📚 Типы источников',
+        'source_journal_articles': 'Статьи в журналах',
+        'source_repositories': 'Препринты/Репозитории',
+        'source_ebooks': 'Электронные книги',
+        'source_proceedings': 'Материалы конференций',
+        'source_other': 'Другие материалы (без DOI)',
+        'source_count': 'Количество',
+        'source_examples': 'Примеры',
+        'source_no_doi': 'Нет DOI',
+        'source_view_link': 'Смотреть',
+        'source_doi_available': 'DOI доступен',
+        'source_no_link': 'Нет ссылки'
     }
 }
 
@@ -746,6 +788,56 @@ def apply_theme_css(base_color: str, accent_color: str = None):
         
         .author-section:last-child {{
             border-bottom: none;
+        }}
+        
+        /* Source types table styles */
+        .source-table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-family: 'Times New Roman', serif;
+        }}
+        .source-table th {{
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            padding: 12px;
+            text-align: left;
+        }}
+        .source-table td {{
+            padding: 10px;
+            border-bottom: 1px solid #BDC3C7;
+            vertical-align: top;
+        }}
+        .source-table tr:hover {{
+            background-color: #f5f5f5;
+        }}
+        .source-example-item {{
+            margin: 3px 0;
+            font-size: 13px;
+        }}
+        .source-example-link {{
+            color: #2980B9;
+            text-decoration: none;
+            font-size: 12px;
+        }}
+        .source-example-link:hover {{
+            text-decoration: underline;
+        }}
+        .source-badge {{
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 5px;
+        }}
+        .source-badge-doi {{
+            background: #d4edda;
+            color: #155724;
+        }}
+        .source-badge-nodoi {{
+            background: #f8d7da;
+            color: #721c24;
         }}
     </style>
     """
@@ -1201,6 +1293,61 @@ def save_to_cache(orcid: str, data: Dict):
         print(f"⚠️ Ошибка сохранения кэша: {e}")
 
 # ============================================
+# ФУНКЦИЯ ДЛЯ ОПРЕДЕЛЕНИЯ КАТЕГОРИИ ИСТОЧНИКА
+# ============================================
+
+def determine_source_category(pub_data: Dict) -> str:
+    """
+    Определяет категорию источника публикации на основе полей OpenAlex.
+    Возвращает одну из: 'articles', 'repositories', 'ebooks', 'proceedings', 'other'
+    """
+    source_type = pub_data.get('source_type', 'unknown')
+    raw_type = pub_data.get('raw_type', '')
+    pub_type = pub_data.get('type', '')
+    
+    # Приоритет: raw_type > source.type > type
+    
+    # Проверяем raw_type
+    if raw_type:
+        raw_lower = raw_type.lower()
+        if 'journal-article' in raw_lower or 'journal article' in raw_lower:
+            return 'articles'
+        if 'posted-content' in raw_lower or 'preprint' in raw_lower:
+            return 'repositories'
+        if 'book-chapter' in raw_lower or 'book chapter' in raw_lower:
+            return 'ebooks'
+        if 'proceedings-article' in raw_lower or 'proceedings article' in raw_lower:
+            return 'proceedings'
+    
+    # Проверяем source.type
+    if source_type:
+        source_lower = source_type.lower()
+        if 'journal' in source_lower:
+            return 'articles'
+        if 'repository' in source_lower:
+            return 'repositories'
+        if 'ebook platform' in source_lower or 'ebook' in source_lower:
+            return 'ebooks'
+    
+    # Проверяем pub_type
+    if pub_type:
+        pub_lower = pub_type.lower()
+        if 'article' in pub_lower and 'journal' not in pub_lower:
+            # Если просто article, но не journal-article - проверяем контекст
+            pass
+        if 'book-chapter' in pub_lower:
+            return 'ebooks'
+        if 'proceedings' in pub_lower:
+            return 'proceedings'
+    
+    # Если ничего не подошло - определяем по наличию DOI
+    if pub_data.get('doi'):
+        # Есть DOI, но тип не определен - считаем статьей
+        return 'articles'
+    else:
+        return 'other'
+
+# ============================================
 # ФУНКЦИЯ ПАРСИНГА ПУБЛИКАЦИИ ИЗ OPENALEX
 # ============================================
 
@@ -1215,21 +1362,25 @@ def parse_openalex_publication(item: Dict) -> Dict:
         pub['publication_year'] = item.get('publication_year')
         
         pub['type'] = item.get('type', 'unknown')
+        pub['raw_type'] = item.get('raw_type', '')
         
         if item.get('primary_location'):
             source = item['primary_location'].get('source', {})
             pub['journal_name'] = source.get('display_name', 'Unknown')
             pub['publisher'] = source.get('host_organization_name') or source.get('publisher', 'Unknown')
             pub['issn'] = source.get('issn', [])
+            pub['source_type'] = source.get('type', 'unknown')
         else:
             pub['journal_name'] = 'Unknown'
             pub['publisher'] = 'Unknown'
             pub['issn'] = []
+            pub['source_type'] = 'unknown'
         
         oa = item.get('open_access', {})
         pub['is_oa'] = oa.get('is_oa', False)
         pub['open_access_status'] = oa.get('oa_status', 'closed')
         pub['oa_url'] = oa.get('oa_url', None)
+        pub['any_repository_has_fulltext'] = oa.get('any_repository_has_fulltext', False)
         
         affiliations = []
         affiliation_countries = []
@@ -1353,6 +1504,9 @@ def parse_openalex_publication(item: Dict) -> Dict:
         pub['publication_date'] = item.get('publication_date')
         pub['created_date'] = item.get('created_date')
         pub['updated_date'] = item.get('updated_date')
+        
+        # Определяем категорию источника
+        pub['source_category'] = determine_source_category(pub)
         
         return pub
         
@@ -1857,6 +2011,9 @@ class ScholarProfileAnalyzer:
         all_subfields = []
         all_keywords = []
         
+        # Статистика по типам источников
+        source_categories = {}
+        
         for p in self.publications:
             if p.get('concepts'):
                 all_concepts.extend(p['concepts'])
@@ -1895,6 +2052,33 @@ class ScholarProfileAnalyzer:
                     if concept not in concept_levels:
                         concept_levels[concept] = []
                     concept_levels[concept].append(info)
+            
+            # Сбор статистики по типам источников
+            category = p.get('source_category', 'other')
+            if category not in source_categories:
+                source_categories[category] = []
+            
+            # Сохраняем информацию о публикации для отображения в отчете
+            source_categories[category].append({
+                'title': p.get('title', 'No title'),
+                'doi': p.get('doi', ''),
+                'id': p.get('id', ''),
+                'year': p.get('publication_year', ''),
+                'journal': p.get('journal_name', ''),
+                'raw_type': p.get('raw_type', ''),
+                'source_type': p.get('source_type', ''),
+                'is_oa': p.get('is_oa', False),
+                'any_repository_has_fulltext': p.get('any_repository_has_fulltext', False)
+            })
+        
+        # Сохраняем статистику по типам источников
+        self.profile['source_categories'] = {
+            cat: {
+                'count': len(items),
+                'items': items[:3]  # Только топ-3 для отображения
+            }
+            for cat, items in source_categories.items()
+        }
         
         self.profile['concepts'] = dict(Counter(all_concepts))
         self.profile['top_concepts'] = dict(Counter(all_concepts).most_common(15))
@@ -1923,7 +2107,6 @@ class ScholarProfileAnalyzer:
         self.profile['retraction_details'] = [p.get('retraction_info') for p in self.publications if p.get('is_retracted')]
         
         coauthors = []
-        coauthors_with_orcid = {}
         
         author_name_normalized = normalize_author_name(self.author_name or '')
         author_orcid = self.orcid
@@ -1948,17 +2131,9 @@ class ScholarProfileAnalyzer:
                     
                     if not is_self:
                         coauthors.append(name)
-                        if orcids_list and idx < len(orcids_list):
-                            orcid_val = orcids_list[idx]
-                            if orcid_val:
-                                # Сохраняем ORCID в чистом формате (без https://orcid.org/)
-                                clean_orcid_val = clean_orcid(orcid_val)
-                                if clean_orcid_val:
-                                    coauthors_with_orcid[name] = clean_orcid_val
         
         self.profile['coauthors'] = dict(Counter(coauthors))
         self.profile['top_coauthors'] = dict(Counter(coauthors).most_common(20))
-        self.profile['coauthors_with_orcid'] = coauthors_with_orcid
         self.profile['unique_coauthors'] = len(set(coauthors))
         
         author_counts = [p.get('author_count', 0) for p in self.publications if p.get('author_count', 0) > 0]
@@ -2112,7 +2287,7 @@ class ScholarProfileAnalyzer:
         return flags
     
     def _generate_recommendation(self) -> str:
-        """Генерирует рекомендацию для редактора"""
+        """Генерирует рекомендацию для редактора с использованием ключей перевода"""
         current_lang = st.session_state.get('language', 'en')
         risk_count = len(self.profile.get('risk_flags', []))
         total_pubs = self.profile.get('total_publications', 0)
@@ -2120,19 +2295,19 @@ class ScholarProfileAnalyzer:
         trend = self.profile.get('trend_direction', 'stable')
         
         if risk_count >= 3:
-            return "🔴 " + translate('multiple_red_flags', current_lang)
+            return "🔴 " + translate('rec_multiple_red_flags', current_lang)
         elif risk_count >= 1:
-            return "🟡 " + translate('caution_recommended', current_lang)
+            return "🟡 " + translate('rec_caution', current_lang)
         elif total_pubs >= 30 and h_index >= 15 and trend in ['up', 'strong_up']:
-            return "🟢 " + translate('outstanding_scholar', current_lang)
+            return "🟢 " + translate('rec_outstanding_scholar', current_lang)
         elif total_pubs >= 20 and h_index >= 10:
-            return "🟢 " + translate('strong_candidate', current_lang)
+            return "🟢 " + translate('rec_strong_candidate', current_lang)
         elif total_pubs >= 10 and h_index >= 5:
-            return "🟢 " + translate('promising_scholar', current_lang)
+            return "🟢 " + translate('rec_promising_scholar', current_lang)
         elif total_pubs >= 5:
-            return "🟢 " + translate('early_career_researcher', current_lang)
+            return "🟢 " + translate('rec_early_career', current_lang)
         else:
-            return "🟢 " + translate('young_researcher', current_lang)
+            return "🟢 " + translate('rec_young_researcher', current_lang)
     
     def get_profile_data(self) -> Dict:
         """Возвращает полный профиль"""
@@ -2143,8 +2318,7 @@ class ScholarProfileAnalyzer:
         return self.publications
 
 # ============================================
-# ОСНОВНАЯ ФУНКЦИЯ СБОРА ДАННЫХ
-# ============================================
+# ОСНОВНАЯ ФУНКЦИЯ СБОРА ДАННЫХ# ============================================
 
 async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict, List[Dict]]:
     """Собирает все данные для профиля ученого"""
@@ -2293,11 +2467,15 @@ def sort_authors_by_h_index(authors: List[Dict]) -> List[Dict]:
 # ============================================
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def create_visualizations(profile: Dict) -> Dict[str, str]:
+def create_visualizations(profile: Dict, lang: str = 'en') -> Dict[str, str]:
     """Создает визуализации в научном стиле и возвращает их в виде base64 изображений"""
     images = {}
     
     apply_scientific_style()
+    
+    # Функция для перевода
+    def t(key: str, **kwargs) -> str:
+        return translate(key, lang, **kwargs)
     
     # Уменьшаем DPI для экономии места
     SAVE_DPI = 150  # вместо 300
@@ -2314,9 +2492,9 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
             ax.text(bar.get_x() + bar.get_width()/2., height + 0.3,
                     f'{count}', ha='center', va='bottom', fontsize=9)
         
-        ax.set_xlabel('Год публикации', fontsize=11, fontweight='bold')
-        ax.set_ylabel('Число публикаций', fontsize=11, fontweight='bold')
-        ax.set_title('Динамика публикационной активности', fontsize=12, fontweight='bold')
+        ax.set_xlabel(t('publication_year'), fontsize=11, fontweight='bold')
+        ax.set_ylabel(t('number'), fontsize=11, fontweight='bold')
+        ax.set_title(t('years_chart_title'), fontsize=12, fontweight='bold')
         ax.grid(True, alpha=0.3, linestyle='--')
         
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
@@ -2329,12 +2507,12 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
             z = np.polyfit(x, counts, 1)
             p = np.poly1d(z)
             
-            ax.plot(years, p(x), 'r-', linewidth=2, alpha=0.8, label='Тренд')
+            ax.plot(years, p(x), 'r-', linewidth=2, alpha=0.8, label=t('trend_label'))
             
             if len(counts) > 3:
                 std_err = np.std(counts - p(x)) / np.sqrt(len(counts))
                 ax.fill_between(years, p(x) - 1.96*std_err, p(x) + 1.96*std_err, 
-                               alpha=0.15, color='red', label='Доверительный интервал')
+                               alpha=0.15, color='red', label=t('confidence_interval'))
             
             if profile.get('trend_correlation'):
                 corr = profile['trend_correlation']
@@ -2370,8 +2548,8 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         ax.set_yticks(y_pos)
         ax.set_yticklabels(journals, fontsize=9)
         ax.invert_yaxis()
-        ax.set_xlabel('Число публикаций', fontsize=11, fontweight='bold')
-        ax.set_title('Топ журналов по числу публикаций', fontsize=12, fontweight='bold')
+        ax.set_xlabel(t('number'), fontsize=11, fontweight='bold')
+        ax.set_title(t('journals_chart_title'), fontsize=12, fontweight='bold')
         ax.grid(True, alpha=0.3, linestyle='--', axis='x')
         ax.set_axisbelow(True)
         
@@ -2421,9 +2599,9 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
             ax.text(bar.get_x() + bar.get_width()/2., height + 0.3,
                    f'{count}', ha='center', va='bottom', fontsize=10, fontweight='bold')
         
-        ax.set_xlabel('Тип открытого доступа', fontsize=11, fontweight='bold')
-        ax.set_ylabel('Число публикаций', fontsize=11, fontweight='bold')
-        ax.set_title('Статус открытого доступа', fontsize=12, fontweight='bold')
+        ax.set_xlabel(t('open_access'), fontsize=11, fontweight='bold')
+        ax.set_ylabel(t('number'), fontsize=11, fontweight='bold')
+        ax.set_title(t('oa_chart_title'), fontsize=12, fontweight='bold')
         ax.grid(True, alpha=0.3, linestyle='--', axis='y')
         ax.set_axisbelow(True)
         
@@ -2449,7 +2627,7 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         fig, ax = plt.subplots(figsize=(10, 5))
         ax.imshow(wordcloud, interpolation='bilinear')
         ax.axis('off')
-        ax.set_title('Ключевые концепты исследований', fontsize=12, fontweight='bold', pad=15)
+        ax.set_title(t('wordcloud_title'), fontsize=12, fontweight='bold', pad=15)
         
         plt.tight_layout()
         
@@ -2477,9 +2655,9 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         
         ax.set_xticks(range(len(publishers)))
         ax.set_xticklabels(publishers, rotation=45, ha='right', fontsize=9)
-        ax.set_xlabel('Издательство', fontsize=11, fontweight='bold')
-        ax.set_ylabel('Число публикаций', fontsize=11, fontweight='bold')
-        ax.set_title('Распределение публикаций по издательствам', fontsize=12, fontweight='bold')
+        ax.set_xlabel(t('publishers_chart_title').split()[0] if t('publishers_chart_title') else 'Publisher', fontsize=11, fontweight='bold')
+        ax.set_ylabel(t('number'), fontsize=11, fontweight='bold')
+        ax.set_title(t('publishers_chart_title'), fontsize=12, fontweight='bold')
         ax.grid(True, alpha=0.3, linestyle='--', axis='y')
         ax.set_axisbelow(True)
         
@@ -2512,8 +2690,8 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         ax.set_yticks(range(len(titles)))
         ax.set_yticklabels(titles, fontsize=9)
         ax.invert_yaxis()
-        ax.set_xlabel('Число цитирований', fontsize=11, fontweight='bold')
-        ax.set_title('Самые цитируемые статьи', fontsize=12, fontweight='bold')
+        ax.set_xlabel(t('citations'), fontsize=11, fontweight='bold')
+        ax.set_title(t('citations_chart_title'), fontsize=12, fontweight='bold')
         ax.grid(True, alpha=0.3, linestyle='--', axis='x')
         ax.set_axisbelow(True)
         
@@ -2541,8 +2719,8 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         ax.set_yticks(y_pos)
         ax.set_yticklabels(affils, fontsize=9)
         ax.invert_yaxis()
-        ax.set_xlabel('Число публикаций', fontsize=11, fontweight='bold')
-        ax.set_title('Топ аффилиаций', fontsize=12, fontweight='bold')
+        ax.set_xlabel(t('number'), fontsize=11, fontweight='bold')
+        ax.set_title(t('affiliations_chart_title'), fontsize=12, fontweight='bold')
         ax.grid(True, alpha=0.3, linestyle='--', axis='x')
         ax.set_axisbelow(True)
         
@@ -2555,7 +2733,7 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         plt.close()
     
     fig, axes = plt.subplots(2, 2, figsize=(10, 8))
-    fig.suptitle('Тематическая структура исследований', fontsize=12, fontweight='bold')
+    fig.suptitle(t('thematic_structure_title'), fontsize=12, fontweight='bold')
     
     if profile.get('top_domains'):
         ax = axes[0, 0]
@@ -2565,8 +2743,8 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         ax.bar(range(len(domains)), counts, color='#E74C3C', alpha=0.8)
         ax.set_xticks(range(len(domains)))
         ax.set_xticklabels(domains, rotation=45, ha='right', fontsize=8)
-        ax.set_ylabel('Число', fontsize=10)
-        ax.set_title('Domains', fontsize=11, fontweight='bold')
+        ax.set_ylabel(t('number'), fontsize=10)
+        ax.set_title(t('domains'), fontsize=11, fontweight='bold')
         ax.grid(True, alpha=0.3, linestyle='--', axis='y')
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
     
@@ -2578,8 +2756,8 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         ax.bar(range(len(fields)), counts, color='#3498DB', alpha=0.8)
         ax.set_xticks(range(len(fields)))
         ax.set_xticklabels(fields, rotation=45, ha='right', fontsize=8)
-        ax.set_ylabel('Число', fontsize=10)
-        ax.set_title('Fields', fontsize=11, fontweight='bold')
+        ax.set_ylabel(t('number'), fontsize=10)
+        ax.set_title(t('fields'), fontsize=11, fontweight='bold')
         ax.grid(True, alpha=0.3, linestyle='--', axis='y')
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
     
@@ -2591,8 +2769,8 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         ax.barh(range(len(topics)), counts, color='#2ECC71', alpha=0.8)
         ax.set_yticks(range(len(topics)))
         ax.set_yticklabels(topics, fontsize=8)
-        ax.set_xlabel('Число', fontsize=10)
-        ax.set_title('Topics', fontsize=11, fontweight='bold')
+        ax.set_xlabel(t('number'), fontsize=10)
+        ax.set_title(t('topics'), fontsize=11, fontweight='bold')
         ax.grid(True, alpha=0.3, linestyle='--', axis='x')
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     
@@ -2604,8 +2782,8 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         ax.barh(range(len(subtopics)), counts, color='#F39C12', alpha=0.8)
         ax.set_yticks(range(len(subtopics)))
         ax.set_yticklabels(subtopics, fontsize=8)
-        ax.set_xlabel('Число', fontsize=10)
-        ax.set_title('Subtopics', fontsize=11, fontweight='bold')
+        ax.set_xlabel(t('number'), fontsize=10)
+        ax.set_title(t('subtopics'), fontsize=11, fontweight='bold')
         ax.grid(True, alpha=0.3, linestyle='--', axis='x')
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     
@@ -2636,9 +2814,9 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
         
         ax.set_xticks(range(len(ranges)))
         ax.set_xticklabels(ranges, rotation=45, ha='right', fontsize=9)
-        ax.set_xlabel('Диапазон цитирований', fontsize=11, fontweight='bold')
-        ax.set_ylabel('Число статей', fontsize=11, fontweight='bold')
-        ax.set_title('Распределение статей по числу цитирований', fontsize=12, fontweight='bold')
+        ax.set_xlabel(t('citation_range'), fontsize=11, fontweight='bold')
+        ax.set_ylabel(t('articles'), fontsize=11, fontweight='bold')
+        ax.set_title(t('citation_distribution_title'), fontsize=12, fontweight='bold')
         ax.grid(True, alpha=0.3, linestyle='--', axis='y')
         ax.set_axisbelow(True)
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
@@ -2676,7 +2854,7 @@ def create_visualizations(profile: Dict) -> Dict[str, str]:
             ax.set_ylim(0, 1.1)
             ax.set_yticks([0.2, 0.4, 0.6, 0.8, 1.0])
             ax.set_yticklabels(['0.2', '0.4', '0.6', '0.8', '1.0'], fontsize=7)
-            ax.set_title('Тематический профиль (Radar Chart)', fontsize=12, fontweight='bold', pad=15)
+            ax.set_title(t('radar_title'), fontsize=12, fontweight='bold', pad=15)
             ax.grid(True, alpha=0.3)
             
             plt.tight_layout()
@@ -2750,6 +2928,18 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     domestic_papers = collaborations.get('domestic_papers', 0)
     international_papers = collaborations.get('international_papers', 0)
     
+    # Получаем данные по типам источников
+    source_categories = profile.get('source_categories', {})
+    
+    # Карта категорий для отображения
+    category_labels = {
+        'articles': {'en': 'source_journal_articles', 'ru': 'source_journal_articles'},
+        'repositories': {'en': 'source_repositories', 'ru': 'source_repositories'},
+        'ebooks': {'en': 'source_ebooks', 'ru': 'source_ebooks'},
+        'proceedings': {'en': 'source_proceedings', 'ru': 'source_proceedings'},
+        'other': {'en': 'source_other', 'ru': 'source_other'}
+    }
+    
     # ====== ФИЛЬТРАЦИЯ: Удаляем аффилиации автора из коллабораций при отображении ======
     author_affils = set(profile.get('author_affiliations', []))
     
@@ -2772,13 +2962,72 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     country_diversity = profile.get('country_diversity', 0)
     
     top_coauthors = profile.get('top_coauthors', {})
-    coauthors_with_orcid = profile.get('coauthors_with_orcid', {})
     
     css_vars = generate_css_variables(primary, secondary)
     
     # Заголовки на выбранном языке
     def t(key: str, **kwargs) -> str:
         return translate(key, lang, **kwargs)
+    
+    # Генерируем HTML для секции типов источников
+    source_section_html = ""
+    if source_categories:
+        source_section_html = f"""
+        <div id="sources" class="section">
+            <div class="section-title">{t('source_types')}</div>
+            <table class="source-table">
+                <thead>
+                    <tr>
+                        <th>{t('source_count')}</th>
+                        <th>{t('source_examples')}</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
+        
+        # Определяем порядок категорий для отображения
+        category_order = ['articles', 'repositories', 'ebooks', 'proceedings', 'other']
+        
+        for cat in category_order:
+            if cat in source_categories:
+                cat_data = source_categories[cat]
+                count = cat_data.get('count', 0)
+                items = cat_data.get('items', [])
+                
+                label_key = category_labels.get(cat, {}).get(lang, cat)
+                label = t(label_key) if label_key else cat
+                
+                examples_html = ""
+                if items:
+                    for item in items[:3]:
+                        title = item.get('title', 'No title')[:60]
+                        doi = item.get('doi', '')
+                        item_id = item.get('id', '')
+                        
+                        if doi:
+                            link = f'https://doi.org/{doi}'
+                            link_text = f'DOI: {doi[:20]}...' if len(doi) > 20 else f'DOI: {doi}'
+                            examples_html += f'<div class="source-example-item">• {html.escape(title)} — <a href="{link}" target="_blank" class="source-example-link">{link_text}</a> <span class="source-badge source-badge-doi">✅ {t("source_doi_available")}</span></div>'
+                        elif item_id:
+                            link = item_id
+                            examples_html += f'<div class="source-example-item">• {html.escape(title)} — <a href="{link}" target="_blank" class="source-example-link">{t("source_view_link")}</a> <span class="source-badge source-badge-nodoi">⚠️ {t("source_no_doi")}</span></div>'
+                        else:
+                            examples_html += f'<div class="source-example-item">• {html.escape(title)} <span class="source-badge source-badge-nodoi">⚠️ {t("source_no_link")}</span></div>'
+                else:
+                    examples_html = f'<em>{t("no_publications")}</em>'
+                
+                source_section_html += f"""
+                    <tr>
+                        <td><strong>{label}</strong><br><span style="font-size:12px;color:#666;">{count} {t("articles") if count > 1 else t("article") if "article" in label else ""}</span></td>
+                        <td>{examples_html}</td>
+                    </tr>
+                """
+        
+        source_section_html += """
+                </tbody>
+            </table>
+        </div>
+        """
     
     html_content = f"""
     <!DOCTYPE html>
@@ -3192,6 +3441,56 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 margin-left: 8px;
             }}
             
+            /* Source table styles */
+            .source-table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin: 20px 0;
+                font-family: 'Times New Roman', serif;
+            }}
+            .source-table th {{
+                background: linear-gradient(135deg, {primary} 0%, {secondary} 100%);
+                color: white;
+                padding: 12px;
+                text-align: left;
+            }}
+            .source-table td {{
+                padding: 10px;
+                border-bottom: 1px solid #BDC3C7;
+                vertical-align: top;
+            }}
+            .source-table tr:hover {{
+                background-color: #f5f5f5;
+            }}
+            .source-example-item {{
+                margin: 3px 0;
+                font-size: 13px;
+            }}
+            .source-example-link {{
+                color: #2980B9;
+                text-decoration: none;
+                font-size: 12px;
+            }}
+            .source-example-link:hover {{
+                text-decoration: underline;
+            }}
+            .source-badge {{
+                display: inline-block;
+                padding: 2px 10px;
+                border-radius: 12px;
+                font-size: 11px;
+                font-weight: 600;
+                margin-left: 5px;
+            }}
+            .source-badge-doi {{
+                background: #d4edda;
+                color: #155724;
+            }}
+            .source-badge-nodoi {{
+                background: #f8d7da;
+                color: #721c24;
+            }}
+            
             @media print {{
                 .sidebar {{ display: none; }}
                 .main-content {{ margin-left: 0; }}
@@ -3215,11 +3514,13 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
             <a href="#collaborations"><span>🌍 {t('collaborations')}</span></a>
             <a href="#coauthors"><span>🤝 {t('top_coauthors')}</span></a>
             <a href="#publications"><span>📚 {t('publications')}</span></a>
+            {f'<a href="#sources"><span>📚 {t("source_types")}</span></a>' if source_categories else ''}
         </div>
         
         <div class="main-content">
             <div class="header">
                 <h1>📊 {t('app_title')}</h1>
+                <div class="date">{t('report_preview')}: {datetime.now().strftime('%d.%m.%Y')}</div>
             </div>
             
             <div id="overview" class="section">
@@ -3426,12 +3727,13 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                         f'<li>'
                         f'<strong>{html.escape(author)}</strong>'
                         f' ({count} {t("joint_works")})'
-                        f'{" — <a href=\"https://orcid.org/' + html.escape(coauthors_with_orcid.get(author, '')) + '\" target=\"_blank\">ORCID</a>" if coauthors_with_orcid.get(author) else ""}'
                         f'</li>'
                         for author, count in list(top_coauthors.items())[:20]
                     ])}
                 </ul>
             </div>
+            
+            {source_section_html}
             
             <div class="section">
                 <div class="section-title">📋 {t('h_index')}</div>
@@ -3759,6 +4061,56 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
             .doi-link:hover {{
                 text-decoration: underline;
             }}
+            
+            .source-table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin: 20px 0;
+                font-family: 'Times New Roman', serif;
+            }}
+            .source-table th {{
+                background: linear-gradient(135deg, {primary} 0%, {secondary} 100%);
+                color: white;
+                padding: 12px;
+                text-align: left;
+            }}
+            .source-table td {{
+                padding: 10px;
+                border-bottom: 1px solid #BDC3C7;
+                vertical-align: top;
+            }}
+            .source-table tr:hover {{
+                background-color: #f5f5f5;
+            }}
+            .source-example-item {{
+                margin: 3px 0;
+                font-size: 13px;
+            }}
+            .source-example-link {{
+                color: #2980B9;
+                text-decoration: none;
+                font-size: 12px;
+            }}
+            .source-example-link:hover {{
+                text-decoration: underline;
+            }}
+            .source-badge {{
+                display: inline-block;
+                padding: 2px 10px;
+                border-radius: 12px;
+                font-size: 11px;
+                font-weight: 600;
+                margin-left: 5px;
+            }}
+            .source-badge-doi {{
+                background: #d4edda;
+                color: #155724;
+            }}
+            .source-badge-nodoi {{
+                background: #f8d7da;
+                color: #721c24;
+            }}
+            
             @media print {{
                 .sidebar {{ display: none; }}
                 .main-content {{ margin-left: 0; }}
@@ -3792,7 +4144,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
     
     html_parts.append(f"""
                 <h1>📊 {t('app_title')}</h1>
-                <div class="date">Дата генерации: {datetime.now().strftime('%d.%m.%Y')}</div>
+                <div class="date">{t('report_preview')}: {datetime.now().strftime('%d.%m.%Y')}</div>
                 <div style="margin-top: 15px;">
                     <span class="badge badge-info">{t('publications')}: {len(all_authors)}</span>
     """)
@@ -3816,7 +4168,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
             author_name = author_data.get('author_name', f'Автор {i+1}')
             profile = author_data.get('profile', {})
             publications = author_data.get('publications', [])
-            images = create_visualizations(profile) if profile else {}
+            images = create_visualizations(profile, lang) if profile else {}
             
             h_index = profile.get('h_index', 0)
             total_pubs = profile.get('total_publications', 0)
@@ -3829,7 +4181,74 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
             
             top_journals = profile.get('top_journals', {})
             top_coauthors = profile.get('top_coauthors', {})
-            coauthors_with_orcid = profile.get('coauthors_with_orcid', {})
+            
+            # Получаем данные по типам источников
+            source_categories = profile.get('source_categories', {})
+            
+            category_labels = {
+                'articles': {'en': 'source_journal_articles', 'ru': 'source_journal_articles'},
+                'repositories': {'en': 'source_repositories', 'ru': 'source_repositories'},
+                'ebooks': {'en': 'source_ebooks', 'ru': 'source_ebooks'},
+                'proceedings': {'en': 'source_proceedings', 'ru': 'source_proceedings'},
+                'other': {'en': 'source_other', 'ru': 'source_other'}
+            }
+            
+            # Генерируем HTML для секции типов источников
+            source_section_html = ""
+            if source_categories:
+                source_section_html = f"""
+                <h3>{t('source_types')}</h3>
+                <table class="source-table">
+                    <thead>
+                        <tr>
+                            <th>{t('source_count')}</th>
+                            <th>{t('source_examples')}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                """
+                
+                category_order = ['articles', 'repositories', 'ebooks', 'proceedings', 'other']
+                
+                for cat in category_order:
+                    if cat in source_categories:
+                        cat_data = source_categories[cat]
+                        count = cat_data.get('count', 0)
+                        items = cat_data.get('items', [])
+                        
+                        label_key = category_labels.get(cat, {}).get(lang, cat)
+                        label = t(label_key) if label_key else cat
+                        
+                        examples_html = ""
+                        if items:
+                            for item in items[:3]:
+                                title = item.get('title', 'No title')[:60]
+                                doi = item.get('doi', '')
+                                item_id = item.get('id', '')
+                                
+                                if doi:
+                                    link = f'https://doi.org/{doi}'
+                                    link_text = f'DOI: {doi[:20]}...' if len(doi) > 20 else f'DOI: {doi}'
+                                    examples_html += f'<div class="source-example-item">• {html.escape(title)} — <a href="{link}" target="_blank" class="source-example-link">{link_text}</a> <span class="source-badge source-badge-doi">✅ {t("source_doi_available")}</span></div>'
+                                elif item_id:
+                                    link = item_id
+                                    examples_html += f'<div class="source-example-item">• {html.escape(title)} — <a href="{link}" target="_blank" class="source-example-link">{t("source_view_link")}</a> <span class="source-badge source-badge-nodoi">⚠️ {t("source_no_doi")}</span></div>'
+                                else:
+                                    examples_html += f'<div class="source-example-item">• {html.escape(title)} <span class="source-badge source-badge-nodoi">⚠️ {t("source_no_link")}</span></div>'
+                        else:
+                            examples_html = f'<em>{t("no_publications")}</em>'
+                        
+                        source_section_html += f"""
+                            <tr>
+                                <td><strong>{label}</strong><br><span style="font-size:12px;color:#666;">{count} {t("articles") if count > 1 else t("article") if "article" in label else ""}</span></td>
+                                <td>{examples_html}</td>
+                            </tr>
+                        """
+                
+                source_section_html += """
+                    </tbody>
+                </table>
+                """
             
             html_parts.append(f"""
             <div id="author_{i}" class="author-section">
@@ -3895,11 +4314,12 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                             f'<li>'
                             f'<strong>{html.escape(author)}</strong>'
                             f' ({count} {t("joint_works")})'
-                            f'{" — <a href=\"https://orcid.org/' + html.escape(coauthors_with_orcid.get(author, '')) + '\" target=\"_blank\">ORCID</a>" if coauthors_with_orcid.get(author) else ""}'
                             f'</li>'
                             for author, count in list(top_coauthors.items())[:10]
                         ])}
                     </ul>
+                    
+                    {source_section_html}
                     
                     <h3>{t('publications_list')} ({len(publications)})</h3>
                     <div style="overflow-x: auto;">
@@ -3942,7 +4362,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
         profile = author_data.get('profile', {})
         publications = author_data.get('publications', [])
         institution_homepages = author_data.get('analyzer', {}).institution_homepages if author_data.get('analyzer') else {}
-        images = create_visualizations(profile) if profile else {}
+        images = create_visualizations(profile, lang) if profile else {}
         
         html_parts.append(generate_html_report(profile, publications, images, journal_logo_base64, institution_homepages, theme_colors, lang))
     
@@ -4030,7 +4450,7 @@ def run_profile_analysis(orcid_list: List[str], show_all_authors: bool, journal_
         for idx, author_data in enumerate(sorted_authors):
             profile = author_data.get('profile', {})
             if profile:
-                images = create_visualizations(profile)
+                images = create_visualizations(profile, current_lang)
                 author_data['images'] = images
                 progress_percent = stage_weights['api'] + stage_weights['analysis'] + (idx + 1) / len(sorted_authors) * stage_weights['visualization']
                 analysis_progress.progress(progress_percent, text=f"🎨 {t('creating_charts')} {idx+1}/{len(sorted_authors)}...")
@@ -4398,6 +4818,45 @@ def main():
                     **{t('most_collaborative', country=profile.get('most_collaborative_country', 'None'))}**
                     """)
                     
+                    # ====== СЕКЦИЯ ТИПОВ ИСТОЧНИКОВ ======
+                    source_categories = profile.get('source_categories', {})
+                    if source_categories:
+                        st.markdown(f"### {t('source_types')}")
+                        
+                        category_labels = {
+                            'articles': 'source_journal_articles',
+                            'repositories': 'source_repositories',
+                            'ebooks': 'source_ebooks',
+                            'proceedings': 'source_proceedings',
+                            'other': 'source_other'
+                        }
+                        
+                        category_order = ['articles', 'repositories', 'ebooks', 'proceedings', 'other']
+                        
+                        for cat in category_order:
+                            if cat in source_categories:
+                                cat_data = source_categories[cat]
+                                count = cat_data.get('count', 0)
+                                items = cat_data.get('items', [])
+                                label_key = category_labels.get(cat, cat)
+                                label = t(label_key) if label_key else cat
+                                
+                                with st.expander(f"{label} ({count})"):
+                                    if items:
+                                        for item in items[:3]:
+                                            title = item.get('title', 'No title')
+                                            doi = item.get('doi', '')
+                                            item_id = item.get('id', '')
+                                            
+                                            if doi:
+                                                st.markdown(f"• **{title[:80]}** — [DOI: {doi}](https://doi.org/{doi}) ✅")
+                                            elif item_id:
+                                                st.markdown(f"• **{title[:80]}** — [🔗 {t('source_view_link')}]({item_id}) ⚠️ {t('source_no_doi')}")
+                                            else:
+                                                st.markdown(f"• **{title[:80]}** ⚠️ {t('source_no_link')}")
+                                    else:
+                                        st.info(t('no_publications'))
+                    
                     with st.expander(f"{t('publications_list')} ({len(publications)})"):
                         if publications:
                             pub_data = []
@@ -4407,7 +4866,8 @@ def main():
                                     t('year'): pub.get('publication_year', 'N/A'),
                                     t('journal'): pub.get('journal_name', 'Unknown')[:40],
                                     t('citations'): pub.get('cited_by_count', 0),
-                                    'DOI': pub.get('doi', '')
+                                    'DOI': pub.get('doi', ''),
+                                    'Type': pub.get('source_category', 'unknown')
                                 })
                             df = pd.DataFrame(pub_data[:20])
                             st.dataframe(df, width='stretch')
@@ -4540,6 +5000,45 @@ def main():
                     **{t('most_collaborative', country=profile.get('most_collaborative_country', 'None'))}**
                     """)
                     
+                    # ====== СЕКЦИЯ ТИПОВ ИСТОЧНИКОВ ======
+                    source_categories = profile.get('source_categories', {})
+                    if source_categories:
+                        st.markdown(f"### {t('source_types')}")
+                        
+                        category_labels = {
+                            'articles': 'source_journal_articles',
+                            'repositories': 'source_repositories',
+                            'ebooks': 'source_ebooks',
+                            'proceedings': 'source_proceedings',
+                            'other': 'source_other'
+                        }
+                        
+                        category_order = ['articles', 'repositories', 'ebooks', 'proceedings', 'other']
+                        
+                        for cat in category_order:
+                            if cat in source_categories:
+                                cat_data = source_categories[cat]
+                                count = cat_data.get('count', 0)
+                                items = cat_data.get('items', [])
+                                label_key = category_labels.get(cat, cat)
+                                label = t(label_key) if label_key else cat
+                                
+                                with st.expander(f"{label} ({count})"):
+                                    if items:
+                                        for item in items[:3]:
+                                            title = item.get('title', 'No title')
+                                            doi = item.get('doi', '')
+                                            item_id = item.get('id', '')
+                                            
+                                            if doi:
+                                                st.markdown(f"• **{title[:80]}** — [DOI: {doi}](https://doi.org/{doi}) ✅")
+                                            elif item_id:
+                                                st.markdown(f"• **{title[:80]}** — [🔗 {t('source_view_link')}]({item_id}) ⚠️ {t('source_no_doi')}")
+                                            else:
+                                                st.markdown(f"• **{title[:80]}** ⚠️ {t('source_no_link')}")
+                                    else:
+                                        st.info(t('no_publications'))
+                    
                     with st.expander(f"{t('publications_list')}"):
                         if publications:
                             pub_data = []
@@ -4550,7 +5049,8 @@ def main():
                                     t('journal'): pub.get('journal_name', 'Unknown')[:40],
                                     t('citations'): pub.get('cited_by_count', 0),
                                     'OA': '✅' if pub.get('is_oa', False) else '❌',
-                                    'DOI': pub.get('doi', '')
+                                    'DOI': pub.get('doi', ''),
+                                    'Type': pub.get('source_category', 'unknown')
                                 })
                             df = pd.DataFrame(pub_data)
                             st.dataframe(df, width='stretch')
@@ -4677,6 +5177,45 @@ def main():
                     **{t('most_collaborative', country=profile.get('most_collaborative_country', 'None'))}**
                     """)
                     
+                    # ====== СЕКЦИЯ ТИПОВ ИСТОЧНИКОВ ======
+                    source_categories = profile.get('source_categories', {})
+                    if source_categories:
+                        st.markdown(f"### {t('source_types')}")
+                        
+                        category_labels = {
+                            'articles': 'source_journal_articles',
+                            'repositories': 'source_repositories',
+                            'ebooks': 'source_ebooks',
+                            'proceedings': 'source_proceedings',
+                            'other': 'source_other'
+                        }
+                        
+                        category_order = ['articles', 'repositories', 'ebooks', 'proceedings', 'other']
+                        
+                        for cat in category_order:
+                            if cat in source_categories:
+                                cat_data = source_categories[cat]
+                                count = cat_data.get('count', 0)
+                                items = cat_data.get('items', [])
+                                label_key = category_labels.get(cat, cat)
+                                label = t(label_key) if label_key else cat
+                                
+                                with st.expander(f"{label} ({count})"):
+                                    if items:
+                                        for item in items[:3]:
+                                            title = item.get('title', 'No title')
+                                            doi = item.get('doi', '')
+                                            item_id = item.get('id', '')
+                                            
+                                            if doi:
+                                                st.markdown(f"• **{title[:80]}** — [DOI: {doi}](https://doi.org/{doi}) ✅")
+                                            elif item_id:
+                                                st.markdown(f"• **{title[:80]}** — [🔗 {t('source_view_link')}]({item_id}) ⚠️ {t('source_no_doi')}")
+                                            else:
+                                                st.markdown(f"• **{title[:80]}** ⚠️ {t('source_no_link')}")
+                                    else:
+                                        st.info(t('no_publications'))
+                    
                     with st.expander(f"{t('publications_list')}"):
                         if publications:
                             pub_data = []
@@ -4687,7 +5226,8 @@ def main():
                                     t('journal'): pub.get('journal_name', 'Unknown')[:40],
                                     t('citations'): pub.get('cited_by_count', 0),
                                     'OA': '✅' if pub.get('is_oa', False) else '❌',
-                                    'DOI': pub.get('doi', '')
+                                    'DOI': pub.get('doi', ''),
+                                    'Type': pub.get('source_category', 'unknown')
                                 })
                             df = pd.DataFrame(pub_data)
                             st.dataframe(df, width='stretch')
