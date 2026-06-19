@@ -5779,7 +5779,7 @@ def main():
                             pub_data = []
                             for pub in sorted(publications, key=lambda x: x.get('publication_year', 0), reverse=True):
                                 pub_data.append({
-                                    t('title'): pub.get('title', 'No title')[:80] + '...' if len(pub.get('title', '')) > 80 else pub.get('title', 'No title'),
+                                    t('title'): (pub.get('title') or 'No title')[:80] + '...' if len(pub.get('title') or 'No title') > 80 else (pub.get('title') or 'No title'),
                                     t('year'): pub.get('publication_year', 'N/A'),
                                     t('journal'): pub.get('journal_name', 'Unknown')[:40],
                                     t('citations'): pub.get('cited_by_count', 0),
@@ -6060,7 +6060,7 @@ def main():
                             pub_data = []
                             for pub in sorted(publications, key=lambda x: x.get('publication_year', 0), reverse=True):
                                 pub_data.append({
-                                    t('title'): pub.get('title', 'No title')[:80] + '...' if len(pub.get('title', '')) > 80 else pub.get('title', 'No title'),
+                                    t('title'): (pub.get('title') or 'No title')[:80] + '...' if len(pub.get('title') or 'No title') > 80 else (pub.get('title') or 'No title'),
                                     t('year'): pub.get('publication_year', 'N/A'),
                                     t('journal'): pub.get('journal_name', 'Unknown')[:40],
                                     t('citations'): pub.get('cited_by_count', 0),
@@ -6336,7 +6336,7 @@ def main():
                             pub_data = []
                             for pub in sorted(publications, key=lambda x: x.get('publication_year', 0), reverse=True):
                                 pub_data.append({
-                                    t('title'): pub.get('title', 'No title')[:80] + '...' if len(pub.get('title', '')) > 80 else pub.get('title', 'No title'),
+                                                                        t('title'): (pub.get('title') or 'No title')[:80] + '...' if len(pub.get('title') or 'No title') > 80 else (pub.get('title') or 'No title'),
                                     t('year'): pub.get('publication_year', 'N/A'),
                                     t('journal'): pub.get('journal_name', 'Unknown')[:40],
                                     t('citations'): pub.get('cited_by_count', 0),
