@@ -5292,8 +5292,6 @@ def main():
         </div>
         """, unsafe_allow_html=True)
     
-    # Main content
-    st.image("logo.png", width=250) if os.path.exists("logo.png") else None
     
     st.markdown("---")
     if os.path.exists("icon.png"):
