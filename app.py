@@ -5299,7 +5299,7 @@ def main():
     if os.path.exists("icon.png"):
         col_logo, col_text = st.columns([1, 3])
         with col_logo:
-            st.image("icon.png", width=300)
+            st.image("icon.png", width=400)
     else:
         st.markdown(f"### {t('profile_analysis')}")
     st.markdown("---")
