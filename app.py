@@ -236,24 +236,15 @@ LANG = {
         'source_view_link': 'View',
         'source_doi_available': 'DOI available',
         'source_no_link': 'No link available',
-        # Новые строки для соавторов (Task 2)
-        'coauthors_card_title': '🤝 Top Co-authors',
-        'coauthor_works': 'joint works',
-        'coauthor_hindex': 'h-index',
+        # Новые переводы для соавторов
         'coauthor_orcid': 'ORCID',
         'coauthor_scopus': 'Scopus',
-        'coauthor_wos': 'Web of Science',
+        'coauthor_researcherid': 'ResearcherID',
         'coauthor_website': 'Personal website',
-        'coauthor_no_info': 'No additional information',
-        # Новые строки для Other Sources (Task 3)
-        'other_sources_title': '📚 Other Source Types',
-        'other_sources_desc': 'Non-journal publications (preprints, books, proceedings)',
-        # Новые строки для Concepts и Topics (Task 4)
-        'concepts_top': 'Top Concepts',
-        'topics_grid': 'Topics (Top 10)',
-        'subtopics_grid': 'Subtopics (Top 10)',
-        'fields_grid': 'Fields (Top 10)',
-        'domains_grid': 'Domains (Top 5)'
+        'coauthor_other': 'Other profiles',
+        'no_orcid_found': 'No ORCID found',
+        'coauthor_info': 'Co-author information',
+        'coauthor_profiles': 'External profiles'
     },
     'ru': {
         'app_title': 'Анализ профиля ученого',
@@ -427,24 +418,15 @@ LANG = {
         'source_view_link': 'Смотреть',
         'source_doi_available': 'DOI доступен',
         'source_no_link': 'Нет ссылки',
-        # Новые строки для соавторов (Task 2)
-        'coauthors_card_title': '🤝 Топ соавторы',
-        'coauthor_works': 'совместных работ',
-        'coauthor_hindex': 'h-индекс',
+        # Новые переводы для соавторов
         'coauthor_orcid': 'ORCID',
         'coauthor_scopus': 'Scopus',
-        'coauthor_wos': 'Web of Science',
+        'coauthor_researcherid': 'ResearcherID',
         'coauthor_website': 'Персональный сайт',
-        'coauthor_no_info': 'Нет дополнительной информации',
-        # Новые строки для Other Sources (Task 3)
-        'other_sources_title': '📚 Другие типы источников',
-        'other_sources_desc': 'Нежурнальные публикации (препринты, книги, материалы конференций)',
-        # Новые строки для Concepts и Topics (Task 4)
-        'concepts_top': 'Топ концепты',
-        'topics_grid': 'Темы (Топ 10)',
-        'subtopics_grid': 'Подтемы (Топ 10)',
-        'fields_grid': 'Области (Топ 10)',
-        'domains_grid': 'Домены (Топ 5)'
+        'coauthor_other': 'Другие профили',
+        'no_orcid_found': 'ORCID не найден',
+        'coauthor_info': 'Информация о соавторе',
+        'coauthor_profiles': 'Внешние профили'
     }
 }
 
@@ -874,6 +856,114 @@ def apply_theme_css(base_color: str, accent_color: str = None):
         .source-badge-nodoi {{
             background: #f8d7da;
             color: #721c24;
+        }}
+        
+        /* Co-author card styles */
+        .coauthor-card {{
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            border: 1px solid #e0e0e0;
+            border-left: 4px solid var(--primary);
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }}
+        
+        .coauthor-card:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+            border-color: var(--primary);
+        }}
+        
+        .coauthor-name {{
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 6px;
+        }}
+        
+        .coauthor-joint {{
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 8px;
+        }}
+        
+        .coauthor-profiles {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }}
+        
+        .coauthor-profile-link {{
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 10px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.2s;
+            background: #f0f0f0;
+            color: #333;
+        }}
+        
+        .coauthor-profile-link:hover {{
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }}
+        
+        .coauthor-profile-link.orcid {{
+            background: #a6ce39;
+            color: #1a1a1a;
+        }}
+        
+        .coauthor-profile-link.orcid:hover {{
+            background: #8cb82e;
+        }}
+        
+        .coauthor-profile-link.scopus {{
+            background: #e97132;
+            color: white;
+        }}
+        
+        .coauthor-profile-link.scopus:hover {{
+            background: #d45f24;
+        }}
+        
+        .coauthor-profile-link.researcherid {{
+            background: #005a9c;
+            color: white;
+        }}
+        
+        .coauthor-profile-link.researcherid:hover {{
+            background: #004a82;
+        }}
+        
+        .coauthor-profile-link.website {{
+            background: #6c757d;
+            color: white;
+        }}
+        
+        .coauthor-profile-link.website:hover {{
+            background: #5a6268;
+        }}
+        
+        .coauthor-profile-link.other {{
+            background: #17a2b8;
+            color: white;
+        }}
+        
+        .coauthor-profile-link.other:hover {{
+            background: #138496;
+        }}
+        
+        .coauthor-no-orcid {{
+            font-size: 12px;
+            color: #999;
+            font-style: italic;
         }}
     </style>
     """
@@ -1450,41 +1540,28 @@ def parse_openalex_publication(item: Dict) -> Dict:
         else:
             pub['country'] = 'Unknown'
         
-        # ====== ИЗМЕНЕНИЕ: Сбор детальной информации о соавторах (Task 2) ======
-        authors_details = []
+        # ====== ИЗМЕНЕНИЕ: Сбор информации об авторах с ORCID ======
         authors = []
         author_orcids = []
+        authors_with_orcids = []  # Новое поле для хранения пар имя-ORCID
         
         for auth in item.get('authorships', []):
             if auth.get('author'):
-                author_data = {
-                    'display_name': auth['author'].get('display_name', ''),
-                    'orcid': auth['author'].get('orcid', ''),
-                    'raw_orcid': auth.get('raw_orcid', ''),
-                    'id': auth['author'].get('id', ''),
-                    'author_position': auth.get('author_position', ''),
-                    'is_corresponding': auth.get('is_corresponding', False),
-                    'institutions': auth.get('institutions', []),
-                    'countries': auth.get('countries', [])
-                }
-                
-                # Нормализуем ORCID
-                if author_data['orcid']:
-                    author_data['orcid'] = author_data['orcid'].replace('https://orcid.org/', '')
-                if author_data['raw_orcid']:
-                    author_data['raw_orcid'] = author_data['raw_orcid'].replace('https://orcid.org/', '')
-                
-                authors_details.append(author_data)
-                
-                author_name = author_data['display_name']
+                author_name = auth['author'].get('display_name', '')
+                author_orcid = auth['author'].get('orcid', '')
                 if author_name:
                     authors.append(author_name)
-                    if author_data['orcid']:
-                        author_orcids.append(author_data['orcid'])
+                    if author_orcid:
+                        author_orcids.append(author_orcid)
+                    # Сохраняем пару имя-ORCID
+                    authors_with_orcids.append({
+                        'name': author_name,
+                        'orcid': author_orcid.replace('https://orcid.org/', '') if author_orcid else None
+                    })
         
-        pub['authors_details'] = authors_details
         pub['authors'] = authors
         pub['author_orcids'] = author_orcids
+        pub['authors_with_orcids'] = authors_with_orcids  # Новое поле
         
         pub['author_count'] = len(authors)
         
@@ -1684,9 +1761,7 @@ async def get_openalex_author(orcid: str, session) -> Dict:
             'works_count': author.get('works_count', 0),
             'cited_by_count': author.get('cited_by_count', 0),
             'h_index': author.get('h_index', 0),
-            'last_known_institution': author.get('last_known_institution', {}).get('display_name', ''),
-            'ids': author.get('ids', {}),
-            'websites': author.get('websites', [])
+            'last_known_institution': author.get('last_known_institution', {}).get('display_name', '')
         }
     
     return {}
@@ -1744,48 +1819,68 @@ async def get_institution_homepages(institution_ids: List[str], session) -> Dict
     return homepages
 
 # ============================================
-# НОВАЯ ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ ПЕРСОНАЛЬНОЙ ИНФОРМАЦИИ СОАВТОРОВ (Task 2)
+# НОВАЯ ФУНКЦИЯ: Получение информации о персональных профилях из ORCID API
 # ============================================
 
-async def get_author_personal_info(orcid: str, session) -> Dict:
-    """Получает персональную информацию об авторе по ORCID"""
+async def get_orcid_person_info(orcid: str, session) -> Dict:
+    """
+    Получает информацию о персональных профилях (Scopus, ResearcherID и др.)
+    из API ORCID для указанного ORCID
+    """
     if not orcid:
         return {}
     
-    # Получаем через существующую функцию
-    author_data = await get_openalex_author(orcid, session)
+    orcid_clean = clean_orcid(orcid)
+    if not orcid_clean:
+        return {}
     
-    if author_data:
-        # Извлекаем дополнительные ID
-        external_ids = {}
-        ids = author_data.get('ids', {})
-        if ids:
-            # Проверяем наличие Scopus, WoS и т.д.
-            if 'scopus' in ids:
-                external_ids['scopus'] = ids['scopus']
-            if 'wos' in ids:
-                external_ids['wos'] = ids['wos']
-            if 'mag' in ids:
-                external_ids['mag'] = ids['mag']
-            if 'wikidata' in ids:
-                external_ids['wikidata'] = ids['wikidata']
-        
-        # Извлекаем веб-сайты
-        websites = author_data.get('websites', [])
-        
-        return {
-            'display_name': author_data.get('display_name', ''),
-            'orcid': author_data.get('orcid', '').replace('https://orcid.org/', ''),
-            'works_count': author_data.get('works_count', 0),
-            'cited_by_count': author_data.get('cited_by_count', 0),
-            'h_index': author_data.get('h_index', 0),
-            'external_ids': external_ids,
-            'websites': websites,
-            'affiliations': author_data.get('affiliations', []),
-            'last_known_institution': author_data.get('last_known_institution', '')
-        }
+    headers = {'Accept': 'application/json'}
+    url = f"https://pub.orcid.org/v3.0/{orcid_clean}/person"
     
-    return {}
+    if SHOW_DEBUG_LOGS:
+        print(f"🔍 Запрос персональной информации для ORCID: {orcid_clean}")
+    
+    data = await fetch_with_retry(session, url, headers=headers)
+    
+    if not data:
+        return {}
+    
+    external_ids = {}
+    
+    try:
+        # Извлекаем внешние идентификаторы
+        external_ids_data = data.get('external-identifiers', {}).get('external-identifier', [])
+        
+        for ext_id in external_ids_data:
+            ext_type = ext_id.get('external-id-type', '').lower()
+            ext_value = ext_id.get('external-id-value', '')
+            ext_url = ext_id.get('external-id-url', {}).get('value', '')
+            
+            if ext_type and ext_value:
+                external_ids[ext_type] = {
+                    'value': ext_value,
+                    'url': ext_url
+                }
+        
+        # Также можно получить персональные веб-страницы
+        websites = []
+        researcher_urls = data.get('researcher-urls', {}).get('researcher-url', [])
+        for url_item in researcher_urls:
+            url_value = url_item.get('url', {}).get('value', '')
+            if url_value:
+                websites.append(url_value)
+        
+        if websites:
+            external_ids['website'] = {
+                'value': ', '.join(websites[:3]),
+                'url': websites[0] if websites else ''
+            }
+        
+    except Exception as e:
+        if SHOW_DEBUG_LOGS:
+            print(f"⚠️ Ошибка парсинга персональной информации ORCID: {e}")
+    
+    return external_ids
 
 # ============================================
 # КЛАСС ДЛЯ АНАЛИЗА ПРОФИЛЯ УЧЕНОГО
@@ -1802,6 +1897,7 @@ class ScholarProfileAnalyzer:
         self.profile = {}
         self.raw_data = {}
         self.institution_homepages = {}
+        self.coauthors_with_orcids = {}  # Новое поле: словарь {имя: {'count': N, 'orcid': ORCID}}
         self.collaborations = {
             'domestic': defaultdict(lambda: defaultdict(int)),
             'international': defaultdict(lambda: defaultdict(int)),
@@ -2116,11 +2212,8 @@ class ScholarProfileAnalyzer:
         all_subfields = []
         all_keywords = []
         
-        # ====== ИЗМЕНЕНИЕ: Статистика по типам источников (Task 3 - убираем журнальные статьи) ======
+        # Статистика по типам источников
         source_categories = {}
-        
-        # ====== ИЗМЕНЕНИЕ: Сбор детальной информации о соавторах (Task 2) ======
-        coauthors_detailed = {}
         
         for p in self.publications:
             if p.get('concepts'):
@@ -2161,67 +2254,25 @@ class ScholarProfileAnalyzer:
                         concept_levels[concept] = []
                     concept_levels[concept].append(info)
             
-            # ====== ИЗМЕНЕНИЕ: Сбор статистики по типам источников - пропускаем журнальные статьи (Task 3) ======
+            # Сбор статистики по типам источников
             category = p.get('source_category', 'other')
-            # Пропускаем обычные журнальные статьи для раздела "Other Source Types"
-            if category == 'articles':
-                # Не добавляем в source_categories
-                pass
-            else:
-                if category not in source_categories:
-                    source_categories[category] = []
-                
-                # Сохраняем информацию о публикации для отображения в отчете
-                source_categories[category].append({
-                    'title': p.get('title', 'No title'),
-                    'doi': p.get('doi', ''),
-                    'id': p.get('id', ''),
-                    'year': p.get('publication_year', ''),
-                    'journal': p.get('journal_name', ''),
-                    'raw_type': p.get('raw_type', ''),
-                    'source_type': p.get('source_type', ''),
-                    'is_oa': p.get('is_oa', False),
-                    'any_repository_has_fulltext': p.get('any_repository_has_fulltext', False)
-                })
+            if category not in source_categories:
+                source_categories[category] = []
             
-            # ====== ИЗМЕНЕНИЕ: Сбор детальной информации о соавторах (Task 2) ======
-            author_name_normalized = normalize_author_name(self.author_name or '')
-            author_orcid = self.orcid
-            
-            for author_detail in p.get('authors_details', []):
-                name = author_detail.get('display_name', '')
-                if not name:
-                    continue
-                
-                # Проверяем, не является ли этот автор самим ученым
-                is_self = False
-                
-                if author_name_normalized:
-                    name_normalized = normalize_author_name(name)
-                    if name_normalized == author_name_normalized:
-                        is_self = True
-                
-                if not is_self:
-                    orcid_val = author_detail.get('orcid', '')
-                    if orcid_val and (orcid_val == author_orcid or orcid_val.replace('https://orcid.org/', '') == author_orcid):
-                        is_self = True
-                
-                if not is_self:
-                    if name not in coauthors_detailed:
-                        coauthors_detailed[name] = {
-                            'orcid': author_detail.get('orcid', ''),
-                            'works_count': 0,
-                            'publications': []
-                        }
-                    coauthors_detailed[name]['works_count'] += 1
-                    coauthors_detailed[name]['publications'].append({
-                        'title': p.get('title', 'No title'),
-                        'year': p.get('publication_year', ''),
-                        'doi': p.get('doi', ''),
-                        'journal': p.get('journal_name', '')
-                    })
+            # Сохраняем информацию о публикации для отображения в отчете
+            source_categories[category].append({
+                'title': p.get('title', 'No title'),
+                'doi': p.get('doi', ''),
+                'id': p.get('id', ''),
+                'year': p.get('publication_year', ''),
+                'journal': p.get('journal_name', ''),
+                'raw_type': p.get('raw_type', ''),
+                'source_type': p.get('source_type', ''),
+                'is_oa': p.get('is_oa', False),
+                'any_repository_has_fulltext': p.get('any_repository_has_fulltext', False)
+            })
         
-        # Сохраняем статистику по типам источников (только не-журнальные)
+        # Сохраняем статистику по типам источников
         self.profile['source_categories'] = {
             cat: {
                 'count': len(items),
@@ -2229,9 +2280,6 @@ class ScholarProfileAnalyzer:
             }
             for cat, items in source_categories.items()
         }
-        
-        # Сохраняем детальную информацию о соавторах
-        self.profile['coauthors_detailed'] = coauthors_detailed
         
         self.profile['concepts'] = dict(Counter(all_concepts))
         self.profile['top_concepts'] = dict(Counter(all_concepts).most_common(15))
@@ -2259,17 +2307,21 @@ class ScholarProfileAnalyzer:
         self.profile['paratexts'] = sum(1 for p in self.publications if p.get('is_paratext', False))
         self.profile['retraction_details'] = [p.get('retraction_info') for p in self.publications if p.get('is_retracted')]
         
+        # ====== ИЗМЕНЕНИЕ: Сбор соавторов с ORCID ======
         coauthors = []
+        coauthors_with_orcids = defaultdict(lambda: {'count': 0, 'orcid': None})
         
         author_name_normalized = normalize_author_name(self.author_name or '')
         author_orcid = self.orcid
         
         for p in self.publications:
-            if p.get('authors'):
-                authors_list = p['authors']
-                orcids_list = p.get('author_orcids', [])
+            if p.get('authors_with_orcids'):
+                authors_list = p['authors_with_orcids']
                 
-                for idx, name in enumerate(authors_list):
+                for author_data in authors_list:
+                    name = author_data.get('name', '')
+                    orcid = author_data.get('orcid', '')
+                    
                     is_self = False
                     
                     if author_name_normalized:
@@ -2277,16 +2329,30 @@ class ScholarProfileAnalyzer:
                         if name_normalized == author_name_normalized:
                             is_self = True
                     
-                    if not is_self and orcids_list and idx < len(orcids_list):
-                        orcid_val = orcids_list[idx]
-                        if orcid_val and (orcid_val == author_orcid or orcid_val.replace('https://orcid.org/', '') == author_orcid):
+                    if not is_self and orcid:
+                        if orcid == author_orcid or orcid.replace('https://orcid.org/', '') == author_orcid:
                             is_self = True
                     
-                    if not is_self:
+                    if not is_self and name:
                         coauthors.append(name)
+                        if name not in coauthors_with_orcids:
+                            coauthors_with_orcids[name] = {'count': 0, 'orcid': None}
+                        coauthors_with_orcids[name]['count'] += 1
+                        if orcid and not coauthors_with_orcids[name]['orcid']:
+                            coauthors_with_orcids[name]['orcid'] = orcid
+        
+        self.coauthors_with_orcids = dict(coauthors_with_orcids)
         
         self.profile['coauthors'] = dict(Counter(coauthors))
         self.profile['top_coauthors'] = dict(Counter(coauthors).most_common(20))
+        self.profile['top_coauthors_with_orcids'] = {
+            name: data 
+            for name, data in sorted(
+                coauthors_with_orcids.items(), 
+                key=lambda x: x[1]['count'], 
+                reverse=True
+            )[:20]
+        }
         self.profile['unique_coauthors'] = len(set(coauthors))
         
         author_counts = [p.get('author_count', 0) for p in self.publications if p.get('author_count', 0) > 0]
@@ -2503,8 +2569,8 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
         if 'institution_homepages' in cached_data:
             analyzer.set_institution_homepages(cached_data['institution_homepages'])
         
-        if 'coauthors_info' in cached_data:
-            analyzer.profile['coauthors_info'] = cached_data['coauthors_info']
+        if 'coauthors_with_orcids' in cached_data:
+            analyzer.coauthors_with_orcids = cached_data['coauthors_with_orcids']
         
         return analyzer, analyzer.profile, analyzer.publications
     
@@ -2573,40 +2639,41 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
             analyzer.set_institution_homepages(homepages)
             print(f"✅ Получено homepage для {len(homepages)} институтов")
         
+        # ====== НОВОЕ: Получение персональной информации для соавторов ======
+        print("🔍 Получение персональной информации для соавторов...")
+        coauthor_profiles = {}
+        
+        # Получаем список уникальных ORCID соавторов
+        unique_coauthor_orcids = set()
+        for name, data in analyzer.coauthors_with_orcids.items():
+            if data.get('orcid'):
+                unique_coauthor_orcids.add(data['orcid'])
+        
+        if unique_coauthor_orcids:
+            print(f"  Получение профилей для {len(unique_coauthor_orcids)} соавторов...")
+            for idx, orcid_id in enumerate(list(unique_coauthor_orcids)[:50], 1):  # Ограничиваем до 50 для производительности
+                if idx % 10 == 0:
+                    print(f"    Обработано {idx}/{min(len(unique_coauthor_orcids), 50)}...")
+                person_info = await get_orcid_person_info(orcid_id, session)
+                if person_info:
+                    coauthor_profiles[orcid_id] = person_info
+                await asyncio.sleep(0.3)  # Небольшая задержка для соблюдения лимитов API
+        
+        # Сохраняем профили соавторов в analyzer
+        analyzer.coauthor_profiles = coauthor_profiles
+        
         analyzer.analyze_publications()
         
-        # ====== ИЗМЕНЕНИЕ: Сбор информации о соавторах (Task 2) ======
-        print("👤 Получение информации о соавторах...")
-        coauthors_detailed = analyzer.profile.get('coauthors_detailed', {})
-        coauthors_info = {}
-        
-        # Собираем ORCID соавторов
-        coauthor_orcids = set()
-        for name, data in coauthors_detailed.items():
-            orcid_val = data.get('orcid', '')
-            if orcid_val and orcid_val != orcid_clean:
-                coauthor_orcids.add(orcid_val)
-        
-        # Получаем информацию о соавторах
-        if coauthor_orcids:
-            print(f"👤 Получение информации для {len(coauthor_orcids)} соавторов...")
-            for idx, orcid_val in enumerate(coauthor_orcids):
-                if idx % 5 == 0:
-                    print(f"  Обработано {idx}/{len(coauthor_orcids)} соавторов...")
-                info = await get_author_personal_info(orcid_val, session)
-                if info:
-                    coauthors_info[orcid_val] = info
-                await asyncio.sleep(0.1)  # избегаем rate limit
-        
-        analyzer.profile['coauthors_info'] = coauthors_info
-        print(f"✅ Получена информация о {len(coauthors_info)} соавторах")
+        # Добавляем профили соавторов в профиль для кэширования
+        analyzer.profile['coauthor_profiles'] = coauthor_profiles
         
         cache_data = {
             'publications': analyzer.publications,
             'author_info': analyzer.author_info,
             'profile': analyzer.profile,
             'institution_homepages': analyzer.institution_homepages,
-            'coauthors_info': coauthors_info,
+            'coauthors_with_orcids': analyzer.coauthors_with_orcids,
+            'coauthor_profiles': coauthor_profiles,
             'timestamp': datetime.now().isoformat()
         }
         save_to_cache(orcid_clean, cache_data)
@@ -2800,11 +2867,10 @@ def create_visualizations(profile: Dict, lang: str = 'en') -> Dict[str, str]:
         plt.close()
     
     if profile.get('concepts'):
-        # ====== ИЗМЕНЕНИЕ: Уменьшаем max_words до 25 (Task 4) ======
         wordcloud = WordCloud(width=800, height=400, 
                               background_color='white',
                               colormap='viridis',
-                              max_words=25,  # Было 40, стало 25
+                              max_words=40,
                               contour_width=1,
                               contour_color='black',
                               random_state=42).generate_from_frequencies(profile['concepts'])
@@ -3056,7 +3122,7 @@ def create_visualizations(profile: Dict, lang: str = 'en') -> Dict[str, str]:
 # ФУНКЦИИ ДЛЯ ГЕНЕРАЦИИ ОТЧЕТОВ
 # ============================================
 
-def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[str, str], logo_base64: Optional[str] = None, app_logo_base64: Optional[str] = None, institution_homepages: Optional[Dict[str, str]] = None, theme_colors: Optional[Dict] = None, lang: str = 'en') -> str:
+def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[str, str], logo_base64: Optional[str] = None, app_logo_base64: Optional[str] = None, institution_homepages: Optional[Dict[str, str]] = None, theme_colors: Optional[Dict] = None, lang: str = 'en', coauthor_profiles: Optional[Dict] = None) -> str:
     """Генерирует HTML отчет с расширенной информацией и дизайном из второго кода"""
     
     if theme_colors is None:
@@ -3113,12 +3179,8 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     domestic_papers = collaborations.get('domestic_papers', 0)
     international_papers = collaborations.get('international_papers', 0)
     
-    # ====== ИЗМЕНЕНИЕ: Получаем данные по типам источников (только не-журнальные) ======
+    # Получаем данные по типам источников
     source_categories = profile.get('source_categories', {})
-    
-    # ====== ИЗМЕНЕНИЕ: Получаем детальную информацию о соавторах (Task 2) ======
-    coauthors_detailed = profile.get('coauthors_detailed', {})
-    coauthors_info = profile.get('coauthors_info', {})
     
     # Карта категорий для отображения
     category_labels = {
@@ -3150,7 +3212,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     collab_index = profile.get('collaboration_index', 0)
     country_diversity = profile.get('country_diversity', 0)
     
-    top_coauthors = profile.get('top_coauthors', {})
+    top_coauthors_with_orcids = profile.get('top_coauthors_with_orcids', {})
     
     css_vars = generate_css_variables(primary, secondary)
     
@@ -3158,13 +3220,113 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     def t(key: str, **kwargs) -> str:
         return translate(key, lang, **kwargs)
     
-    # ====== ИЗМЕНЕНИЕ: Генерируем HTML для секции типов источников (только не-журнальные) (Task 3) ======
+    # ====== Генерация карточек соавторов ======
+    coauthors_html = ""
+    if top_coauthors_with_orcids:
+        for name, data in list(top_coauthors_with_orcids.items()):
+            count = data.get('count', 0)
+            orcid = data.get('orcid', '')
+            
+            # Получаем персональные профили для этого соавтора
+            coauthor_profiles_dict = coauthor_profiles or {}
+            person_info = coauthor_profiles_dict.get(orcid, {}) if orcid else {}
+            
+            coauthors_html += f"""
+            <div class="coauthor-card">
+                <div class="coauthor-name">{html.escape(name)}</div>
+                <div class="coauthor-joint">{count} {t('joint_works')}</div>
+                <div class="coauthor-profiles">
+            """
+            
+            # Добавляем ORCID если есть
+            if orcid:
+                orcid_url = f"https://orcid.org/{orcid}"
+                coauthors_html += f"""
+                    <a href="{orcid_url}" target="_blank" class="coauthor-profile-link orcid">
+                        🆔 {t('coauthor_orcid')}
+                    </a>
+                """
+            else:
+                coauthors_html += f"""
+                    <span class="coauthor-no-orcid">{t('no_orcid_found')}</span>
+                """
+            
+            # Добавляем внешние профили из ORCID API
+            if person_info:
+                # Scopus
+                if 'scopus' in person_info:
+                    scopus_data = person_info['scopus']
+                    scopus_url = scopus_data.get('url', '')
+                    scopus_value = scopus_data.get('value', '')
+                    if scopus_url:
+                        coauthors_html += f"""
+                            <a href="{scopus_url}" target="_blank" class="coauthor-profile-link scopus">
+                                📚 {t('coauthor_scopus')}
+                            </a>
+                        """
+                    elif scopus_value:
+                        coauthors_html += f"""
+                            <a href="https://www.scopus.com/authid/detail.uri?authorId={scopus_value}" target="_blank" class="coauthor-profile-link scopus">
+                                📚 {t('coauthor_scopus')}
+                            </a>
+                        """
+                
+                # ResearcherID
+                if 'researcherid' in person_info:
+                    rid_data = person_info['researcherid']
+                    rid_url = rid_data.get('url', '')
+                    rid_value = rid_data.get('value', '')
+                    if rid_url:
+                        coauthors_html += f"""
+                            <a href="{rid_url}" target="_blank" class="coauthor-profile-link researcherid">
+                                🆔 {t('coauthor_researcherid')}
+                            </a>
+                        """
+                    elif rid_value:
+                        coauthors_html += f"""
+                            <a href="https://www.researcherid.com/rid/{rid_value}" target="_blank" class="coauthor-profile-link researcherid">
+                                🆔 {t('coauthor_researcherid')}
+                            </a>
+                        """
+                
+                # Personal website
+                if 'website' in person_info:
+                    website_data = person_info['website']
+                    website_url = website_data.get('url', '')
+                    if website_url:
+                        coauthors_html += f"""
+                            <a href="{website_url}" target="_blank" class="coauthor-profile-link website">
+                                🌐 {t('coauthor_website')}
+                            </a>
+                        """
+                
+                # Другие идентификаторы
+                other_ids = ['linkedin', 'twitter', 'facebook', 'researchgate', 'academia', 'mendeley', 'publons']
+                found_other = False
+                for other_id in other_ids:
+                    if other_id in person_info:
+                        other_data = person_info[other_id]
+                        other_url = other_data.get('url', '')
+                        if other_url and not found_other:
+                            coauthors_html += f"""
+                                <a href="{other_url}" target="_blank" class="coauthor-profile-link other">
+                                    🔗 {t('coauthor_other')}
+                                </a>
+                            """
+                            found_other = True
+                            break
+            
+            coauthors_html += """
+                </div>
+            </div>
+            """
+    
+    # ====== Генерация HTML для секции типов источников (исключая журнальные статьи) ======
     source_section_html = ""
     if source_categories:
         source_section_html = f"""
         <div id="sources" class="section">
-            <div class="section-title">{t('other_sources_title')}</div>
-            <p style="color:#666; margin-bottom:15px; font-size:14px;">{t('other_sources_desc')}</p>
+            <div class="section-title">{t('source_types')}</div>
             <table class="source-table">
                 <thead>
                     <tr>
@@ -3175,8 +3337,8 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 <tbody>
         """
         
-        # Определяем порядок категорий для отображения
-        category_order = ['articles', 'repositories', 'ebooks', 'proceedings', 'other']
+        # Определяем порядок категорий для отображения (исключаем 'articles')
+        category_order = ['repositories', 'ebooks', 'proceedings', 'other']
         
         for cat in category_order:
             if cat in source_categories:
@@ -3218,58 +3380,6 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
             </table>
         </div>
         """
-    
-    # ====== ИЗМЕНЕНИЕ: Генерируем карточки соавторов (Task 2) ======
-    coauthor_cards_html = ""
-    if coauthors_detailed:
-        # Сортируем по количеству совместных работ
-        sorted_coauthors = sorted(
-            coauthors_detailed.items(),
-            key=lambda x: x[1]['works_count'],
-            reverse=True
-        )[:20]
-        
-        coauthor_cards_html = '<div class="section"><div class="section-title">' + t('coauthors_card_title') + '</div>'
-        
-        for name, data in sorted_coauthors:
-            works_count = data['works_count']
-            orcid_val = data.get('orcid', '')
-            info = coauthors_info.get(orcid_val, {})
-            
-            # Собираем ссылки
-            links = []
-            if orcid_val:
-                orcid_url = f'https://orcid.org/{orcid_val}'
-                links.append(f'<a href="{orcid_url}" target="_blank" class="external-id-link">🔗 {t("coauthor_orcid")}</a>')
-            
-            external_ids = info.get('external_ids', {})
-            if 'scopus' in external_ids:
-                links.append(f'<a href="{external_ids["scopus"]}" target="_blank" class="external-id-link">📘 Scopus</a>')
-            if 'wos' in external_ids:
-                links.append(f'<a href="{external_ids["wos"]}" target="_blank" class="external-id-link">📊 WoS</a>')
-            
-            websites = info.get('websites', [])
-            for site in websites[:2]:
-                if site:
-                    links.append(f'<a href="{site}" target="_blank" class="external-id-link">🌐 {t("coauthor_website")}</a>')
-            
-            if not links:
-                links.append(f'<span style="color:#999; font-size:12px;">{t("coauthor_no_info")}</span>')
-            
-            h_index_info = ""
-            if info.get('h_index', 0) > 0:
-                h_index_info = f'<div style="margin-top:4px;"><strong>{t("coauthor_hindex")}:</strong> {info["h_index"]}</div>'
-            
-            coauthor_cards_html += f"""
-            <div class="reviewer-card">
-                <div class="reviewer-name">{html.escape(name)}</div>
-                <div class="reviewer-orcid">{' '.join(links)}</div>
-                <div><strong>{t('joint_works')}:</strong> {works_count}</div>
-                {h_index_info}
-            </div>
-            """
-        
-        coauthor_cards_html += '</div>'
     
     html_content = f"""
     <!DOCTYPE html>
@@ -3646,10 +3756,9 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 margin-top: 5px;
             }}
             
-            /* ====== ИЗМЕНЕНИЕ: Сетка 4 колонки для Topics (Task 4) ====== */
             .thematic-grid {{
                 display: grid;
-                grid-template-columns: repeat(4, 1fr);
+                grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
                 gap: 15px;
                 margin: 15px 0;
             }}
@@ -3739,45 +3848,112 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 color: #721c24;
             }}
             
-            /* Reviewer card styles for coauthors */
-            .reviewer-card {{
-                background: white;
+            /* Co-author card styles */
+            .coauthor-card {{
+                background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
                 border-radius: 12px;
-                padding: 16px;
-                margin-bottom: 16px;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                transition: transform 0.2s, box-shadow 0.2s;
+                padding: 16px 20px;
+                margin-bottom: 12px;
+                border: 1px solid #e0e0e0;
                 border-left: 4px solid {primary};
+                transition: transform 0.2s, box-shadow 0.2s;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
             }}
-            .reviewer-card:hover {{
+            
+            .coauthor-card:hover {{
                 transform: translateY(-2px);
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+                border-color: {primary};
             }}
-            .reviewer-name {{
-                font-size: 18px;
+            
+            .coauthor-name {{
+                font-size: 16px;
                 font-weight: 600;
                 color: {primary};
+                margin-bottom: 6px;
+            }}
+            
+            .coauthor-joint {{
+                font-size: 13px;
+                color: #666;
                 margin-bottom: 8px;
             }}
-            .reviewer-orcid {{
-                font-family: monospace;
-                font-size: 12px;
-                margin-bottom: 8px;
+            
+            .coauthor-profiles {{
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+                margin-top: 8px;
             }}
-            .external-id-link {{
-                display: inline-block;
-                background: #f0f0f0;
-                padding: 4px 10px;
+            
+            .coauthor-profile-link {{
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                padding: 3px 10px;
                 border-radius: 15px;
                 font-size: 11px;
-                margin: 3px;
+                font-weight: 500;
                 text-decoration: none;
+                transition: all 0.2s;
+                background: #f0f0f0;
                 color: #333;
-                transition: background 0.2s;
             }}
-            .external-id-link:hover {{
-                background: {primary};
+            
+            .coauthor-profile-link:hover {{
+                transform: translateY(-1px);
+                box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            }}
+            
+            .coauthor-profile-link.orcid {{
+                background: #a6ce39;
+                color: #1a1a1a;
+            }}
+            
+            .coauthor-profile-link.orcid:hover {{
+                background: #8cb82e;
+            }}
+            
+            .coauthor-profile-link.scopus {{
+                background: #e97132;
                 color: white;
+            }}
+            
+            .coauthor-profile-link.scopus:hover {{
+                background: #d45f24;
+            }}
+            
+            .coauthor-profile-link.researcherid {{
+                background: #005a9c;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.researcherid:hover {{
+                background: #004a82;
+            }}
+            
+            .coauthor-profile-link.website {{
+                background: #6c757d;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.website:hover {{
+                background: #5a6268;
+            }}
+            
+            .coauthor-profile-link.other {{
+                background: #17a2b8;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.other:hover {{
+                background: #138496;
+            }}
+            
+            .coauthor-no-orcid {{
+                font-size: 12px;
+                color: #999;
+                font-style: italic;
             }}
             
             @media print {{
@@ -3788,7 +3964,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 .sidebar {{ display: none; }}
                 .main-content {{ margin-left: 0; padding: 20px; }}
                 .thematic-grid {{
-                    grid-template-columns: 1fr 1fr;
+                    grid-template-columns: 1fr;
                 }}
             }}
         </style>
@@ -3801,9 +3977,9 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
             <a href="#visualizations"><span>📊 {t('citations')}</span></a>
             <a href="#thematic"><span>🏷️ {t('topics')}</span></a>
             <a href="#collaborations"><span>🌍 {t('collaborations')}</span></a>
-            <a href="#coauthors"><span>🤝 {t('coauthors_card_title')}</span></a>
+            <a href="#coauthors"><span>🤝 {t('top_coauthors')}</span></a>
             <a href="#publications"><span>📚 {t('publications')}</span></a>
-            {f'<a href="#sources"><span>📚 {t("other_sources_title")}</span></a>' if source_categories else ''}
+            {f'<a href="#sources"><span>📚 {t("source_types")}</span></a>' if source_categories else ''}
         </div>
         
         <div class="main-content">
@@ -3918,8 +4094,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
             <div id="thematic" class="section">
                 <div class="section-title">🏷️ {t('topics')}</div>
                 
-                <!-- ====== ИЗМЕНЕНИЕ: Topics с сеткой 4 колонки (Task 4) ====== -->
-                <h3 style="color: {primary}; margin-top: 20px;">{t('topics_grid')}</h3>
+                <h3 style="color: {primary}; margin-top: 20px;">{t('topics')} (Top 10)</h3>
                 <div class="thematic-grid">
                     {''.join([
                         f'<div class="thematic-card">'
@@ -3930,7 +4105,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                     ])}
                 </div>
                 
-                <h3 style="color: {primary}; margin-top: 20px;">{t('subtopics_grid')}</h3>
+                <h3 style="color: {primary}; margin-top: 20px;">{t('subtopics')} (Top 10)</h3>
                 <div class="thematic-grid">
                     {''.join([
                         f'<div class="thematic-card">'
@@ -3941,7 +4116,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                     ])}
                 </div>
                 
-                <h3 style="color: {primary}; margin-top: 20px;">{t('fields_grid')}</h3>
+                <h3 style="color: {primary}; margin-top: 20px;">{t('fields')} (Top 10)</h3>
                 <div class="thematic-grid">
                     {''.join([
                         f'<div class="thematic-card">'
@@ -3952,7 +4127,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                     ])}
                 </div>
                 
-                <h3 style="color: {primary}; margin-top: 20px;">{t('domains_grid')}</h3>
+                <h3 style="color: {primary}; margin-top: 20px;">{t('domains')} (Top 5)</h3>
                 <div class="thematic-grid">
                     {''.join([
                         f'<div class="thematic-card">'
@@ -3963,8 +4138,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                     ])}
                 </div>
                 
-                <!-- ====== ИЗМЕНЕНИЕ: Concepts уменьшены до 10 (Task 4) ====== -->
-                <h3 style="color: {primary}; margin-top: 20px;">{t('concepts_top')}</h3>
+                <h3 style="color: {primary}; margin-top: 20px;">{t('concepts')} (Top 10)</h3>
                 <div class="thematic-grid">
                     {''.join([
                         f'<div class="thematic-card">'
@@ -4013,8 +4187,10 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 </div>
             </div>
             
-            <!-- ====== ИЗМЕНЕНИЕ: Секция соавторов с карточками (Task 2) ====== -->
-            {coauthor_cards_html}
+            <div id="coauthors" class="section">
+                <div class="section-title">{t('top_coauthors')}</div>
+                {coauthors_html if coauthors_html else f'<p>{t("no_publications")}</p>'}
+            </div>
             
             {source_section_html}
             
@@ -4110,17 +4286,17 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
     
     html_parts = []
     
-    # ====== ИЗМЕНЕНИЕ: Для одного автора используем generate_html_report без внешнего заголовка (Task 1) ======
+    # Если показываем только одного автора, используем generate_html_report без дублирования заголовка
     if not show_all and len(authors_to_show) == 1:
-        # Используем generate_html_report - она уже содержит полный заголовок с логотипами
         author_data = authors_to_show[0]
         profile = author_data.get('profile', {})
         publications = author_data.get('publications', [])
+        images = author_data.get('images', {})
         analyzer = author_data.get('analyzer')
         institution_homepages = analyzer.institution_homepages if analyzer else {}
-        images = create_visualizations(profile, lang) if profile else {}
+        coauthor_profiles = profile.get('coauthor_profiles', {})
         
-        html_parts.append(generate_html_report(
+        return generate_html_report(
             profile, 
             publications, 
             images, 
@@ -4128,437 +4304,470 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
             app_logo_base64, 
             institution_homepages, 
             theme_colors, 
-            lang
-        ))
+            lang,
+            coauthor_profiles
+        )
+    
+    # Для множественных авторов генерируем общий отчет с заголовком
+    html_parts.append(f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>{t('app_title')} - {t('profile_analysis')}</title>
+        <style>
+            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+            body {{
+                font-family: 'Times New Roman', 'DejaVu Serif', serif;
+                margin: 0;
+                padding: 20px;
+                background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+                color: #333;
+            }}
+            .report-wrapper {{
+                max-width: 1400px;
+                margin: 0 auto;
+                background: white;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+                border-radius: 10px;
+                overflow: hidden;
+            }}
+            .sidebar {{
+                position: fixed;
+                left: 0;
+                top: 0;
+                width: 260px;
+                height: 100vh;
+                background: linear-gradient(135deg, {primary} 0%, {secondary} 100%);
+                color: white;
+                padding: 30px 20px;
+                overflow-y: auto;
+                z-index: 1000;
+            }}
+            .sidebar h3 {{
+                margin-bottom: 20px;
+                font-size: 18px;
+                font-weight: 600;
+                color: white;
+            }}
+            .sidebar a {{
+                color: white;
+                text-decoration: none;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 10px 15px;
+                margin: 5px 0;
+                border-radius: 8px;
+                transition: all 0.3s;
+            }}
+            .sidebar a:hover {{
+                background: rgba(255,255,255,0.2);
+                transform: translateX(5px);
+            }}
+            .main-content {{
+                margin-left: 260px;
+                padding: 30px 40px;
+            }}
+            .header {{
+                background: linear-gradient(135deg, {primary} 0%, {secondary} 100%);
+                color: white;
+                padding: 40px;
+                border-radius: 15px;
+                margin-bottom: 30px;
+                text-align: center;
+            }}
+            .header h1 {{
+                color: white;
+                border-bottom: none;
+                margin: 0;
+                font-size: 32px;
+            }}
+            .header .date {{
+                opacity: 0.9;
+                margin-top: 10px;
+            }}
+            .header-logo {{
+                max-height: 150px;
+                max-width: 300px;
+                margin-bottom: 15px;
+            }}
+            .header-logo-app {{
+                max-height: 80px;
+                max-width: 240px;
+                margin-bottom: 10px;
+            }}
+            .author-card {{
+                background: white;
+                border-radius: 15px;
+                padding: 25px;
+                margin-bottom: 30px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                border-left: 5px solid {primary};
+                transition: transform 0.2s;
+            }}
+            .author-card:hover {{
+                transform: translateX(5px);
+                box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+            }}
+            .author-card.best {{
+                border-left-color: #FFD700;
+                background: linear-gradient(135deg, #fff9e6 0%, #ffffff 100%);
+            }}
+            .author-rank {{
+                font-size: 20px;
+                font-weight: bold;
+                color: {primary};
+                display: inline-block;
+                margin-right: 10px;
+            }}
+            .author-name-main {{
+                font-size: 22px;
+                font-weight: 600;
+                color: {primary};
+                display: inline-block;
+            }}
+            .author-hindex {{
+                font-size: 18px;
+                color: #666;
+                margin-left: 10px;
+            }}
+            .best-badge {{
+                background: #FFD700;
+                color: #333;
+                padding: 4px 12px;
+                border-radius: 20px;
+                font-size: 14px;
+                font-weight: bold;
+                display: inline-block;
+                margin-left: 15px;
+            }}
+            .metrics-grid {{
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 15px;
+                margin: 20px 0;
+            }}
+            .metric-card {{
+                background: #f8f9fa;
+                padding: 15px;
+                border-radius: 8px;
+                border-left: 4px solid {primary};
+                text-align: center;
+            }}
+            .metric-value {{
+                font-size: 24px;
+                font-weight: bold;
+                color: #2C3E50;
+            }}
+            .metric-label {{
+                font-size: 12px;
+                color: #7F8C8D;
+                margin-top: 5px;
+            }}
+            .chart-container {{
+                margin: 20px 0;
+                text-align: center;
+            }}
+            .chart-container img {{
+                max-width: 100%;
+                height: auto;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }}
+            .author-section {{
+                margin-bottom: 30px;
+                padding-bottom: 20px;
+                border-bottom: 2px solid #e0e0e0;
+            }}
+            .author-section:last-child {{
+                border-bottom: none;
+            }}
+            .flag {{
+                padding: 10px;
+                margin: 5px 0;
+                border-radius: 5px;
+                background-color: #FEF9E7;
+                border-left: 4px solid #F39C12;
+            }}
+            .flag-danger {{
+                background-color: #FDEDEC;
+                border-left-color: #E74C3C;
+            }}
+            .flag-retraction {{
+                background-color: #FFE5E5;
+                border-left: 4px solid #FF0000;
+                color: #CC0000;
+                font-weight: bold;
+                padding: 12px 15px;
+                border-radius: 5px;
+                margin: 10px 0;
+                font-size: 16px;
+            }}
+            .recommendation-box {{
+                padding: 15px;
+                margin: 15px 0;
+                border-radius: 8px;
+                font-size: 16px;
+                font-weight: 500;
+            }}
+            .rec-green {{ background-color: #D5F5E3; border-left: 4px solid #2ECC71; }}
+            .rec-yellow {{ background-color: #FEF9E7; border-left: 4px solid #F39C12; }}
+            .rec-red {{ background-color: #FDEDEC; border-left: 4px solid #E74C3C; }}
+            .footer {{
+                margin-top: 40px;
+                padding-top: 20px;
+                border-top: 1px solid #BDC3C7;
+                text-align: center;
+                color: #7F8C8D;
+                font-size: 12px;
+            }}
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin: 20px 0;
+            }}
+            th {{
+                background: linear-gradient(135deg, {primary} 0%, {secondary} 100%);
+                color: white;
+                padding: 12px;
+                text-align: left;
+            }}
+            td {{
+                padding: 10px;
+                border-bottom: 1px solid #BDC3C7;
+            }}
+            tr:hover {{
+                background-color: #f5f5f5;
+            }}
+            .doi-link {{
+                color: #2980B9;
+                text-decoration: none;
+                font-size: 12px;
+            }}
+            .doi-link:hover {{
+                text-decoration: underline;
+            }}
+            
+            .source-table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin: 20px 0;
+                font-family: 'Times New Roman', serif;
+            }}
+            .source-table th {{
+                background: linear-gradient(135deg, {primary} 0%, {secondary} 100%);
+                color: white;
+                padding: 12px;
+                text-align: left;
+            }}
+            .source-table td {{
+                padding: 10px;
+                border-bottom: 1px solid #BDC3C7;
+                vertical-align: top;
+            }}
+            .source-table tr:hover {{
+                background-color: #f5f5f5;
+            }}
+            .source-example-item {{
+                margin: 3px 0;
+                font-size: 13px;
+            }}
+            .source-example-link {{
+                color: #2980B9;
+                text-decoration: none;
+                font-size: 12px;
+            }}
+            .source-example-link:hover {{
+                text-decoration: underline;
+            }}
+            .source-badge {{
+                display: inline-block;
+                padding: 2px 10px;
+                border-radius: 12px;
+                font-size: 11px;
+                font-weight: 600;
+                margin-left: 5px;
+            }}
+            .source-badge-doi {{
+                background: #d4edda;
+                color: #155724;
+            }}
+            .source-badge-nodoi {{
+                background: #f8d7da;
+                color: #721c24;
+            }}
+            
+            /* Co-author card styles */
+            .coauthor-card {{
+                background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+                border-radius: 12px;
+                padding: 16px 20px;
+                margin-bottom: 12px;
+                border: 1px solid #e0e0e0;
+                border-left: 4px solid {primary};
+                transition: transform 0.2s, box-shadow 0.2s;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            }}
+            
+            .coauthor-card:hover {{
+                transform: translateY(-2px);
+                box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+                border-color: {primary};
+            }}
+            
+            .coauthor-name {{
+                font-size: 16px;
+                font-weight: 600;
+                color: {primary};
+                margin-bottom: 6px;
+            }}
+            
+            .coauthor-joint {{
+                font-size: 13px;
+                color: #666;
+                margin-bottom: 8px;
+            }}
+            
+            .coauthor-profiles {{
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+                margin-top: 8px;
+            }}
+            
+            .coauthor-profile-link {{
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                padding: 3px 10px;
+                border-radius: 15px;
+                font-size: 11px;
+                font-weight: 500;
+                text-decoration: none;
+                transition: all 0.2s;
+                background: #f0f0f0;
+                color: #333;
+            }}
+            
+            .coauthor-profile-link:hover {{
+                transform: translateY(-1px);
+                box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            }}
+            
+            .coauthor-profile-link.orcid {{
+                background: #a6ce39;
+                color: #1a1a1a;
+            }}
+            
+            .coauthor-profile-link.orcid:hover {{
+                background: #8cb82e;
+            }}
+            
+            .coauthor-profile-link.scopus {{
+                background: #e97132;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.scopus:hover {{
+                background: #d45f24;
+            }}
+            
+            .coauthor-profile-link.researcherid {{
+                background: #005a9c;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.researcherid:hover {{
+                background: #004a82;
+            }}
+            
+            .coauthor-profile-link.website {{
+                background: #6c757d;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.website:hover {{
+                background: #5a6268;
+            }}
+            
+            .coauthor-profile-link.other {{
+                background: #17a2b8;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.other:hover {{
+                background: #138496;
+            }}
+            
+            .coauthor-no-orcid {{
+                font-size: 12px;
+                color: #999;
+                font-style: italic;
+            }}
+            
+            @media print {{
+                .sidebar {{ display: none; }}
+                .main-content {{ margin-left: 0; }}
+            }}
+            @media (max-width: 768px) {{
+                .sidebar {{ display: none; }}
+                .main-content {{ margin-left: 0; padding: 20px; }}
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="sidebar">
+            <h3>📑 {t('app_title')}</h3>
+            <a href="#overview"><span>📊 {t('profile')}</span></a>
+    """)
+    
+    for i, author in enumerate(authors_to_show):
+        author_name = author.get('author_name', f'Автор {i+1}')
+        h_index = author.get('h_index', 0)
+        anchor = f"author_{i}"
+        html_parts.append(f'<a href="#{anchor}"><span>👤 {html.escape(author_name)} (h-index: {h_index})</span></a>')
+    
+    html_parts.append("""
+        </div>
+        <div class="main-content">
+            <div class="header">
+    """)
+    
+    if app_logo_base64:
+        html_parts.append(f'<img src="data:image/png;base64,{app_logo_base64}" class="header-logo-app" alt="App Logo">')
+    
+    if journal_logo_base64:
+        html_parts.append(f'<img src="data:image/png;base64,{journal_logo_base64}" class="header-logo" alt="Логотип журнала">')
+    
+    html_parts.append(f"""
+                <h1>📊 {t('app_title')}</h1>
+                <div class="date">{t('report_preview')}: {datetime.now().strftime('%d.%m.%Y')}</div>
+                <div style="margin-top: 15px;">
+                    <span class="badge badge-info">{t('publications')}: {len(all_authors)}</span>
+    """)
+    
+    if len(all_authors) > 1:
+        html_parts.append(f'<span class="badge badge-success">{t("best_author", name=best_author.get("author_name", "Unknown"), h_index=best_author.get("h_index", 0))}</span>')
+    
+    if show_all:
+        html_parts.append(f'<span class="badge badge-info">{t("showing_all", count=len(all_authors))}</span>')
     else:
-        # Для множественных авторов - внешний header с логотипами
-        html_parts.append(f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <title>{t('app_title')} - {t('profile_analysis')}</title>
-            <style>
-                * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-                body {{
-                    font-family: 'Times New Roman', 'DejaVu Serif', serif;
-                    margin: 0;
-                    padding: 20px;
-                    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-                    color: #333;
-                }}
-                .report-wrapper {{
-                    max-width: 1400px;
-                    margin: 0 auto;
-                    background: white;
-                    box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-                    border-radius: 10px;
-                    overflow: hidden;
-                }}
-                .sidebar {{
-                    position: fixed;
-                    left: 0;
-                    top: 0;
-                    width: 260px;
-                    height: 100vh;
-                    background: linear-gradient(135deg, {primary} 0%, {secondary} 100%);
-                    color: white;
-                    padding: 30px 20px;
-                    overflow-y: auto;
-                    z-index: 1000;
-                }}
-                .sidebar h3 {{
-                    margin-bottom: 20px;
-                    font-size: 18px;
-                    font-weight: 600;
-                    color: white;
-                }}
-                .sidebar a {{
-                    color: white;
-                    text-decoration: none;
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                    padding: 10px 15px;
-                    margin: 5px 0;
-                    border-radius: 8px;
-                    transition: all 0.3s;
-                }}
-                .sidebar a:hover {{
-                    background: rgba(255,255,255,0.2);
-                    transform: translateX(5px);
-                }}
-                .main-content {{
-                    margin-left: 260px;
-                    padding: 30px 40px;
-                }}
-                .header {{
-                    background: linear-gradient(135deg, {primary} 0%, {secondary} 100%);
-                    color: white;
-                    padding: 40px;
-                    border-radius: 15px;
-                    margin-bottom: 30px;
-                    text-align: center;
-                }}
-                .header h1 {{
-                    color: white;
-                    border-bottom: none;
-                    margin: 0;
-                    font-size: 32px;
-                }}
-                .header .date {{
-                    opacity: 0.9;
-                    margin-top: 10px;
-                }}
-                .header-logo {{
-                    max-height: 150px;
-                    max-width: 300px;
-                    margin-bottom: 15px;
-                }}
-                .header-logo-app {{
-                    max-height: 80px;
-                    max-width: 240px;
-                    margin-bottom: 10px;
-                }}
-                .author-card {{
-                    background: white;
-                    border-radius: 15px;
-                    padding: 25px;
-                    margin-bottom: 30px;
-                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                    border-left: 5px solid {primary};
-                    transition: transform 0.2s;
-                }}
-                .author-card:hover {{
-                    transform: translateX(5px);
-                    box-shadow: 0 6px 12px rgba(0,0,0,0.15);
-                }}
-                .author-card.best {{
-                    border-left-color: #FFD700;
-                    background: linear-gradient(135deg, #fff9e6 0%, #ffffff 100%);
-                }}
-                .author-rank {{
-                    font-size: 20px;
-                    font-weight: bold;
-                    color: {primary};
-                    display: inline-block;
-                    margin-right: 10px;
-                }}
-                .author-name-main {{
-                    font-size: 22px;
-                    font-weight: 600;
-                    color: {primary};
-                    display: inline-block;
-                }}
-                .author-hindex {{
-                    font-size: 18px;
-                    color: #666;
-                    margin-left: 10px;
-                }}
-                .best-badge {{
-                    background: #FFD700;
-                    color: #333;
-                    padding: 4px 12px;
-                    border-radius: 20px;
-                    font-size: 14px;
-                    font-weight: bold;
-                    display: inline-block;
-                    margin-left: 15px;
-                }}
-                .metrics-grid {{
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-                    gap: 15px;
-                    margin: 20px 0;
-                }}
-                .metric-card {{
-                    background: #f8f9fa;
-                    padding: 15px;
-                    border-radius: 8px;
-                    border-left: 4px solid {primary};
-                    text-align: center;
-                }}
-                .metric-value {{
-                    font-size: 24px;
-                    font-weight: bold;
-                    color: #2C3E50;
-                }}
-                .metric-label {{
-                    font-size: 12px;
-                    color: #7F8C8D;
-                    margin-top: 5px;
-                }}
-                .chart-container {{
-                    margin: 20px 0;
-                    text-align: center;
-                }}
-                .chart-container img {{
-                    max-width: 100%;
-                    height: auto;
-                    border-radius: 8px;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                }}
-                .author-section {{
-                    margin-bottom: 30px;
-                    padding-bottom: 20px;
-                    border-bottom: 2px solid #e0e0e0;
-                }}
-                .author-section:last-child {{
-                    border-bottom: none;
-                }}
-                .flag {{
-                    padding: 10px;
-                    margin: 5px 0;
-                    border-radius: 5px;
-                    background-color: #FEF9E7;
-                    border-left: 4px solid #F39C12;
-                }}
-                .flag-danger {{
-                    background-color: #FDEDEC;
-                    border-left-color: #E74C3C;
-                }}
-                .flag-retraction {{
-                    background-color: #FFE5E5;
-                    border-left: 4px solid #FF0000;
-                    color: #CC0000;
-                    font-weight: bold;
-                    padding: 12px 15px;
-                    border-radius: 5px;
-                    margin: 10px 0;
-                    font-size: 16px;
-                }}
-                .recommendation-box {{
-                    padding: 15px;
-                    margin: 15px 0;
-                    border-radius: 8px;
-                    font-size: 16px;
-                    font-weight: 500;
-                }}
-                .rec-green {{ background-color: #D5F5E3; border-left: 4px solid #2ECC71; }}
-                .rec-yellow {{ background-color: #FEF9E7; border-left: 4px solid #F39C12; }}
-                .rec-red {{ background-color: #FDEDEC; border-left: 4px solid #E74C3C; }}
-                .footer {{
-                    margin-top: 40px;
-                    padding-top: 20px;
-                    border-top: 1px solid #BDC3C7;
-                    text-align: center;
-                    color: #7F8C8D;
-                    font-size: 12px;
-                }}
-                table {{
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin: 20px 0;
-                }}
-                th {{
-                    background: linear-gradient(135deg, {primary} 0%, {secondary} 100%);
-                    color: white;
-                    padding: 12px;
-                    text-align: left;
-                }}
-                td {{
-                    padding: 10px;
-                    border-bottom: 1px solid #BDC3C7;
-                }}
-                tr:hover {{
-                    background-color: #f5f5f5;
-                }}
-                .doi-link {{
-                    color: #2980B9;
-                    text-decoration: none;
-                    font-size: 12px;
-                }}
-                .doi-link:hover {{
-                    text-decoration: underline;
-                }}
-                
-                .source-table {{
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin: 20px 0;
-                    font-family: 'Times New Roman', serif;
-                }}
-                .source-table th {{
-                    background: linear-gradient(135deg, {primary} 0%, {secondary} 100%);
-                    color: white;
-                    padding: 12px;
-                    text-align: left;
-                }}
-                .source-table td {{
-                    padding: 10px;
-                    border-bottom: 1px solid #BDC3C7;
-                    vertical-align: top;
-                }}
-                .source-table tr:hover {{
-                    background-color: #f5f5f5;
-                }}
-                .source-example-item {{
-                    margin: 3px 0;
-                    font-size: 13px;
-                }}
-                .source-example-link {{
-                    color: #2980B9;
-                    text-decoration: none;
-                    font-size: 12px;
-                }}
-                .source-example-link:hover {{
-                    text-decoration: underline;
-                }}
-                .source-badge {{
-                    display: inline-block;
-                    padding: 2px 10px;
-                    border-radius: 12px;
-                    font-size: 11px;
-                    font-weight: 600;
-                    margin-left: 5px;
-                }}
-                .source-badge-doi {{
-                    background: #d4edda;
-                    color: #155724;
-                }}
-                .source-badge-nodoi {{
-                    background: #f8d7da;
-                    color: #721c24;
-                }}
-                
-                /* Reviewer card styles for coauthors */
-                .reviewer-card {{
-                    background: white;
-                    border-radius: 12px;
-                    padding: 16px;
-                    margin-bottom: 16px;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                    transition: transform 0.2s, box-shadow 0.2s;
-                    border-left: 4px solid {primary};
-                }}
-                .reviewer-card:hover {{
-                    transform: translateY(-2px);
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                }}
-                .reviewer-name {{
-                    font-size: 18px;
-                    font-weight: 600;
-                    color: {primary};
-                    margin-bottom: 8px;
-                }}
-                .reviewer-orcid {{
-                    font-family: monospace;
-                    font-size: 12px;
-                    margin-bottom: 8px;
-                }}
-                .external-id-link {{
-                    display: inline-block;
-                    background: #f0f0f0;
-                    padding: 4px 10px;
-                    border-radius: 15px;
-                    font-size: 11px;
-                    margin: 3px;
-                    text-decoration: none;
-                    color: #333;
-                    transition: background 0.2s;
-                }}
-                .external-id-link:hover {{
-                    background: {primary};
-                    color: white;
-                }}
-                
-                /* Thematic grid 4 columns */
-                .thematic-grid {{
-                    display: grid;
-                    grid-template-columns: repeat(4, 1fr);
-                    gap: 15px;
-                    margin: 15px 0;
-                }}
-                .thematic-card {{
-                    background: linear-gradient(135deg, {primary}10 0%, {secondary}10 100%);
-                    border-radius: 12px;
-                    padding: 16px 20px;
-                    border-left: 4px solid {primary};
-                    transition: transform 0.2s, box-shadow 0.2s;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-                }}
-                .thematic-card:hover {{
-                    transform: translateY(-3px);
-                    box-shadow: 0 6px 16px rgba(0,0,0,0.08);
-                    background: linear-gradient(135deg, {primary}15 0%, {secondary}15 100%);
-                }}
-                .thematic-name {{
-                    font-weight: 600;
-                    color: {primary};
-                    font-size: 14px;
-                    font-family: 'Times New Roman', serif;
-                }}
-                .thematic-count {{
-                    color: #555;
-                    font-size: 13px;
-                    margin-top: 4px;
-                    font-family: 'Times New Roman', serif;
-                }}
-                
-                @media print {{
-                    .sidebar {{ display: none; }}
-                    .main-content {{ margin-left: 0; }}
-                }}
-                @media (max-width: 768px) {{
-                    .sidebar {{ display: none; }}
-                    .main-content {{ margin-left: 0; padding: 20px; }}
-                    .thematic-grid {{
-                        grid-template-columns: 1fr 1fr;
-                    }}
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="sidebar">
-                <h3>📑 {t('app_title')}</h3>
-                <a href="#overview"><span>📊 {t('profile')}</span></a>
-        """)
-        
-        for i, author in enumerate(authors_to_show):
-            author_name = author.get('author_name', f'Автор {i+1}')
-            h_index = author.get('h_index', 0)
-            anchor = f"author_{i}"
-            html_parts.append(f'<a href="#{anchor}"><span>👤 {html.escape(author_name)} (h-index: {h_index})</span></a>')
-        
-        html_parts.append("""
-            </div>
-            <div class="main-content">
-                <div class="header">
-        """)
-        
-        if app_logo_base64:
-            html_parts.append(f'<img src="data:image/png;base64,{app_logo_base64}" class="header-logo-app" alt="App Logo">')
-        
-        if journal_logo_base64:
-            html_parts.append(f'<img src="data:image/png;base64,{journal_logo_base64}" class="header-logo" alt="Логотип журнала">')
-        
-        html_parts.append(f"""
-                    <h1>📊 {t('app_title')}</h1>
-                    <div class="date">{t('report_preview')}: {datetime.now().strftime('%d.%m.%Y')}</div>
-                    <div style="margin-top: 15px;">
-                        <span class="badge badge-info">{t('publications')}: {len(all_authors)}</span>
-        """)
-        
-        if len(all_authors) > 1:
-            html_parts.append(f'<span class="badge badge-success">{t("best_author", name=best_author.get("author_name", "Unknown"), h_index=best_author.get("h_index", 0))}</span>')
-        
-        if show_all:
-            html_parts.append(f'<span class="badge badge-info">{t("showing_all", count=len(all_authors))}</span>')
-        else:
-            html_parts.append(f'<span class="badge badge-info">{t("showing_single")}</span>')
-        
-        html_parts.append("""
-                    </div>
+        html_parts.append(f'<span class="badge badge-info">{t("showing_single")}</span>')
+    
+    html_parts.append("""
                 </div>
-        """)
-        
-        # Для множественных авторов генерируем каждого автора отдельно
+            </div>
+    """)
+    
+    if show_all:
         for i, author_data in enumerate(authors_to_show):
             is_best = (i == 0)
             author_name = author_data.get('author_name', f'Автор {i+1}')
             profile = author_data.get('profile', {})
             publications = author_data.get('publications', [])
             images = create_visualizations(profile, lang) if profile else {}
+            coauthor_profiles = profile.get('coauthor_profiles', {})
             
             h_index = profile.get('h_index', 0)
             total_pubs = profile.get('total_publications', 0)
@@ -4570,9 +4779,9 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
             retractions = profile.get('retractions', 0)
             
             top_journals = profile.get('top_journals', {})
-            top_coauthors = profile.get('top_coauthors', {})
+            top_coauthors_with_orcids = profile.get('top_coauthors_with_orcids', {})
             
-            # Получаем данные по типам источников (только не-журнальные)
+            # Получаем данные по типам источников
             source_categories = profile.get('source_categories', {})
             
             category_labels = {
@@ -4583,12 +4792,111 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                 'other': {'en': 'source_other', 'ru': 'source_other'}
             }
             
-            # Генерируем HTML для секции типов источников (только не-журнальные)
+            # Генерируем карточки соавторов
+            coauthors_html = ""
+            if top_coauthors_with_orcids:
+                for name, data in list(top_coauthors_with_orcids.items()):
+                    count = data.get('count', 0)
+                    orcid = data.get('orcid', '')
+                    
+                    # Получаем персональные профили для этого соавтора
+                    person_info = coauthor_profiles.get(orcid, {}) if orcid else {}
+                    
+                    coauthors_html += f"""
+                    <div class="coauthor-card">
+                        <div class="coauthor-name">{html.escape(name)}</div>
+                        <div class="coauthor-joint">{count} {t('joint_works')}</div>
+                        <div class="coauthor-profiles">
+                    """
+                    
+                    # Добавляем ORCID если есть
+                    if orcid:
+                        orcid_url = f"https://orcid.org/{orcid}"
+                        coauthors_html += f"""
+                            <a href="{orcid_url}" target="_blank" class="coauthor-profile-link orcid">
+                                🆔 {t('coauthor_orcid')}
+                            </a>
+                        """
+                    else:
+                        coauthors_html += f"""
+                            <span class="coauthor-no-orcid">{t('no_orcid_found')}</span>
+                        """
+                    
+                    # Добавляем внешние профили из ORCID API
+                    if person_info:
+                        # Scopus
+                        if 'scopus' in person_info:
+                            scopus_data = person_info['scopus']
+                            scopus_url = scopus_data.get('url', '')
+                            scopus_value = scopus_data.get('value', '')
+                            if scopus_url:
+                                coauthors_html += f"""
+                                    <a href="{scopus_url}" target="_blank" class="coauthor-profile-link scopus">
+                                        📚 {t('coauthor_scopus')}
+                                    </a>
+                                """
+                            elif scopus_value:
+                                coauthors_html += f"""
+                                    <a href="https://www.scopus.com/authid/detail.uri?authorId={scopus_value}" target="_blank" class="coauthor-profile-link scopus">
+                                        📚 {t('coauthor_scopus')}
+                                    </a>
+                                """
+                        
+                        # ResearcherID
+                        if 'researcherid' in person_info:
+                            rid_data = person_info['researcherid']
+                            rid_url = rid_data.get('url', '')
+                            rid_value = rid_data.get('value', '')
+                            if rid_url:
+                                coauthors_html += f"""
+                                    <a href="{rid_url}" target="_blank" class="coauthor-profile-link researcherid">
+                                        🆔 {t('coauthor_researcherid')}
+                                    </a>
+                                """
+                            elif rid_value:
+                                coauthors_html += f"""
+                                    <a href="https://www.researcherid.com/rid/{rid_value}" target="_blank" class="coauthor-profile-link researcherid">
+                                        🆔 {t('coauthor_researcherid')}
+                                    </a>
+                                """
+                        
+                        # Personal website
+                        if 'website' in person_info:
+                            website_data = person_info['website']
+                            website_url = website_data.get('url', '')
+                            if website_url:
+                                coauthors_html += f"""
+                                    <a href="{website_url}" target="_blank" class="coauthor-profile-link website">
+                                        🌐 {t('coauthor_website')}
+                                    </a>
+                                """
+                        
+                        # Другие идентификаторы
+                        other_ids = ['linkedin', 'twitter', 'facebook', 'researchgate', 'academia', 'mendeley', 'publons']
+                        found_other = False
+                        for other_id in other_ids:
+                            if other_id in person_info:
+                                other_data = person_info[other_id]
+                                other_url = other_data.get('url', '')
+                                if other_url and not found_other:
+                                    coauthors_html += f"""
+                                        <a href="{other_url}" target="_blank" class="coauthor-profile-link other">
+                                            🔗 {t('coauthor_other')}
+                                        </a>
+                                    """
+                                    found_other = True
+                                    break
+                    
+                    coauthors_html += """
+                        </div>
+                    </div>
+                    """
+            
+            # Генерируем HTML для секции типов источников (исключая журнальные статьи)
             source_section_html = ""
             if source_categories:
                 source_section_html = f"""
-                <h3>{t('other_sources_title')}</h3>
-                <p style="color:#666; margin-bottom:15px; font-size:14px;">{t('other_sources_desc')}</p>
+                <h3>{t('source_types')}</h3>
                 <table class="source-table">
                     <thead>
                         <tr>
@@ -4599,7 +4907,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                     <tbody>
                 """
                 
-                category_order = ['articles', 'repositories', 'ebooks', 'proceedings', 'other']
+                category_order = ['repositories', 'ebooks', 'proceedings', 'other']
                 
                 for cat in category_order:
                     if cat in source_categories:
@@ -4640,57 +4948,6 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                     </tbody>
                 </table>
                 """
-            
-            # ====== ИЗМЕНЕНИЕ: Генерируем карточки соавторов для множественных авторов (Task 2) ======
-            coauthor_cards_html = ""
-            coauthors_detailed = profile.get('coauthors_detailed', {})
-            coauthors_info = profile.get('coauthors_info', {})
-            
-            if coauthors_detailed:
-                sorted_coauthors = sorted(
-                    coauthors_detailed.items(),
-                    key=lambda x: x[1]['works_count'],
-                    reverse=True
-                )[:20]
-                
-                coauthor_cards_html = '<h3 style="margin-top:20px;">' + t('coauthors_card_title') + '</h3>'
-                
-                for name, data in sorted_coauthors:
-                    works_count = data['works_count']
-                    orcid_val = data.get('orcid', '')
-                    info = coauthors_info.get(orcid_val, {})
-                    
-                    links = []
-                    if orcid_val:
-                        orcid_url = f'https://orcid.org/{orcid_val}'
-                        links.append(f'<a href="{orcid_url}" target="_blank" class="external-id-link">🔗 {t("coauthor_orcid")}</a>')
-                    
-                    external_ids = info.get('external_ids', {})
-                    if 'scopus' in external_ids:
-                        links.append(f'<a href="{external_ids["scopus"]}" target="_blank" class="external-id-link">📘 Scopus</a>')
-                    if 'wos' in external_ids:
-                        links.append(f'<a href="{external_ids["wos"]}" target="_blank" class="external-id-link">📊 WoS</a>')
-                    
-                    websites = info.get('websites', [])
-                    for site in websites[:2]:
-                        if site:
-                            links.append(f'<a href="{site}" target="_blank" class="external-id-link">🌐 {t("coauthor_website")}</a>')
-                    
-                    if not links:
-                        links.append(f'<span style="color:#999; font-size:12px;">{t("coauthor_no_info")}</span>')
-                    
-                    h_index_info = ""
-                    if info.get('h_index', 0) > 0:
-                        h_index_info = f'<div style="margin-top:4px;"><strong>{t("coauthor_hindex")}:</strong> {info["h_index"]}</div>'
-                    
-                    coauthor_cards_html += f"""
-                    <div class="reviewer-card">
-                        <div class="reviewer-name">{html.escape(name)}</div>
-                        <div class="reviewer-orcid">{' '.join(links)}</div>
-                        <div><strong>{t('joint_works')}:</strong> {works_count}</div>
-                        {h_index_info}
-                    </div>
-                    """
             
             html_parts.append(f"""
             <div id="author_{i}" class="author-section">
@@ -4750,8 +5007,8 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                         <img src="data:image/png;base64,{images.get('wordcloud', '')}" alt="{t('wordcloud_title')}">
                     </div>
                     
-                    <!-- ====== ИЗМЕНЕНИЕ: Секция соавторов с карточками (Task 2) ====== -->
-                    {coauthor_cards_html}
+                    <h3>{t('top_coauthors')}</h3>
+                    {coauthors_html if coauthors_html else f'<p>{t("no_publications")}</p>'}
                     
                     {source_section_html}
                     
@@ -4789,16 +5046,39 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                 </div>
             </div>
             """)
+    
+    else:
+        # Для случая show_all=False но множественных авторов (не должен происходить, но на всякий случай)
+        author_data = authors_to_show[0]
+        author_name = author_data.get('author_name', 'Unknown')
+        profile = author_data.get('profile', {})
+        publications = author_data.get('publications', [])
+        analyzer = author_data.get('analyzer')
+        institution_homepages = analyzer.institution_homepages if analyzer else {}
+        coauthor_profiles = profile.get('coauthor_profiles', {})
+        images = create_visualizations(profile, lang) if profile else {}
         
-        html_parts.append("""
-                <div class="footer">
-                    <p>© Author Profile Analysis / Created by daM / Chimica Techno Acta</p>
-                    <p><a href="https://chimicatechnoacta.ru" target="_blank">https://chimicatechnoacta.ru</a></p>
-                </div>
+        html_parts.append(generate_html_report(
+            profile, 
+            publications, 
+            images, 
+            journal_logo_base64, 
+            app_logo_base64, 
+            institution_homepages, 
+            theme_colors, 
+            lang,
+            coauthor_profiles
+        ))
+    
+    html_parts.append("""
+            <div class="footer">
+                <p>© Author Profile Analysis / Created by daM / Chimica Techno Acta</p>
+                <p><a href="https://chimicatechnoacta.ru" target="_blank">https://chimicatechnoacta.ru</a></p>
             </div>
-        </body>
-        </html>
-        """)
+        </div>
+    </body>
+    </html>
+    """)
     
     return '\n'.join(html_parts)
 
@@ -5259,11 +5539,10 @@ def main():
                     **{t('most_collaborative', country=profile.get('most_collaborative_country', 'None'))}**
                     """)
                     
-                    # ====== СЕКЦИЯ ТИПОВ ИСТОЧНИКОВ (только не-журнальные) ======
+                    # ====== СЕКЦИЯ ТИПОВ ИСТОЧНИКОВ ======
                     source_categories = profile.get('source_categories', {})
                     if source_categories:
-                        st.markdown(f"### {t('other_sources_title')}")
-                        st.caption(t('other_sources_desc'))
+                        st.markdown(f"### {t('source_types')}")
                         
                         category_labels = {
                             'articles': 'source_journal_articles',
@@ -5273,7 +5552,7 @@ def main():
                             'other': 'source_other'
                         }
                         
-                        category_order = ['articles', 'repositories', 'ebooks', 'proceedings', 'other']
+                        category_order = ['repositories', 'ebooks', 'proceedings', 'other']
                         
                         for cat in category_order:
                             if cat in source_categories:
@@ -5299,46 +5578,104 @@ def main():
                                     else:
                                         st.info(t('no_publications'))
                     
-                    # ====== СЕКЦИЯ СОАВТОРОВ С КАРТОЧКАМИ (Task 2) ======
-                    coauthors_detailed = profile.get('coauthors_detailed', {})
-                    coauthors_info = profile.get('coauthors_info', {})
+                    # ====== СЕКЦИЯ ТОП СОАВТОРОВ С ORCID ======
+                    top_coauthors_with_orcids = profile.get('top_coauthors_with_orcids', {})
+                    coauthor_profiles = profile.get('coauthor_profiles', {})
                     
-                    if coauthors_detailed:
-                        st.markdown(f"### {t('coauthors_card_title')}")
+                    if top_coauthors_with_orcids:
+                        st.markdown(f"### {t('top_coauthors')}")
                         
-                        sorted_coauthors = sorted(
-                            coauthors_detailed.items(),
-                            key=lambda x: x[1]['works_count'],
-                            reverse=True
-                        )[:20]
-                        
-                        for name, data in sorted_coauthors:
-                            works_count = data['works_count']
-                            orcid_val = data.get('orcid', '')
-                            info = coauthors_info.get(orcid_val, {})
+                        for name, data in list(top_coauthors_with_orcids.items()):
+                            count = data.get('count', 0)
+                            orcid = data.get('orcid', '')
                             
-                            with st.container():
-                                st.markdown(f"**{name}**")
-                                st.caption(f"{t('joint_works')}: {works_count}")
+                            # Получаем персональные профили для этого соавтора
+                            person_info = coauthor_profiles.get(orcid, {}) if orcid else {}
+                            
+                            st.markdown(f"""
+                            <div class="coauthor-card">
+                                <div class="coauthor-name">{html.escape(name)}</div>
+                                <div class="coauthor-joint">{count} {t('joint_works')}</div>
+                            """, unsafe_allow_html=True)
+                            
+                            # Добавляем ORCID если есть
+                            if orcid:
+                                st.markdown(f"""
+                                <a href="https://orcid.org/{orcid}" target="_blank" class="coauthor-profile-link orcid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#a6ce39;color:#1a1a1a;margin-right:6px;">
+                                    🆔 {t('coauthor_orcid')}
+                                </a>
+                                """, unsafe_allow_html=True)
+                            else:
+                                st.markdown(f"""
+                                <span class="coauthor-no-orcid">{t('no_orcid_found')}</span>
+                                """, unsafe_allow_html=True)
+                            
+                            # Добавляем внешние профили из ORCID API
+                            if person_info:
+                                # Scopus
+                                if 'scopus' in person_info:
+                                    scopus_data = person_info['scopus']
+                                    scopus_url = scopus_data.get('url', '')
+                                    scopus_value = scopus_data.get('value', '')
+                                    if scopus_url:
+                                        st.markdown(f"""
+                                        <a href="{scopus_url}" target="_blank" class="coauthor-profile-link scopus" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#e97132;color:white;margin-right:6px;">
+                                            📚 {t('coauthor_scopus')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
+                                    elif scopus_value:
+                                        st.markdown(f"""
+                                        <a href="https://www.scopus.com/authid/detail.uri?authorId={scopus_value}" target="_blank" class="coauthor-profile-link scopus" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#e97132;color:white;margin-right:6px;">
+                                            📚 {t('coauthor_scopus')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
                                 
-                                if orcid_val:
-                                    st.markdown(f"[🔗 {t('coauthor_orcid')}](https://orcid.org/{orcid_val})", unsafe_allow_html=True)
+                                # ResearcherID
+                                if 'researcherid' in person_info:
+                                    rid_data = person_info['researcherid']
+                                    rid_url = rid_data.get('url', '')
+                                    rid_value = rid_data.get('value', '')
+                                    if rid_url:
+                                        st.markdown(f"""
+                                        <a href="{rid_url}" target="_blank" class="coauthor-profile-link researcherid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#005a9c;color:white;margin-right:6px;">
+                                            🆔 {t('coauthor_researcherid')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
+                                    elif rid_value:
+                                        st.markdown(f"""
+                                        <a href="https://www.researcherid.com/rid/{rid_value}" target="_blank" class="coauthor-profile-link researcherid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#005a9c;color:white;margin-right:6px;">
+                                            🆔 {t('coauthor_researcherid')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
                                 
-                                external_ids = info.get('external_ids', {})
-                                if 'scopus' in external_ids:
-                                    st.markdown(f"[📘 Scopus]({external_ids['scopus']})", unsafe_allow_html=True)
-                                if 'wos' in external_ids:
-                                    st.markdown(f"[📊 WoS]({external_ids['wos']})", unsafe_allow_html=True)
+                                # Personal website
+                                if 'website' in person_info:
+                                    website_data = person_info['website']
+                                    website_url = website_data.get('url', '')
+                                    if website_url:
+                                        st.markdown(f"""
+                                        <a href="{website_url}" target="_blank" class="coauthor-profile-link website" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#6c757d;color:white;margin-right:6px;">
+                                            🌐 {t('coauthor_website')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
                                 
-                                websites = info.get('websites', [])
-                                for site in websites[:2]:
-                                    if site:
-                                        st.markdown(f"[🌐 {t('coauthor_website')}]({site})", unsafe_allow_html=True)
-                                
-                                if info.get('h_index', 0) > 0:
-                                    st.caption(f"{t('coauthor_hindex')}: {info['h_index']}")
-                                
-                                st.markdown("---")
+                                # Другие идентификаторы
+                                other_ids = ['linkedin', 'twitter', 'facebook', 'researchgate', 'academia', 'mendeley', 'publons']
+                                found_other = False
+                                for other_id in other_ids:
+                                    if other_id in person_info:
+                                        other_data = person_info[other_id]
+                                        other_url = other_data.get('url', '')
+                                        if other_url and not found_other:
+                                            st.markdown(f"""
+                                            <a href="{other_url}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
+                                                🔗 {t('coauthor_other')}
+                                            </a>
+                                            """, unsafe_allow_html=True)
+                                            found_other = True
+                                            break
+                            
+                            st.markdown("</div>", unsafe_allow_html=True)
                     
                     with st.expander(f"{t('publications_list')} ({len(publications)})"):
                         if publications:
@@ -5367,6 +5704,7 @@ def main():
                     publications = author_data.get('publications', [])
                     analyzer = author_data.get('analyzer')
                     images = author_data.get('images', {})
+                    coauthor_profiles = profile.get('coauthor_profiles', {})
                     
                     st.markdown(f"### {t('single_author', name=author_name, h_index=profile.get('h_index', 0))}")
                     
@@ -5483,11 +5821,10 @@ def main():
                     **{t('most_collaborative', country=profile.get('most_collaborative_country', 'None'))}**
                     """)
                     
-                    # ====== СЕКЦИЯ ТИПОВ ИСТОЧНИКОВ (только не-журнальные) ======
+                    # ====== СЕКЦИЯ ТИПОВ ИСТОЧНИКОВ ======
                     source_categories = profile.get('source_categories', {})
                     if source_categories:
-                        st.markdown(f"### {t('other_sources_title')}")
-                        st.caption(t('other_sources_desc'))
+                        st.markdown(f"### {t('source_types')}")
                         
                         category_labels = {
                             'articles': 'source_journal_articles',
@@ -5497,7 +5834,7 @@ def main():
                             'other': 'source_other'
                         }
                         
-                        category_order = ['articles', 'repositories', 'ebooks', 'proceedings', 'other']
+                        category_order = ['repositories', 'ebooks', 'proceedings', 'other']
                         
                         for cat in category_order:
                             if cat in source_categories:
@@ -5523,46 +5860,103 @@ def main():
                                     else:
                                         st.info(t('no_publications'))
                     
-                    # ====== СЕКЦИЯ СОАВТОРОВ С КАРТОЧКАМИ (Task 2) ======
-                    coauthors_detailed = profile.get('coauthors_detailed', {})
-                    coauthors_info = profile.get('coauthors_info', {})
+                    # ====== СЕКЦИЯ ТОП СОАВТОРОВ С ORCID ======
+                    top_coauthors_with_orcids = profile.get('top_coauthors_with_orcids', {})
                     
-                    if coauthors_detailed:
-                        st.markdown(f"### {t('coauthors_card_title')}")
+                    if top_coauthors_with_orcids:
+                        st.markdown(f"### {t('top_coauthors')}")
                         
-                        sorted_coauthors = sorted(
-                            coauthors_detailed.items(),
-                            key=lambda x: x[1]['works_count'],
-                            reverse=True
-                        )[:20]
-                        
-                        for name, data in sorted_coauthors:
-                            works_count = data['works_count']
-                            orcid_val = data.get('orcid', '')
-                            info = coauthors_info.get(orcid_val, {})
+                        for name, data in list(top_coauthors_with_orcids.items()):
+                            count = data.get('count', 0)
+                            orcid = data.get('orcid', '')
                             
-                            with st.container():
-                                st.markdown(f"**{name}**")
-                                st.caption(f"{t('joint_works')}: {works_count}")
+                            # Получаем персональные профили для этого соавтора
+                            person_info = coauthor_profiles.get(orcid, {}) if orcid else {}
+                            
+                            st.markdown(f"""
+                            <div class="coauthor-card">
+                                <div class="coauthor-name">{html.escape(name)}</div>
+                                <div class="coauthor-joint">{count} {t('joint_works')}</div>
+                            """, unsafe_allow_html=True)
+                            
+                            # Добавляем ORCID если есть
+                            if orcid:
+                                st.markdown(f"""
+                                <a href="https://orcid.org/{orcid}" target="_blank" class="coauthor-profile-link orcid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#a6ce39;color:#1a1a1a;margin-right:6px;">
+                                    🆔 {t('coauthor_orcid')}
+                                </a>
+                                """, unsafe_allow_html=True)
+                            else:
+                                st.markdown(f"""
+                                <span class="coauthor-no-orcid">{t('no_orcid_found')}</span>
+                                """, unsafe_allow_html=True)
+                            
+                            # Добавляем внешние профили из ORCID API
+                            if person_info:
+                                # Scopus
+                                if 'scopus' in person_info:
+                                    scopus_data = person_info['scopus']
+                                    scopus_url = scopus_data.get('url', '')
+                                    scopus_value = scopus_data.get('value', '')
+                                    if scopus_url:
+                                        st.markdown(f"""
+                                        <a href="{scopus_url}" target="_blank" class="coauthor-profile-link scopus" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#e97132;color:white;margin-right:6px;">
+                                            📚 {t('coauthor_scopus')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
+                                    elif scopus_value:
+                                        st.markdown(f"""
+                                        <a href="https://www.scopus.com/authid/detail.uri?authorId={scopus_value}" target="_blank" class="coauthor-profile-link scopus" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#e97132;color:white;margin-right:6px;">
+                                            📚 {t('coauthor_scopus')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
                                 
-                                if orcid_val:
-                                    st.markdown(f"[🔗 {t('coauthor_orcid')}](https://orcid.org/{orcid_val})", unsafe_allow_html=True)
+                                # ResearcherID
+                                if 'researcherid' in person_info:
+                                    rid_data = person_info['researcherid']
+                                    rid_url = rid_data.get('url', '')
+                                    rid_value = rid_data.get('value', '')
+                                    if rid_url:
+                                        st.markdown(f"""
+                                        <a href="{rid_url}" target="_blank" class="coauthor-profile-link researcherid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#005a9c;color:white;margin-right:6px;">
+                                            🆔 {t('coauthor_researcherid')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
+                                    elif rid_value:
+                                        st.markdown(f"""
+                                        <a href="https://www.researcherid.com/rid/{rid_value}" target="_blank" class="coauthor-profile-link researcherid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#005a9c;color:white;margin-right:6px;">
+                                            🆔 {t('coauthor_researcherid')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
                                 
-                                external_ids = info.get('external_ids', {})
-                                if 'scopus' in external_ids:
-                                    st.markdown(f"[📘 Scopus]({external_ids['scopus']})", unsafe_allow_html=True)
-                                if 'wos' in external_ids:
-                                    st.markdown(f"[📊 WoS]({external_ids['wos']})", unsafe_allow_html=True)
+                                # Personal website
+                                if 'website' in person_info:
+                                    website_data = person_info['website']
+                                    website_url = website_data.get('url', '')
+                                    if website_url:
+                                        st.markdown(f"""
+                                        <a href="{website_url}" target="_blank" class="coauthor-profile-link website" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#6c757d;color:white;margin-right:6px;">
+                                            🌐 {t('coauthor_website')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
                                 
-                                websites = info.get('websites', [])
-                                for site in websites[:2]:
-                                    if site:
-                                        st.markdown(f"[🌐 {t('coauthor_website')}]({site})", unsafe_allow_html=True)
-                                
-                                if info.get('h_index', 0) > 0:
-                                    st.caption(f"{t('coauthor_hindex')}: {info['h_index']}")
-                                
-                                st.markdown("---")
+                                # Другие идентификаторы
+                                other_ids = ['linkedin', 'twitter', 'facebook', 'researchgate', 'academia', 'mendeley', 'publons']
+                                found_other = False
+                                for other_id in other_ids:
+                                    if other_id in person_info:
+                                        other_data = person_info[other_id]
+                                        other_url = other_data.get('url', '')
+                                        if other_url and not found_other:
+                                            st.markdown(f"""
+                                            <a href="{other_url}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
+                                                🔗 {t('coauthor_other')}
+                                            </a>
+                                            """, unsafe_allow_html=True)
+                                            found_other = True
+                                            break
+                            
+                            st.markdown("</div>", unsafe_allow_html=True)
                     
                     with st.expander(f"{t('publications_list')}"):
                         if publications:
@@ -5586,6 +5980,7 @@ def main():
                     publications = best_author.get('publications', [])
                     analyzer = best_author.get('analyzer')
                     images = best_author.get('images', {})
+                    coauthor_profiles = profile.get('coauthor_profiles', {})
                     
                     st.markdown(f"### {t('best_author', name=author_name, h_index=profile.get('h_index', 0))}")
                     
@@ -5702,11 +6097,10 @@ def main():
                     **{t('most_collaborative', country=profile.get('most_collaborative_country', 'None'))}**
                     """)
                     
-                    # ====== СЕКЦИЯ ТИПОВ ИСТОЧНИКОВ (только не-журнальные) ======
+                    # ====== СЕКЦИЯ ТИПОВ ИСТОЧНИКОВ ======
                     source_categories = profile.get('source_categories', {})
                     if source_categories:
-                        st.markdown(f"### {t('other_sources_title')}")
-                        st.caption(t('other_sources_desc'))
+                        st.markdown(f"### {t('source_types')}")
                         
                         category_labels = {
                             'articles': 'source_journal_articles',
@@ -5716,7 +6110,7 @@ def main():
                             'other': 'source_other'
                         }
                         
-                        category_order = ['articles', 'repositories', 'ebooks', 'proceedings', 'other']
+                        category_order = ['repositories', 'ebooks', 'proceedings', 'other']
                         
                         for cat in category_order:
                             if cat in source_categories:
@@ -5742,46 +6136,103 @@ def main():
                                     else:
                                         st.info(t('no_publications'))
                     
-                    # ====== СЕКЦИЯ СОАВТОРОВ С КАРТОЧКАМИ (Task 2) ======
-                    coauthors_detailed = profile.get('coauthors_detailed', {})
-                    coauthors_info = profile.get('coauthors_info', {})
+                    # ====== СЕКЦИЯ ТОП СОАВТОРОВ С ORCID ======
+                    top_coauthors_with_orcids = profile.get('top_coauthors_with_orcids', {})
                     
-                    if coauthors_detailed:
-                        st.markdown(f"### {t('coauthors_card_title')}")
+                    if top_coauthors_with_orcids:
+                        st.markdown(f"### {t('top_coauthors')}")
                         
-                        sorted_coauthors = sorted(
-                            coauthors_detailed.items(),
-                            key=lambda x: x[1]['works_count'],
-                            reverse=True
-                        )[:20]
-                        
-                        for name, data in sorted_coauthors:
-                            works_count = data['works_count']
-                            orcid_val = data.get('orcid', '')
-                            info = coauthors_info.get(orcid_val, {})
+                        for name, data in list(top_coauthors_with_orcids.items()):
+                            count = data.get('count', 0)
+                            orcid = data.get('orcid', '')
                             
-                            with st.container():
-                                st.markdown(f"**{name}**")
-                                st.caption(f"{t('joint_works')}: {works_count}")
+                            # Получаем персональные профили для этого соавтора
+                            person_info = coauthor_profiles.get(orcid, {}) if orcid else {}
+                            
+                            st.markdown(f"""
+                            <div class="coauthor-card">
+                                <div class="coauthor-name">{html.escape(name)}</div>
+                                <div class="coauthor-joint">{count} {t('joint_works')}</div>
+                            """, unsafe_allow_html=True)
+                            
+                            # Добавляем ORCID если есть
+                            if orcid:
+                                st.markdown(f"""
+                                <a href="https://orcid.org/{orcid}" target="_blank" class="coauthor-profile-link orcid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#a6ce39;color:#1a1a1a;margin-right:6px;">
+                                    🆔 {t('coauthor_orcid')}
+                                </a>
+                                """, unsafe_allow_html=True)
+                            else:
+                                st.markdown(f"""
+                                <span class="coauthor-no-orcid">{t('no_orcid_found')}</span>
+                                """, unsafe_allow_html=True)
+                            
+                            # Добавляем внешние профили из ORCID API
+                            if person_info:
+                                # Scopus
+                                if 'scopus' in person_info:
+                                    scopus_data = person_info['scopus']
+                                    scopus_url = scopus_data.get('url', '')
+                                    scopus_value = scopus_data.get('value', '')
+                                    if scopus_url:
+                                        st.markdown(f"""
+                                        <a href="{scopus_url}" target="_blank" class="coauthor-profile-link scopus" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#e97132;color:white;margin-right:6px;">
+                                            📚 {t('coauthor_scopus')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
+                                    elif scopus_value:
+                                        st.markdown(f"""
+                                        <a href="https://www.scopus.com/authid/detail.uri?authorId={scopus_value}" target="_blank" class="coauthor-profile-link scopus" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#e97132;color:white;margin-right:6px;">
+                                            📚 {t('coauthor_scopus')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
                                 
-                                if orcid_val:
-                                    st.markdown(f"[🔗 {t('coauthor_orcid')}](https://orcid.org/{orcid_val})", unsafe_allow_html=True)
+                                # ResearcherID
+                                if 'researcherid' in person_info:
+                                    rid_data = person_info['researcherid']
+                                    rid_url = rid_data.get('url', '')
+                                    rid_value = rid_data.get('value', '')
+                                    if rid_url:
+                                        st.markdown(f"""
+                                        <a href="{rid_url}" target="_blank" class="coauthor-profile-link researcherid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#005a9c;color:white;margin-right:6px;">
+                                            🆔 {t('coauthor_researcherid')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
+                                    elif rid_value:
+                                        st.markdown(f"""
+                                        <a href="https://www.researcherid.com/rid/{rid_value}" target="_blank" class="coauthor-profile-link researcherid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#005a9c;color:white;margin-right:6px;">
+                                            🆔 {t('coauthor_researcherid')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
                                 
-                                external_ids = info.get('external_ids', {})
-                                if 'scopus' in external_ids:
-                                    st.markdown(f"[📘 Scopus]({external_ids['scopus']})", unsafe_allow_html=True)
-                                if 'wos' in external_ids:
-                                    st.markdown(f"[📊 WoS]({external_ids['wos']})", unsafe_allow_html=True)
+                                # Personal website
+                                if 'website' in person_info:
+                                    website_data = person_info['website']
+                                    website_url = website_data.get('url', '')
+                                    if website_url:
+                                        st.markdown(f"""
+                                        <a href="{website_url}" target="_blank" class="coauthor-profile-link website" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#6c757d;color:white;margin-right:6px;">
+                                            🌐 {t('coauthor_website')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
                                 
-                                websites = info.get('websites', [])
-                                for site in websites[:2]:
-                                    if site:
-                                        st.markdown(f"[🌐 {t('coauthor_website')}]({site})", unsafe_allow_html=True)
-                                
-                                if info.get('h_index', 0) > 0:
-                                    st.caption(f"{t('coauthor_hindex')}: {info['h_index']}")
-                                
-                                st.markdown("---")
+                                # Другие идентификаторы
+                                other_ids = ['linkedin', 'twitter', 'facebook', 'researchgate', 'academia', 'mendeley', 'publons']
+                                found_other = False
+                                for other_id in other_ids:
+                                    if other_id in person_info:
+                                        other_data = person_info[other_id]
+                                        other_url = other_data.get('url', '')
+                                        if other_url and not found_other:
+                                            st.markdown(f"""
+                                            <a href="{other_url}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
+                                                🔗 {t('coauthor_other')}
+                                            </a>
+                                            """, unsafe_allow_html=True)
+                                            found_other = True
+                                            break
+                            
+                            st.markdown("</div>", unsafe_allow_html=True)
                     
                     with st.expander(f"{t('publications_list')}"):
                         if publications:
