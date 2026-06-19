@@ -4652,8 +4652,6 @@ def main():
         col_logo, col_text = st.columns([1, 3])
         with col_logo:
             st.image("icon.png", width=100)
-        with col_text:
-            st.markdown(f"### {t('app_title')}")
     else:
         st.markdown(f"### {t('profile_analysis')}")
     st.markdown("---")
