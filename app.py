@@ -1656,47 +1656,144 @@ def parse_openalex_publication(item: Dict) -> Dict:
 # ============================================
 
 async def get_orcid_dois(orcid: str, session) -> Set[str]:
-    """Получает список DOI из профиля ORCID"""
+    """
+    Получает список DOI из профиля ORCID и OpenAlex API.
+    Объединяет результаты из обоих источников для максимальной полноты данных.
+    
+    Args:
+        orcid: ORCID идентификатор
+        session: aiohttp сессия
+        
+    Returns:
+        Set[str]: Множество уникальных DOI
+    """
     orcid = clean_orcid(orcid)
     
     if not orcid:
         return set()
     
+    all_dois = set()
+    
+    # ============================================================
+    # ЧАСТЬ 1: Получение DOI из ORCID API (существующая логика)
+    # ============================================================
+    if SHOW_DEBUG_LOGS:
+        print(f"🔍 Запрос к ORCID API: {orcid}")
+    
     headers = {'Accept': 'application/json'}
     url = f"https://pub.orcid.org/v3.0/{orcid}/works"
     
-    if SHOW_DEBUG_LOGS:
-        print(f"🔍 Запрос к ORCID: {orcid}")
-    
     data = await fetch_with_retry(session, url, headers=headers)
     
-    if not data:
-        print(f"❌ Не удалось получить данные из ORCID для {orcid}")
-        return set()
+    if data:
+        try:
+            works = data.get('group', [])
+            for work_group in works:
+                work_summary = work_group.get('work-summary', [])
+                for work in work_summary:
+                    external_ids = work.get('external-ids', {})
+                    if external_ids:
+                        for ext_id in external_ids.get('external-id', []):
+                            if ext_id.get('external-id-type') == 'doi':
+                                doi = ext_id.get('external-id-value', '').lower()
+                                if doi:
+                                    doi = doi.replace('http://dx.doi.org/', '').replace('https://doi.org/', '')
+                                    all_dois.add(doi)
+            
+            if SHOW_DEBUG_LOGS:
+                print(f"✅ Из ORCID API получено {len(all_dois)} DOI")
+                
+        except Exception as e:
+            if SHOW_DEBUG_LOGS:
+                print(f"⚠️ Ошибка парсинга ORCID API: {e}")
     
-    dois = set()
+    # ============================================================
+    # ЧАСТЬ 2: Получение DOI из OpenAlex API (НОВАЯ ЛОГИКА)
+    # ============================================================
+    if SHOW_DEBUG_LOGS:
+        print(f"🔍 Запрос к OpenAlex API для ORCID: {orcid}")
+    
+    openalex_dois = set()
+    openalex_works_count = 0
+    
+    # Формируем URL для поиска работ по ORCID автора
+    # Используем фильтр author.orcid и запрашиваем до 200 записей на страницу
+    base_url = "https://api.openalex.org/works"
+    params = {
+        'filter': f'author.orcid:{orcid}',
+        'per-page': 200
+    }
     
     try:
-        works = data.get('group', [])
+        next_page_url = None
+        page_count = 0
         
-        for work_group in works:
-            work_summary = work_group.get('work-summary', [])
-            for work in work_summary:
-                external_ids = work.get('external-ids', {})
-                if external_ids:
-                    for ext_id in external_ids.get('external-id', []):
-                        if ext_id.get('external-id-type') == 'doi':
-                            doi = ext_id.get('external-id-value', '').lower()
-                            if doi:
-                                doi = doi.replace('http://dx.doi.org/', '').replace('https://doi.org/', '')
-                                dois.add(doi)
+        while True:
+            page_count += 1
+            
+            if next_page_url:
+                # Используем URL следующей страницы
+                data = await fetch_with_retry(session, next_page_url, method='GET')
+            else:
+                # Первый запрос с параметрами
+                data = await fetch_with_retry(session, base_url, params=params)
+            
+            if not data:
+                if SHOW_DEBUG_LOGS:
+                    print(f"⚠️ OpenAlex API не вернул данные для страницы {page_count}")
+                break
+            
+            # Получаем результаты
+            results = data.get('results', [])
+            
+            if not results:
+                if SHOW_DEBUG_LOGS:
+                    print(f"ℹ️ OpenAlex API: страница {page_count} не содержит результатов")
+                break
+            
+            # Извлекаем DOI из результатов
+            for work in results:
+                if 'doi' in work and work['doi']:
+                    # Очищаем DOI от префикса https://doi.org/
+                    doi = work['doi'].replace('https://doi.org/', '').lower()
+                    if doi:
+                        openalex_dois.add(doi)
+                        openalex_works_count += 1
+            
+            if SHOW_DEBUG_LOGS and page_count % 5 == 0:
+                print(f"📄 OpenAlex: обработано {page_count} страниц, найдено {len(openalex_dois)} DOI")
+            
+            # Проверяем наличие следующей страницы
+            # OpenAlex возвращает ссылку на следующую страницу в meta.next_page_url
+            meta = data.get('meta', {})
+            next_page_url = meta.get('next_page_url')
+            
+            # Если следующей страницы нет - выходим из цикла
+            if not next_page_url:
+                if SHOW_DEBUG_LOGS:
+                    print(f"✅ OpenAlex: все страницы обработаны (всего {page_count} страниц)")
+                break
+            
+            # Небольшая задержка между запросами страниц для соблюдения лимитов API
+            await asyncio.sleep(DELAY_BETWEEN_BATCHES)
+        
+        # Добавляем DOI из OpenAlex в общий набор
+        all_dois.update(openalex_dois)
+        
+        if SHOW_DEBUG_LOGS:
+            print(f"✅ Из OpenAlex API получено {len(openalex_dois)} уникальных DOI (всего обработано {openalex_works_count} работ)")
+            
     except Exception as e:
-        print(f"⚠️ Ошибка парсинга ORCID: {e}")
+        if SHOW_DEBUG_LOGS:
+            print(f"⚠️ Ошибка при запросе к OpenAlex API: {e}")
     
+    # ============================================================
+    # ИТОГОВЫЙ РЕЗУЛЬТАТ
+    # ============================================================
     if SHOW_DEBUG_LOGS:
-        print(f"✅ Найдено {len(dois)} DOI в ORCID")
+        print(f"📊 ИТОГО: {len(all_dois)} уникальных DOI (ORCID API + OpenAlex API)")
     
-    return dois
+    return all_dois
 
 async def get_openalex_metadata(dois: List[str], session) -> List[Dict]:
     """Получает полные метаданные из OpenAlex для списка DOI"""
