@@ -5336,8 +5336,7 @@ def main():
         
         st.markdown(f"""
         <div style="font-size: 11px; color: #666; text-align: center;">
-            {t('app_title')} v2.0<br>
-            © daM / Chimica Techno Acta
+            © daM | Chimica Techno Acta | https://chimicatechnoacta.ru/
         </div>
         """, unsafe_allow_html=True)
     
