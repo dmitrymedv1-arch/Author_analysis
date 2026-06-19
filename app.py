@@ -2871,7 +2871,7 @@ def create_visualizations(profile: Dict, lang: str = 'en') -> Dict[str, str]:
 # ФУНКЦИИ ДЛЯ ГЕНЕРАЦИИ ОТЧЕТОВ
 # ============================================
 
-def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[str, str], logo_base64: Optional[str] = None, app_logo_base64: Optional[str] = None, institution_homepages: Optional[Dict[str, str]] = None, theme_colors: Optional[Dict] = None, lang: str = 'en') -> str:
+def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[str, str], journal_logo_base64: Optional[str] = None, app_logo_base64: Optional[str] = None, institution_homepages: Optional[Dict[str, str]] = None, theme_colors: Optional[Dict] = None, lang: str = 'en') -> str:
     """Генерирует HTML отчет с расширенной информацией и дизайном из второго кода"""
     
     if theme_colors is None:
