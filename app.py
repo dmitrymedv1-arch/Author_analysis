@@ -102,7 +102,7 @@ LANG = {
         'showing_single_only': '👤 Showing single author',
         'no_data': '👈 Load data in "Load Data" tab and click "Analyze profile(s)"',
         'no_data_reports': '👈 First run analysis in "Load Data" tab',
-        'retraction_warning': '⚠️ ATTENTION: Possible unethical practices detected! This author has {count} retracted publication(s).',
+        'retraction_warning': '⚠️ ATTENTION: This author has {count} retracted publication(s).',
         'html_report': '📄 HTML Report Generation',
         'download_report': '💾 Download HTML Report',
         'report_preview': '📋 HTML Report Preview',
@@ -119,7 +119,6 @@ LANG = {
         'max_citations': 'Max citations',
         'open_access': 'Open Access',
         'active_years': 'Active years',
-        'recommendation': 'Recommendation',
         'risk_flags': 'Risk flags',
         'collaborations': '🌍 Collaboration Analysis',
         'domestic': '🇷🇺 Domestic collaborations',
@@ -142,7 +141,6 @@ LANG = {
         'affiliations': 'Affiliations',
         'countries': 'Countries',
         'total_analyzed': 'Total analyzed publications',
-        'editor_recommendation': "Editor's recommendation",
         'retractions': 'Retractions',
         'corrections': 'Corrections',
         'first_publication': 'First publication',
@@ -202,28 +200,7 @@ LANG = {
         'fetching_data': 'Fetching data',
         'analysis_complete_text': 'Analysis complete',
         'creating_charts': 'Creating charts',
-        'anomalous_productivity': 'Abnormally high productivity (>30 papers per year)',
         'retractions_in_profile': 'retractions in profile',
-        'single_journal_warning': '>30% of publications in one journal',
-        'suspicious_journals_warning': 'Publications in journals with low selectivity',
-        'low_thematic_diversity': 'Low thematic diversity',
-        'low_international_collab': 'Low level of international collaboration',
-        'multiple_red_flags': 'Additional verification required. Multiple red flags detected.',
-        'caution_recommended': 'Caution recommended. There are individual warnings.',
-        'outstanding_scholar': 'Outstanding scholar. High productivity and growing h-index.',
-        'strong_candidate': 'Strong candidate. Stable publication activity.',
-        'promising_scholar': 'Promising scholar. Recommended for consideration.',
-        'early_career_researcher': 'Early career researcher. Expert evaluation required.',
-        'young_researcher': 'Young researcher. Articles require careful peer review.',
-        # Рекомендации на английском
-        'rec_outstanding_scholar': 'Outstanding scholar. High productivity and growing h-index.',
-        'rec_strong_candidate': 'Strong candidate. Stable publication activity.',
-        'rec_promising_scholar': 'Promising scholar. Recommended for consideration.',
-        'rec_early_career': 'Early career researcher. Expert evaluation required.',
-        'rec_young_researcher': 'Young researcher. Articles require careful peer review.',
-        'rec_multiple_red_flags': 'Additional verification required. Multiple red flags detected.',
-        'rec_caution': 'Caution recommended. There are individual warnings.',
-        # Типы источников
         'source_types': '📚 Sources by Type',
         'source_journal_articles': 'Journal articles',
         'source_repositories': 'Preprints/Repositories',
@@ -236,7 +213,6 @@ LANG = {
         'source_view_link': 'View',
         'source_doi_available': 'DOI available',
         'source_no_link': 'No link available',
-        # Новые переводы для соавторов
         'coauthor_orcid': 'ORCID',
         'coauthor_scopus': 'Scopus',
         'coauthor_researcherid': 'ResearcherID',
@@ -284,7 +260,7 @@ LANG = {
         'showing_single_only': '👤 Показан единственный автор',
         'no_data': '👈 Загрузите данные на вкладке "Загрузка данных" и нажмите "Анализировать профиль(и)"',
         'no_data_reports': '👈 Сначала выполните анализ на вкладке "Загрузка данных"',
-        'retraction_warning': '⚠️ ВНИМАНИЕ: Обнаружены возможные неэтичные практики! У автора {count} ретрагированных публикаций.',
+        'retraction_warning': '⚠️ ВНИМАНИЕ: У автора {count} ретрагированных публикаций.',
         'html_report': '📄 Генерация HTML отчета',
         'download_report': '💾 Скачать HTML отчет',
         'report_preview': '📋 Предпросмотр HTML отчета',
@@ -301,7 +277,6 @@ LANG = {
         'max_citations': 'Максимум цитирований',
         'open_access': 'Открытый доступ',
         'active_years': 'Активных лет',
-        'recommendation': 'Рекомендация',
         'risk_flags': 'Флаги риска',
         'collaborations': '🌍 Анализ коллабораций',
         'domestic': '🇷🇺 Внутристрановые коллаборации',
@@ -324,7 +299,6 @@ LANG = {
         'affiliations': 'Аффилиации',
         'countries': 'Страны',
         'total_analyzed': 'Всего проанализировано публикаций',
-        'editor_recommendation': 'Рекомендация редактора',
         'retractions': 'Ретракций',
         'corrections': 'Коррекций',
         'first_publication': 'Первая публикация',
@@ -384,28 +358,7 @@ LANG = {
         'fetching_data': 'Получение данных',
         'analysis_complete_text': 'Анализ завершен',
         'creating_charts': 'Создание графиков',
-        'anomalous_productivity': 'Аномально высокая продуктивность (>30 статей в год)',
         'retractions_in_profile': 'ретракций в профиле',
-        'single_journal_warning': '>30% публикаций в одном журнале',
-        'suspicious_journals_warning': 'Публикации в журналах с низкой селективностью',
-        'low_thematic_diversity': 'Низкое тематическое разнообразие',
-        'low_international_collab': 'Низкий уровень международного сотрудничества',
-        'multiple_red_flags': 'Требуется дополнительная проверка. Обнаружены множественные красные флаги.',
-        'caution_recommended': 'Рекомендуется осторожность. Есть отдельные предупреждения.',
-        'outstanding_scholar': 'Выдающийся ученый. Высокая продуктивность и растущий h-index.',
-        'strong_candidate': 'Сильный кандидат. Стабильная публикационная активность.',
-        'promising_scholar': 'Перспективный ученый. Рекомендуется к рассмотрению.',
-        'early_career_researcher': 'Начинающий исследователь. Требуется экспертная оценка.',
-        'young_researcher': 'Молодой ученый. Статьи требуют тщательного рецензирования.',
-        # Рекомендации на русском
-        'rec_outstanding_scholar': 'Выдающийся ученый. Высокая продуктивность и растущий h-index.',
-        'rec_strong_candidate': 'Сильный кандидат. Стабильная публикационная активность.',
-        'rec_promising_scholar': 'Перспективный ученый. Рекомендуется к рассмотрению.',
-        'rec_early_career': 'Начинающий исследователь. Требуется экспертная оценка.',
-        'rec_young_researcher': 'Молодой ученый. Статьи требуют тщательного рецензирования.',
-        'rec_multiple_red_flags': 'Требуется дополнительная проверка. Обнаружены множественные красные флаги.',
-        'rec_caution': 'Рекомендуется осторожность. Есть отдельные предупреждения.',
-        # Типы источников
         'source_types': '📚 Типы источников',
         'source_journal_articles': 'Статьи в журналах',
         'source_repositories': 'Препринты/Репозитории',
@@ -418,7 +371,6 @@ LANG = {
         'source_view_link': 'Смотреть',
         'source_doi_available': 'DOI доступен',
         'source_no_link': 'Нет ссылки',
-        # Новые переводы для соавторов
         'coauthor_orcid': 'ORCID',
         'coauthor_scopus': 'Scopus',
         'coauthor_researcherid': 'ResearcherID',
@@ -2242,6 +2194,13 @@ class ScholarProfileAnalyzer:
         # Обновляем профиль с отфильтрованными данными
         self.profile['collaborations'] = self.collaborations
     
+    def _get_retraction_flag(self) -> List[str]:
+        """Возвращает флаг только если есть ретракции"""
+        retractions = self.profile.get('retractions', 0)
+        if retractions > 0:
+            return [f"🔴 RETRACTION: {retractions} retracted publication(s)"]
+        return []
+    
     def analyze_publications(self):
         """Анализирует все публикации и строит профиль"""
         if not self.publications:
@@ -2560,70 +2519,10 @@ class ScholarProfileAnalyzer:
         
         self._analyze_collaborations()
         
-        self.profile['risk_flags'] = self._assess_risks()
-        
-        self.profile['recommendation'] = self._generate_recommendation()
+        # Добавляем флаг ретракций в профиль (без других предупреждений)
+        self.profile['risk_flags'] = self._get_retraction_flag()
         
         print("✅ Анализ завершен!")
-    
-    def _assess_risks(self) -> List[str]:
-        """Оценивает риски и возвращает список предупреждений"""
-        current_lang = st.session_state.get('language', 'en')
-        flags = []
-        
-        # Проверка на ретракции - добавляем в начало списка для немедленного предупреждения
-        retractions_count = self.profile.get('retractions', 0)
-        if retractions_count > 0:
-            flags.append(f"🔴 RETRACTION WARNING: {retractions_count} retracted publications detected - possible unethical practices!")
-        
-        if self.profile.get('papers_per_year', 0) > 30:
-            flags.append("⚠️ " + translate('anomalous_productivity', current_lang))
-        
-        if self.profile.get('retractions', 0) > 1:
-            flags.append(f"🔴 {self.profile['retractions']} " + translate('retractions_in_profile', current_lang))
-        
-        if self.profile.get('top_journals'):
-            top_ratio = list(self.profile['top_journals'].values())[0] / self.profile['total_publications']
-            if top_ratio > 0.3:
-                flags.append("⚠️ " + translate('single_journal_warning', current_lang))
-        
-        suspicious_journals = ['Cureus', 'PLoS ONE', 'Scientific Reports']
-        suspicious_pubs = [j for j in self.profile.get('journals', {}).keys() if any(s in j for s in suspicious_journals)]
-        if suspicious_pubs:
-            flags.append(f"⚠️ " + translate('suspicious_journals_warning', current_lang) + f": {', '.join(suspicious_pubs[:3])}")
-        
-        if self.profile.get('unique_concepts', 0) < 5 and self.profile.get('total_publications', 0) > 10:
-            flags.append("⚠️ " + translate('low_thematic_diversity', current_lang))
-        
-        # Исправленная проверка на международное сотрудничество
-        international_ratio = self.profile.get('international_papers_ratio', 0)
-        if international_ratio < 0.1 and self.profile.get('total_publications', 0) > 20:
-            flags.append("⚠️ " + translate('low_international_collab', current_lang))
-        
-        return flags
-    
-    def _generate_recommendation(self) -> str:
-        """Генерирует рекомендацию для редактора с использованием ключей перевода"""
-        current_lang = st.session_state.get('language', 'en')
-        risk_count = len(self.profile.get('risk_flags', []))
-        total_pubs = self.profile.get('total_publications', 0)
-        h_index = self.profile.get('h_index', 0)
-        trend = self.profile.get('trend_direction', 'stable')
-        
-        if risk_count >= 3:
-            return "🔴 " + translate('rec_multiple_red_flags', current_lang)
-        elif risk_count >= 1:
-            return "🟡 " + translate('rec_caution', current_lang)
-        elif total_pubs >= 30 and h_index >= 15 and trend in ['up', 'strong_up']:
-            return "🟢 " + translate('rec_outstanding_scholar', current_lang)
-        elif total_pubs >= 20 and h_index >= 10:
-            return "🟢 " + translate('rec_strong_candidate', current_lang)
-        elif total_pubs >= 10 and h_index >= 5:
-            return "🟢 " + translate('rec_promising_scholar', current_lang)
-        elif total_pubs >= 5:
-            return "🟢 " + translate('rec_early_career', current_lang)
-        else:
-            return "🟢 " + translate('rec_young_researcher', current_lang)
     
     def get_profile_data(self) -> Dict:
         """Возвращает полный профиль"""
@@ -3252,7 +3151,6 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     trend_corr = profile.get('trend_correlation', 0)
     
     risk_flags = profile.get('risk_flags', [])
-    recommendation = profile.get('recommendation', 'No recommendation')
     
     unique_coauthors = profile.get('unique_coauthors', 0)
     avg_authors = profile.get('avg_authors_per_paper', 0)
@@ -3478,6 +3376,13 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
         </div>
         """
     
+    # Проверяем наличие ретракций для отображения флага
+    retraction_flag_html = ""
+    if retractions > 0:
+        retraction_flag_html = f"""
+        <div class="flag-retraction">⚠️ {t('retraction_warning', count=retractions)}</div>
+        """
+    
     html_content = f"""
     <!DOCTYPE html>
     <html>
@@ -3619,18 +3524,6 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 margin-top: 5px;
                 font-family: 'Times New Roman', serif;
             }}
-            .flag {{
-                padding: 10px;
-                margin: 5px 0;
-                border-radius: 5px;
-                background-color: #FEF9E7;
-                border-left: 4px solid #F39C12;
-                font-family: 'Times New Roman', serif;
-            }}
-            .flag-danger {{
-                background-color: #FDEDEC;
-                border-left-color: #E74C3C;
-            }}
             .flag-retraction {{
                 background-color: #FFE5E5;
                 border-left: 4px solid #FF0000;
@@ -3651,17 +3544,6 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 border-radius: 8px;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             }}
-            .recommendation-box {{
-                padding: 15px;
-                margin: 20px 0;
-                border-radius: 8px;
-                font-size: 16px;
-                font-weight: 500;
-                font-family: 'Times New Roman', serif;
-            }}
-            .rec-green {{ background-color: #D5F5E3; border-left: 4px solid #2ECC71; }}
-            .rec-yellow {{ background-color: #FEF9E7; border-left: 4px solid #F39C12; }}
-            .rec-red {{ background-color: #FDEDEC; border-left: 4px solid #E74C3C; }}
             .collab-grid {{
                 display: grid;
                 grid-template-columns: 1fr 1fr;
@@ -4097,13 +3979,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                     <div class="author-affil"><strong>{t('total_analyzed')}:</strong> {total_pubs}</div>
                 </div>
                 
-                {f'<div class="flag-retraction">⚠️ {t("retraction_warning", count=retractions)}</div>' if retractions > 0 else ''}
-                
-                <div class="recommendation-box rec-green">
-                    <strong>{t('editor_recommendation')}:</strong> {recommendation}
-                </div>
-                
-                {'<div class="flag flag-danger">' + '</div><div class="flag flag-danger">'.join(risk_flags) + '</div>' if risk_flags else ''}
+                {retraction_flag_html}
             </div>
             
             <div id="metrics" class="section">
@@ -4580,17 +4456,6 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
             .author-section:last-child {{
                 border-bottom: none;
             }}
-            .flag {{
-                padding: 10px;
-                margin: 5px 0;
-                border-radius: 5px;
-                background-color: #FEF9E7;
-                border-left: 4px solid #F39C12;
-            }}
-            .flag-danger {{
-                background-color: #FDEDEC;
-                border-left-color: #E74C3C;
-            }}
             .flag-retraction {{
                 background-color: #FFE5E5;
                 border-left: 4px solid #FF0000;
@@ -4601,16 +4466,6 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                 margin: 10px 0;
                 font-size: 16px;
             }}
-            .recommendation-box {{
-                padding: 15px;
-                margin: 15px 0;
-                border-radius: 8px;
-                font-size: 16px;
-                font-weight: 500;
-            }}
-            .rec-green {{ background-color: #D5F5E3; border-left: 4px solid #2ECC71; }}
-            .rec-yellow {{ background-color: #FEF9E7; border-left: 4px solid #F39C12; }}
-            .rec-red {{ background-color: #FDEDEC; border-left: 4px solid #E74C3C; }}
             .footer {{
                 margin-top: 40px;
                 padding-top: 20px;
@@ -4871,8 +4726,6 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
             total_citations = profile.get('total_citations', 0)
             avg_citations = profile.get('average_citations', 0)
             oa_percentage = profile.get('oa_percentage', 0)
-            recommendation = profile.get('recommendation', 'Нет рекомендации')
-            risk_flags = profile.get('risk_flags', [])
             retractions = profile.get('retractions', 0)
             
             top_journals = profile.get('top_journals', {})
@@ -5046,6 +4899,13 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                 </table>
                 """
             
+            # Проверяем наличие ретракций для отображения флага
+            retraction_flag_html = ""
+            if retractions > 0:
+                retraction_flag_html = f"""
+                <div class="flag-retraction">⚠️ {t('retraction_warning', count=retractions)}</div>
+                """
+            
             html_parts.append(f"""
             <div id="author_{i}" class="author-section">
                 <div class="author-card {'best' if is_best and len(all_authors) > 1 else ''}">
@@ -5056,7 +4916,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                         {'<span class="best-badge">🏆 ' + t("best_author", name="", h_index="") + '</span>' if is_best and len(all_authors) > 1 else ''}
                     </div>
                     
-                    {f'<div class="flag-retraction">⚠️ {t("retraction_warning", count=retractions)}</div>' if retractions > 0 else ''}
+                    {retraction_flag_html}
                     
                     <div class="metrics-grid">
                         <div class="metric-card">
@@ -5080,12 +4940,6 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                             <div class="metric-label">{t('open_access')}</div>
                         </div>
                     </div>
-                    
-                    <div class="recommendation-box rec-green">
-                        <strong>{t('editor_recommendation')}:</strong> {recommendation}
-                    </div>
-                    
-                    {'<div class="flag flag-danger">' + '</div><div class="flag flag-danger">'.join(risk_flags) + '</div>' if risk_flags else ''}
                     
                     <div class="chart-container">
                         <img src="data:image/png;base64,{images.get('years_chart', '')}" alt="{t('years_chart_title')}">
@@ -5530,8 +5384,6 @@ def main():
                     total_citations = profile.get('total_citations', 0)
                     avg_citations = profile.get('average_citations', 0)
                     oa_percentage = profile.get('oa_percentage', 0)
-                    recommendation = profile.get('recommendation', 'Нет рекомендации')
-                    risk_flags = profile.get('risk_flags', [])
                     retractions = profile.get('retractions', 0)
                     
                     author_class = "author-card best" if is_best else "author-card"
@@ -5560,13 +5412,6 @@ def main():
                         st.metric(t('avg_citations'), f"{avg_citations:.1f}")
                     with col5:
                         st.metric(t('open_access'), f"{oa_percentage:.1f}%")
-                    
-                    rec_color = "🟢" if "🟢" in recommendation else ("🟡" if "🟡" in recommendation else "🔴")
-                    st.info(f"{rec_color} {recommendation}")
-                    
-                    if risk_flags:
-                        for flag in risk_flags:
-                            st.warning(flag)
                     
                     if images.get('years_chart'):
                         st.image(f"data:image/png;base64,{images['years_chart']}", width='stretch')
@@ -5827,12 +5672,6 @@ def main():
                         st.metric(t('open_access'), f"{profile.get('oa_percentage', 0):.1f}%")
                     with col4:
                         st.metric(t('active_years'), profile.get('active_years', 0))
-                    
-                    st.info(f"💡 {profile.get('recommendation', 'Нет рекомендации')}")
-                    
-                    if profile.get('risk_flags'):
-                        for flag in profile['risk_flags']:
-                            st.warning(flag)
                     
                     if images.get('years_chart'):
                         st.image(f"data:image/png;base64,{images['years_chart']}", width='stretch')
@@ -6104,12 +5943,6 @@ def main():
                     with col4:
                         st.metric(t('active_years'), profile.get('active_years', 0))
                     
-                    st.info(f"💡 {profile.get('recommendation', 'Нет рекомендации')}")
-                    
-                    if profile.get('risk_flags'):
-                        for flag in profile['risk_flags']:
-                            st.warning(flag)
-                    
                     if images.get('years_chart'):
                         st.image(f"data:image/png;base64,{images['years_chart']}", width='stretch')
                     
@@ -6336,7 +6169,7 @@ def main():
                             pub_data = []
                             for pub in sorted(publications, key=lambda x: x.get('publication_year', 0), reverse=True):
                                 pub_data.append({
-                                                                        t('title'): (pub.get('title') or 'No title')[:80] + '...' if len(pub.get('title') or 'No title') > 80 else (pub.get('title') or 'No title'),
+                                    t('title'): (pub.get('title') or 'No title')[:80] + '...' if len(pub.get('title') or 'No title') > 80 else (pub.get('title') or 'No title'),
                                     t('year'): pub.get('publication_year', 'N/A'),
                                     t('journal'): pub.get('journal_name', 'Unknown')[:40],
                                     t('citations'): pub.get('cited_by_count', 0),
