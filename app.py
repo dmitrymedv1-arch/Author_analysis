@@ -1655,46 +1655,46 @@ def parse_openalex_publication(item: Dict) -> Dict:
 # ФУНКЦИИ ДЛЯ ПОЛУЧЕНИЯ ДАННЫХ ИЗ API
 # ============================================
 
-async def get_orcid_dois(orcid: str, session) -> Set[str]:
-    """Получает список DOI из профиля ORCID"""
+async def get_author_dois_from_openalex(orcid: str, session) -> Set[str]:
+    """Получает список DOI из OpenAlex по ORCID автора"""
     orcid = clean_orcid(orcid)
     
     if not orcid:
         return set()
     
-    headers = {'Accept': 'application/json'}
-    url = f"https://pub.orcid.org/v3.0/{orcid}/works"
-    
-    if SHOW_DEBUG_LOGS:
-        print(f"🔍 Запрос к ORCID: {orcid}")
-    
-    data = await fetch_with_retry(session, url, headers=headers)
-    
-    if not data:
-        print(f"❌ Не удалось получить данные из ORCID для {orcid}")
-        return set()
-    
+    url = "https://api.openalex.org/works"
     dois = set()
+    cursor = '*'
     
-    try:
-        works = data.get('group', [])
+    while cursor:
+        params = {
+            'filter': f'author.orcid:{orcid}',
+            'per-page': 200,
+            'cursor': cursor
+        }
         
-        for work_group in works:
-            work_summary = work_group.get('work-summary', [])
-            for work in work_summary:
-                external_ids = work.get('external-ids', {})
-                if external_ids:
-                    for ext_id in external_ids.get('external-id', []):
-                        if ext_id.get('external-id-type') == 'doi':
-                            doi = ext_id.get('external-id-value', '').lower()
-                            if doi:
-                                doi = doi.replace('http://dx.doi.org/', '').replace('https://doi.org/', '')
-                                dois.add(doi)
-    except Exception as e:
-        print(f"⚠️ Ошибка парсинга ORCID: {e}")
+        if SHOW_DEBUG_LOGS:
+            print(f"🔍 Запрос к OpenAlex для ORCID: {orcid}, курсор: {cursor}")
+        
+        data = await fetch_with_retry(session, url, params=params)
+        
+        if not data or not data.get('results'):
+            break
+        
+        for work in data['results']:
+            doi = work.get('doi', '').replace('https://doi.org/', '')
+            if doi:
+                dois.add(doi)
+        
+        cursor = data.get('meta', {}).get('next_cursor')
+        
+        if not cursor:
+            break
+        
+        await asyncio.sleep(DELAY_BETWEEN_BATCHES)
     
     if SHOW_DEBUG_LOGS:
-        print(f"✅ Найдено {len(dois)} DOI в ORCID")
+        print(f"✅ Найдено {len(dois)} DOI через OpenAlex")
     
     return dois
 
@@ -2586,7 +2586,7 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
             if analyzer.author_affiliations:
                 print(f"🏛️ Аффилиации: {', '.join(analyzer.author_affiliations[:3])}")
         
-        orcid_dois = await get_orcid_dois(orcid_clean, session)
+        orcid_dois = await get_author_dois_from_openalex(orcid_clean, session)
         
         if not orcid_dois:
             print("❌ Не найдено DOI в профиле ORCID")
