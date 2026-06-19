@@ -4412,9 +4412,9 @@ def run_profile_analysis(orcid_list: List[str], show_all_authors: bool, journal_
     try:
         # Загружаем логотип приложения
         app_logo_base64 = None
-        if os.path.exists("icon.png"):
+        if os.path.exists("logo.png"):
             try:
-                with open("icon.png", "rb") as f:
+                with open("logo.png", "rb") as f:
                     app_logo_base64 = base64.b64encode(f.read()).decode()
             except Exception as e:
                 print(f"⚠️ Ошибка загрузки логотипа приложения: {e}")
@@ -5289,7 +5289,7 @@ def main():
                         authors,
                         show_all,
                         journal_logo_base64,
-                        app_logo_base64,
+                        st.session_state.get('app_logo_base64', None),
                         theme_colors,
                         current_lang
                     )
