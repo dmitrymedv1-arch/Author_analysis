@@ -4583,7 +4583,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                                 f'<span style="color: #666; font-size: 12px; margin-left: 10px;">{pub.get("year", "")}'
                                 f'{f" — {html.escape(pub.get("journal", ""))}" if pub.get("journal") else ""}'
                                 f'</span>'
-                                f'{f" <a href=\"{pub.get(\"url\", \"\")}\" target=\"_blank\" style=\"color: #2980B9; font-size: 12px;\">🔗</a>" if pub.get("url") else ""}'
+                                f'{f" <a href=\"{pub.get('url', '')}\" target=\"_blank\" style=\"color: #2980B9; font-size: 12px;\">🔗</a>" if pub.get("url") else ""}'
                                 f'<span class="source-badge source-badge-nodoi" style="margin-left: 10px;">⚠️ {t("source_no_doi")}</span>'
                                 f'</li>'
                                 for pub in orcid_without_doi[:20]
