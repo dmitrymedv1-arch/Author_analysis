@@ -126,7 +126,7 @@ LANG = {
         'international': '🌐 International collaborations',
         'papers': 'Papers',
         'no_data_collab': 'No data',
-        'collab_index': 'Collaboration index: {index:.2f} (average co-authors per paper - 1)',
+        'collab_index': 'Collaboration index: {index:.2f}',
         'country_diversity': 'Country diversity: {count} countries',
         'most_collaborative': 'Most collaborative country: {country}',
         'top_coauthors': '🤝 Top co-authors',
@@ -208,7 +208,6 @@ LANG = {
         'source_ebooks': 'Electronic books',
         'source_proceedings': 'Proceedings',
         'source_other': 'Other items (non-DOI)',
-        'source_from_orcid': 'From ORCID (without DOI)',
         'source_count': 'Count',
         'source_examples': 'Examples',
         'source_no_doi': 'No DOI available',
@@ -220,15 +219,11 @@ LANG = {
         'coauthor_researcherid': 'ResearcherID',
         'coauthor_website': 'Personal website',
         'coauthor_other': 'Other profiles',
-        'coauthor_social': 'Social/Professional networks',
         'no_orcid_found': 'No ORCID found',
         'coauthor_info': 'Co-author information',
         'coauthor_profiles': 'External profiles',
-        'main_metrics': '📈 Main Metrics',
-        'orcid_publications_total': 'Total ORCID publications',
-        'orcid_without_doi': 'Without DOI',
-        'orcid_show_all': 'Show all ORCID publications',
-        'orcid_publications_list': 'Full ORCID publications list'
+        'citations_per_year': 'Citations/year',
+        'main_metrics': '📈 Main Metrics'
     },
     'ru': {
         'app_title': 'Анализ профиля ученого',
@@ -292,7 +287,7 @@ LANG = {
         'international': '🌐 Международные коллаборации',
         'papers': 'Статей',
         'no_data_collab': 'Нет данных',
-        'collab_index': 'Индекс коллабораций: {index:.2f} (среднее число соавторов на статью - 1)',
+        'collab_index': 'Индекс коллабораций: {index:.2f}',
         'country_diversity': 'Страновое разнообразие: {count} стран',
         'most_collaborative': 'Самая коллаборативная страна: {country}',
         'top_coauthors': '🤝 Топ соавторы',
@@ -374,7 +369,6 @@ LANG = {
         'source_ebooks': 'Электронные книги',
         'source_proceedings': 'Материалы конференций',
         'source_other': 'Другие материалы (без DOI)',
-        'source_from_orcid': 'Из ORCID (без DOI)',
         'source_count': 'Количество',
         'source_examples': 'Примеры',
         'source_no_doi': 'Нет DOI',
@@ -386,15 +380,11 @@ LANG = {
         'coauthor_researcherid': 'ResearcherID',
         'coauthor_website': 'Персональный сайт',
         'coauthor_other': 'Другие профили',
-        'coauthor_social': 'Социальные/профессиональные сети',
         'no_orcid_found': 'ORCID не найден',
         'coauthor_info': 'Информация о соавторе',
         'coauthor_profiles': 'Внешние профили',
-        'main_metrics': '📈 Основные метрики',
-        'orcid_publications_total': 'Всего публикаций в ORCID',
-        'orcid_without_doi': 'Без DOI',
-        'orcid_show_all': 'Показать все публикации ORCID',
-        'orcid_publications_list': 'Полный список публикаций ORCID'
+        'citations_per_year': 'Цитирований/год',
+        'main_metrics': '📈 Основные метрики'
     }
 }
 
@@ -1884,13 +1874,14 @@ async def get_institution_homepages(institution_ids: List[str], session) -> Dict
     return homepages
 
 # ============================================
-# НОВАЯ ФУНКЦИЯ: Получение информации о персональных профилях из ORCID API
+# ОБНОВЛЕННАЯ ФУНКЦИЯ: Получение информации о персональных профилях из ORCID API
 # ============================================
 
 async def get_orcid_person_info(orcid: str, session) -> Dict:
     """
     Получает информацию о персональных профилях (Scopus, ResearcherID и др.)
-    из API ORCID для указанного ORCID с расширенным парсингом всех типов данных
+    из API ORCID для указанного ORCID.
+    Обновленная версия с полным извлечением всех идентификаторов и ссылок.
     """
     if not orcid:
         return {}
@@ -1900,7 +1891,7 @@ async def get_orcid_person_info(orcid: str, session) -> Dict:
         return {}
     
     headers = {'Accept': 'application/json'}
-    url = f"https://pub.orcid.org/v3.0/{orcid_clean}/person"
+    url = f"https://pub.orcid.org/v3.0/{orcid_clean}"
     
     if SHOW_DEBUG_LOGS:
         print(f"🔍 Запрос персональной информации для ORCID: {orcid_clean}")
@@ -1911,233 +1902,160 @@ async def get_orcid_person_info(orcid: str, session) -> Dict:
         return {}
     
     result = {
-        'external_ids': {},
+        'other_ids': [],
         'websites': [],
         'social_links': [],
         'other_links': []
     }
     
     try:
-        # Извлекаем внешние идентификаторы
-        external_ids_data = data.get('external-identifiers', {}).get('external-identifier', [])
-        
-        for ext_id in external_ids_data:
-            ext_type = ext_id.get('external-id-type', '').lower()
-            ext_value = ext_id.get('external-id-value', '')
-            ext_url = ext_id.get('external-id-url', {}).get('value', '')
-            
-            if ext_type and ext_value:
-                result['external_ids'][ext_type] = {
-                    'value': ext_value,
-                    'url': ext_url
-                }
-        
-        # Извлекаем веб-сайты и социальные ссылки из researcher-urls
-        researcher_urls = data.get('researcher-urls', {}).get('researcher-url', [])
-        
-        # Определяем паттерны для разных типов ссылок
-        social_patterns = {
-            'researchgate.net': 'ResearchGate',
-            'linkedin.com': 'LinkedIn',
-            'twitter.com': 'Twitter/X',
-            'x.com': 'Twitter/X',
-            'facebook.com': 'Facebook',
-            'github.com': 'GitHub',
-            'instagram.com': 'Instagram',
-            'youtube.com': 'YouTube',
-            'scholar.google': 'Google Scholar',
-            'academia.edu': 'Academia.edu',
-            'mendeley.com': 'Mendeley',
-            'elibrary.ru': 'Elibrary.ru'
-        }
-        
-        academic_patterns = ['laboratory', 'lab', 'institute', 'university', 'department', 'research group', 'research center']
-        website_patterns = ['website', 'site', 'homepage', 'personal', 'blog']
-        
-        for url_item in researcher_urls:
-            url_value = url_item.get('url', {}).get('value', '')
-            url_name = url_item.get('url-name', url_value)
-            
-            if not url_value:
-                continue
-            
-            url_lower = url_value.lower()
-            name_lower = url_name.lower()
-            
-            # Проверяем по паттернам URL
-            is_social = False
-            
-            for domain, display_name in social_patterns.items():
-                if domain in url_lower:
-                    result['social_links'].append({
-                        'name': display_name,
-                        'url': url_value,
-                        'title': url_name
-                    })
-                    is_social = True
-                    break
-            
-            if not is_social:
-                # Проверяем по названию на социальные сети
-                if any(word in name_lower for word in ['researchgate', 'linkedin', 'twitter', 'facebook', 'github', 'scholar', 'academia', 'mendeley', 'elibrary']):
-                    result['social_links'].append({
-                        'name': url_name,
-                        'url': url_value,
-                        'title': url_name
-                    })
-                    is_social = True
-                
-                # Проверяем на академические/лабораторные сайты
-                elif any(word in name_lower or word in url_lower for word in academic_patterns):
-                    result['websites'].append({
-                        'name': url_name,
-                        'url': url_value
-                    })
-                    is_social = True
-                
-                # Проверяем на персональные сайты
-                elif any(word in name_lower or word in url_lower for word in website_patterns):
-                    result['websites'].append({
-                        'name': url_name,
-                        'url': url_value
-                    })
-                    is_social = True
-                
-                # Если это не социальная сеть и не академический сайт, но похоже на веб-сайт
-                elif any(domain in url_lower for domain in ['.edu', '.org', '.com', '.ru', '.net']):
-                    # Проверяем, не является ли это уже известной социальной сетью
-                    if not any(social_domain in url_lower for social_domain in social_patterns.keys()):
-                        result['websites'].append({
-                            'name': url_name,
-                            'url': url_value
+        # ====== 1. ИЗВЛЕЧЕНИЕ OTHER IDS (Scopus, ResearcherID и др.) ======
+        if 'person' in data and 'external-identifiers' in data['person']:
+            ext_ids = data['person']['external-identifiers'].get('external-identifier', [])
+            for ext_id in ext_ids:
+                if 'external-id-type' in ext_id and 'external-id-value' in ext_id:
+                    id_type = ext_id['external-id-type']
+                    id_value = ext_id['external-id-value']
+                    id_url = ext_id.get('external-id-url', {}).get('value', '')
+                    
+                    # Создаем ссылки для известных типов
+                    id_mapping = {
+                        'SCOPUS': ('Scopus Author ID', 'https://www.scopus.com/authid/detail.uri?authorId='),
+                        'SCIVERSE SCOPUS': ('Scopus Author ID', 'https://www.scopus.com/authid/detail.uri?authorId='),
+                        'RESEARCHERID': ('Web of Science ResearcherID', 'https://www.webofscience.com/wos/author/record/'),
+                        'WOS': ('Web of Science', 'https://www.webofscience.com/wos/author/record/'),
+                        'RID': ('ResearcherID', 'https://www.webofscience.com/wos/author/record/'),
+                        'GOOGLE SCHOLAR': ('Google Scholar', 'https://scholar.google.com/citations?user='),
+                        'PUBMED': ('PubMed', 'https://pubmed.ncbi.nlm.nih.gov/?term='),
+                        'EID': ('Elsevier Author ID', ''),
+                        'LG': ('Loop Profile', ''),
+                        'SGR': ('Scopus Author ID', 'https://www.scopus.com/authid/detail.uri?authorId=')
+                    }
+                    
+                    if id_type.upper() in id_mapping:
+                        name, url_prefix = id_mapping[id_type.upper()]
+                        if id_url:
+                            final_url = id_url
+                        elif url_prefix:
+                            final_url = f"{url_prefix}{id_value}"
+                        else:
+                            final_url = ''
+                        
+                        result['other_ids'].append({
+                            'name': name,
+                            'value': id_value,
+                            'url': final_url
                         })
-                        is_social = True
-                
-                # Остальные ссылки
-                if not is_social:
-                    result['other_links'].append({
-                        'name': url_name,
-                        'url': url_value
-                    })
+                    else:
+                        result['other_ids'].append({
+                            'name': id_type,
+                            'value': id_value,
+                            'url': id_url
+                        })
         
-        # Удаляем дубликаты из social_links
-        seen = set()
-        unique_social = []
-        for link in result['social_links']:
-            key = f"{link['name']}_{link['url']}"
-            if key not in seen:
-                seen.add(key)
-                unique_social.append(link)
-        result['social_links'] = unique_social
+        # ====== 2. ИЗВЛЕЧЕНИЕ ВЕБ-САЙТОВ И СОЦИАЛЬНЫХ ССЫЛОК ======
+        if 'person' in data and 'researcher-urls' in data['person']:
+            urls = data['person']['researcher-urls'].get('researcher-url', [])
+            
+            # Социальные сети и академические профили
+            social_patterns = {
+                'researchgate.net': 'ResearchGate',
+                'linkedin.com': 'LinkedIn',
+                'twitter.com': 'Twitter/X',
+                'x.com': 'Twitter/X',
+                'facebook.com': 'Facebook',
+                'github.com': 'GitHub',
+                'instagram.com': 'Instagram',
+                'youtube.com': 'YouTube',
+                'scholar.google': 'Google Scholar',
+                'academia.edu': 'Academia.edu',
+                'mendeley.com': 'Mendeley',
+                'elibrary.ru': 'Elibrary.ru'
+            }
+            
+            for url_item in urls:
+                if 'url' in url_item and 'url' in url_item['url']:
+                    url_value = url_item['url']['value']
+                    url_name = url_item.get('url-name', url_value)
+                    
+                    url_lower = url_value.lower()
+                    name_lower = url_name.lower()
+                    
+                    # Проверяем по URL
+                    is_social = False
+                    
+                    for domain, name in social_patterns.items():
+                        if domain in url_lower:
+                            result['social_links'].append({
+                                'name': name,
+                                'url': url_value,
+                                'title': url_name
+                            })
+                            is_social = True
+                            break
+                    
+                    # Если не найдено по URL, проверяем по названию
+                    if not is_social:
+                        if any(word in name_lower for word in ['researchgate', 'linkedin', 'twitter', 'facebook', 'github', 'scholar', 'academia', 'mendeley', 'elibrary']):
+                            result['social_links'].append({
+                                'name': url_name,
+                                'url': url_value,
+                                'title': url_name
+                            })
+                            is_social = True
+                        elif any(word in name_lower for word in ['laboratory', 'lab', 'institute', 'university', 'department', 'research group']):
+                            result['websites'].append({
+                                'name': url_name,
+                                'url': url_value
+                            })
+                            is_social = True
+                        elif 'orcid.org' not in url_lower:
+                            if any(word in name_lower for word in ['website', 'site', 'homepage', 'personal']):
+                                result['websites'].append({
+                                    'name': url_name,
+                                    'url': url_value
+                                })
+                            else:
+                                if any(domain in url_lower for domain in ['.edu', '.org', '.com', '.ru', '.net']):
+                                    if not any(social_domain in url_lower for social_domain in ['researchgate.net', 'linkedin.com', 'twitter.com', 'facebook.com', 'github.com', 'scholar.google', 'academia.edu', 'mendeley.com', 'elibrary.ru']):
+                                        result['websites'].append({
+                                            'name': url_name,
+                                            'url': url_value
+                                        })
+                                else:
+                                    result['other_links'].append({
+                                        'name': url_name,
+                                        'url': url_value
+                                    })
         
-        # Удаляем дубликаты из websites
-        seen = set()
-        unique_websites = []
-        for link in result['websites']:
-            key = f"{link['name']}_{link['url']}"
-            if key not in seen:
-                seen.add(key)
-                unique_websites.append(link)
-        result['websites'] = unique_websites
-        
-        # Удаляем дубликаты из other_links
-        seen = set()
-        unique_other = []
-        for link in result['other_links']:
-            key = f"{link['name']}_{link['url']}"
-            if key not in seen:
-                seen.add(key)
-                unique_other.append(link)
-        result['other_links'] = unique_other
+        # ====== 3. ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА НАЛИЧИЯ ССЫЛОК НА SCOPUS И WOS В RESEACHER-URLS ======
+        if 'person' in data and 'researcher-urls' in data['person']:
+            urls = data['person']['researcher-urls'].get('researcher-url', [])
+            for url_item in urls:
+                if 'url' in url_item and 'url' in url_item['url']:
+                    url_value = url_item['url']['value']
+                    url_name = url_item.get('url-name', '')
+                    
+                    if 'scopus.com' in url_value.lower():
+                        if not any('Scopus' in item['name'] for item in result['other_ids']):
+                            result['other_ids'].append({
+                                'name': 'Scopus Author Page',
+                                'value': url_value,
+                                'url': url_value
+                            })
+                    elif 'webofscience.com' in url_value.lower() or 'wos' in url_value.lower():
+                        if not any('Web of Science' in item['name'] for item in result['other_ids']):
+                            result['other_ids'].append({
+                                'name': 'Web of Science Profile',
+                                'value': url_value,
+                                'url': url_value
+                            })
         
     except Exception as e:
         if SHOW_DEBUG_LOGS:
             print(f"⚠️ Ошибка парсинга персональной информации ORCID: {e}")
     
     return result
-
-# ============================================
-# НОВАЯ ФУНКЦИЯ: Получение полного списка публикаций из ORCID
-# ============================================
-
-async def get_orcid_full_publications(orcid: str, session) -> List[Dict]:
-    """
-    Получает полный список публикаций из ORCID API (включая те, у которых нет DOI)
-    """
-    if not orcid:
-        return []
-    
-    orcid_clean = clean_orcid(orcid)
-    if not orcid_clean:
-        return []
-    
-    headers = {'Accept': 'application/json'}
-    url = f"https://pub.orcid.org/v3.0/{orcid_clean}/works"
-    
-    if SHOW_DEBUG_LOGS:
-        print(f"🔍 Запрос полного списка публикаций из ORCID: {orcid_clean}")
-    
-    data = await fetch_with_retry(session, url, headers=headers)
-    
-    if not data:
-        return []
-    
-    publications = []
-    
-    try:
-        works = data.get('group', [])
-        
-        for work_group in works:
-            work_summary = work_group.get('work-summary', [])
-            for work in work_summary:
-                # Название публикации
-                title = work.get('title', {}).get('title', {}).get('value', 'Без названия')
-                
-                # Год публикации
-                pub_year = work.get('publication-date', {}).get('year', {}).get('value', '')
-                
-                # Тип публикации
-                pub_type = work.get('type', '')
-                
-                # Проверяем наличие DOI
-                has_doi = False
-                doi_value = ''
-                if 'external-identifiers' in work:
-                    for ext_id in work['external-identifiers'].get('external-identifier', []):
-                        if ext_id.get('external-id-type') and ext_id['external-id-type'].upper() == 'DOI':
-                            has_doi = True
-                            doi_value = ext_id.get('external-id-value', '')
-                            break
-                
-                # URL публикации
-                pub_url = work.get('url', {}).get('value', '')
-                
-                # Название журнала/источника
-                journal_name = ''
-                if 'journal-title' in work:
-                    journal_name = work.get('journal-title', {}).get('value', '')
-                elif 'source' in work:
-                    source = work.get('source', {})
-                    journal_name = source.get('source-name', {}).get('value', '')
-                
-                publications.append({
-                    'title': title,
-                    'year': pub_year,
-                    'type': pub_type,
-                    'has_doi': has_doi,
-                    'doi': doi_value,
-                    'url': pub_url,
-                    'journal': journal_name
-                })
-        
-        if SHOW_DEBUG_LOGS:
-            print(f"✅ Из ORCID API получено {len(publications)} публикаций")
-            
-    except Exception as e:
-        if SHOW_DEBUG_LOGS:
-            print(f"⚠️ Ошибка парсинга списка публикаций ORCID: {e}")
-    
-    return publications
 
 # ============================================
 # КЛАСС ДЛЯ АНАЛИЗА ПРОФИЛЯ УЧЕНОГО
@@ -2155,6 +2073,7 @@ class ScholarProfileAnalyzer:
         self.raw_data = {}
         self.institution_homepages = {}
         self.coauthors_with_orcids = {}  # Новое поле: словарь {имя: {'count': N, 'orcid': ORCID}}
+        self.coauthor_profiles = {}  # Новое поле: словарь {orcid: profile_data}
         self.collaborations = {
             'domestic': defaultdict(lambda: defaultdict(int)),
             'international': defaultdict(lambda: defaultdict(int)),
@@ -2163,8 +2082,6 @@ class ScholarProfileAnalyzer:
             'mixed_papers': 0,
             'total_collaborations': 0
         }
-        # Новое поле для хранения полного списка публикаций из ORCID
-        self.orcid_publications = []
         
     def add_publication(self, pub_data: Dict):
         """Добавляет публикацию для анализа"""
@@ -2195,10 +2112,6 @@ class ScholarProfileAnalyzer:
     def set_institution_homepages(self, homepages: Dict[str, str]):
         """Устанавливает homepage для институтов"""
         self.institution_homepages = homepages
-    
-    def set_orcid_publications(self, orcid_publications: List[Dict]):
-        """Устанавливает полный список публикаций из ORCID"""
-        self.orcid_publications = orcid_publications
     
     def _analyze_collaborations(self):
         """Анализирует коллаборации с детальным разбором по аффилиациям (задача 1 и 4)"""
@@ -2485,6 +2398,9 @@ class ScholarProfileAnalyzer:
         # Статистика по типам источников
         source_categories = {}
         
+        # Текущий год для расчета среднегодового цитирования
+        current_year = datetime.now().year
+        
         for p in self.publications:
             if p.get('concepts'):
                 all_concepts.extend(p['concepts'])
@@ -2541,6 +2457,16 @@ class ScholarProfileAnalyzer:
                 'is_oa': p.get('is_oa', False),
                 'any_repository_has_fulltext': p.get('any_repository_has_fulltext', False)
             })
+            
+            # ====== НОВОЕ: Расчет среднегодового цитирования ======
+            pub_year = p.get('publication_year')
+            if pub_year:
+                years_since = current_year - pub_year + 1  # +1 чтобы считать текущий год
+                if years_since > 0:
+                    citations = p.get('cited_by_count', 0)
+                    p['citations_per_year'] = citations / years_since
+                else:
+                    p['citations_per_year'] = 0
         
         # Сохраняем статистику по типам источников
         self.profile['source_categories'] = {
@@ -2550,43 +2476,6 @@ class ScholarProfileAnalyzer:
             }
             for cat, items in source_categories.items()
         }
-        
-        # ====== НОВОЕ: Добавляем информацию о публикациях из ORCID ======
-        if self.orcid_publications:
-            # Общее число публикаций из ORCID
-            total_orcid_publications = len(self.orcid_publications)
-            self.profile['total_orcid_publications'] = total_orcid_publications
-            
-            # Публикации без DOI
-            without_doi = [p for p in self.orcid_publications if not p.get('has_doi', False)]
-            self.profile['orcid_publications_without_doi'] = without_doi
-            self.profile['orcid_publications_without_doi_count'] = len(without_doi)
-            
-            # Добавляем в секцию source_categories отдельную категорию "from_orcid"
-            if without_doi:
-                # Создаем список элементов для отображения
-                from_orcid_items = []
-                for pub in without_doi[:10]:  # Ограничиваем до 10 для отображения
-                    from_orcid_items.append({
-                        'title': pub.get('title', 'No title'),
-                        'doi': '',
-                        'id': pub.get('url', ''),
-                        'year': pub.get('year', ''),
-                        'journal': pub.get('journal', ''),
-                        'raw_type': pub.get('type', ''),
-                        'source_type': 'orcid',
-                        'is_oa': False,
-                        'any_repository_has_fulltext': False
-                    })
-                
-                self.profile['source_categories']['from_orcid'] = {
-                    'count': len(without_doi),
-                    'items': from_orcid_items
-                }
-        else:
-            self.profile['total_orcid_publications'] = 0
-            self.profile['orcid_publications_without_doi'] = []
-            self.profile['orcid_publications_without_doi_count'] = 0
         
         self.profile['concepts'] = dict(Counter(all_concepts))
         self.profile['top_concepts'] = dict(Counter(all_concepts).most_common(15))
@@ -2696,7 +2585,7 @@ class ScholarProfileAnalyzer:
         
         self.profile['i10_index'] = sum(1 for c in citations if c >= 10)
         
-        # ====== НОВОЕ: Расчет i100_index ======
+        # ====== НОВОЕ: Расчет i100 индекса (число статей с >= 100 цитирований) ======
         self.profile['i100_index'] = sum(1 for c in citations if c >= 100)
         
         total_citations_sorted = 0
@@ -2822,8 +2711,8 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
         if 'coauthors_with_orcids' in cached_data:
             analyzer.coauthors_with_orcids = cached_data['coauthors_with_orcids']
         
-        if 'orcid_publications' in cached_data:
-            analyzer.set_orcid_publications(cached_data['orcid_publications'])
+        if 'coauthor_profiles' in cached_data:
+            analyzer.coauthor_profiles = cached_data['coauthor_profiles']
         
         return analyzer, analyzer.profile, analyzer.publications
     
@@ -2838,13 +2727,6 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
             print(f"👤 Автор: {author_info.get('display_name', 'Unknown')}")
             if analyzer.author_affiliations:
                 print(f"🏛️ Аффилиации: {', '.join(analyzer.author_affiliations[:3])}")
-        
-        # ====== НОВОЕ: Получение полного списка публикаций из ORCID ======
-        print("🔍 Получение полного списка публикаций из ORCID...")
-        orcid_publications = await get_orcid_full_publications(orcid_clean, session)
-        if orcid_publications:
-            analyzer.set_orcid_publications(orcid_publications)
-            print(f"📚 Найдено {len(orcid_publications)} публикаций в ORCID")
         
         orcid_dois = await get_orcid_dois(orcid_clean, session)
         
@@ -2910,35 +2792,27 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
                 unique_coauthor_orcids.add(data['orcid'])
         
         if unique_coauthor_orcids:
-            # Ограничиваем количество для производительности
-            orcid_list = list(unique_coauthor_orcids)[:50]
-            print(f"  Получение профилей для {len(orcid_list)} соавторов (параллельно)...")
+            print(f"  Получение профилей для {len(unique_coauthor_orcids)} соавторов...")
             
-            # Создаем задачи для параллельных запросов
-            tasks = []
-            for coauthor_orcid in orcid_list:
-                task = get_orcid_person_info(coauthor_orcid, session)
-                tasks.append((coauthor_orcid, task))
-            
-            # Выполняем запросы параллельно с ограничением по количеству одновременных
+            # ====== ПАРАЛЛЕЛЬНЫЕ ЗАПРОСЫ С КОНТРОЛЕМ ЛИМИТОВ ======
             semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
             
-            async def fetch_with_semaphore(orcid_id, coro):
+            async def fetch_with_semaphore(orcid_id):
                 async with semaphore:
-                    return orcid_id, await coro
+                    return orcid_id, await get_orcid_person_info(orcid_id, session)
             
-            # Собираем все задачи с семафором
-            async_tasks = [fetch_with_semaphore(orcid_id, task) for orcid_id, task in tasks]
+            # Создаем задачи для всех ORCID
+            tasks = [fetch_with_semaphore(orcid_id) for orcid_id in list(unique_coauthor_orcids)[:50]]  # Ограничиваем до 50 для производительности
             
             # Выполняем все задачи параллельно
-            results = await asyncio.gather(*async_tasks)
+            results = await asyncio.gather(*tasks)
             
             # Сохраняем результаты
             for orcid_id, person_info in results:
                 if person_info:
                     coauthor_profiles[orcid_id] = person_info
             
-            print(f"  Получено профилей для {len(coauthor_profiles)} соавторов")
+            print(f"  ✅ Получено профилей для {len(coauthor_profiles)} соавторов")
         
         # Сохраняем профили соавторов в analyzer
         analyzer.coauthor_profiles = coauthor_profiles
@@ -2955,7 +2829,6 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
             'institution_homepages': analyzer.institution_homepages,
             'coauthors_with_orcids': analyzer.coauthors_with_orcids,
             'coauthor_profiles': coauthor_profiles,
-            'orcid_publications': analyzer.orcid_publications,
             'timestamp': datetime.now().isoformat()
         }
         save_to_cache(orcid_clean, cache_data)
@@ -3421,17 +3294,12 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     h_index = profile.get('h_index', 0)
     g_index = profile.get('g_index', 0)
     i10_index = profile.get('i10_index', 0)
-    i100_index = profile.get('i100_index', 0)  # НОВОЕ
+    i100_index = profile.get('i100_index', 0)
     total_citations = profile.get('total_citations', 0)
     avg_citations = profile.get('average_citations', 0)
     median_citations = profile.get('median_citations', 0)
     max_citations = profile.get('max_citations', 0)
     oa_percentage = profile.get('oa_percentage', 0)
-    
-    # НОВОЕ: Данные из ORCID
-    total_orcid_publications = profile.get('total_orcid_publications', 0)
-    orcid_without_doi_count = profile.get('orcid_publications_without_doi_count', 0)
-    orcid_without_doi = profile.get('orcid_publications_without_doi', [])
     
     top_journals = profile.get('top_journals', {})
     top_concepts = profile.get('top_concepts', {})
@@ -3475,8 +3343,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
         'repositories': {'en': 'source_repositories', 'ru': 'source_repositories'},
         'ebooks': {'en': 'source_ebooks', 'ru': 'source_ebooks'},
         'proceedings': {'en': 'source_proceedings', 'ru': 'source_proceedings'},
-        'other': {'en': 'source_other', 'ru': 'source_other'},
-        'from_orcid': {'en': 'source_from_orcid', 'ru': 'source_from_orcid'}  # НОВОЕ
+        'other': {'en': 'source_other', 'ru': 'source_other'}
     }
     
     # ====== ФИЛЬТРАЦИЯ: Удаляем аффилиации автора из коллабораций при отображении ======
@@ -3508,7 +3375,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     def t(key: str, **kwargs) -> str:
         return translate(key, lang, **kwargs)
     
-    # ====== Генерация карточек соавторов с расширенной информацией ======
+    # ====== Генерация карточек соавторов с обогащенными данными ======
     coauthors_html = ""
     if top_coauthors_with_orcids:
         for name, data in list(top_coauthors_with_orcids.items()):
@@ -3539,106 +3406,41 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                     <span class="coauthor-no-orcid">{t('no_orcid_found')}</span>
                 """
             
-            # Добавляем внешние профили из ORCID API (Scopus, ResearcherID и др.)
-            external_ids = person_info.get('external_ids', {})
+            # Добавляем Other IDs (Scopus, ResearcherID и др.)
+            other_ids = person_info.get('other_ids', []) if person_info else []
+            for item in other_ids:
+                if item.get('url'):
+                    if 'Scopus' in item.get('name', ''):
+                        coauthors_html += f"""
+                            <a href="{item['url']}" target="_blank" class="coauthor-profile-link scopus">
+                                📚 {t('coauthor_scopus')}
+                            </a>
+                        """
+                    elif 'ResearcherID' in item.get('name', '') or 'Web of Science' in item.get('name', ''):
+                        coauthors_html += f"""
+                            <a href="{item['url']}" target="_blank" class="coauthor-profile-link researcherid">
+                                🆔 {t('coauthor_researcherid')}
+                            </a>
+                        """
+                    else:
+                        coauthors_html += f"""
+                            <a href="{item['url']}" target="_blank" class="coauthor-profile-link other">
+                                🔗 {item.get('name', 'Other')}
+                            </a>
+                        """
             
-            # Scopus
-            if 'scopus' in external_ids:
-                scopus_data = external_ids['scopus']
-                scopus_url = scopus_data.get('url', '')
-                scopus_value = scopus_data.get('value', '')
-                if scopus_url:
+            # Добавляем Websites
+            websites = person_info.get('websites', []) if person_info else []
+            for item in websites[:2]:  # Ограничиваем до 2 для компактности
+                if item.get('url'):
                     coauthors_html += f"""
-                        <a href="{scopus_url}" target="_blank" class="coauthor-profile-link scopus">
-                            📚 {t('coauthor_scopus')}
-                        </a>
-                    """
-                elif scopus_value:
-                    coauthors_html += f"""
-                        <a href="https://www.scopus.com/authid/detail.uri?authorId={scopus_value}" target="_blank" class="coauthor-profile-link scopus">
-                            📚 {t('coauthor_scopus')}
-                        </a>
-                    """
-            
-            # ResearcherID
-            if 'researcherid' in external_ids:
-                rid_data = external_ids['researcherid']
-                rid_url = rid_data.get('url', '')
-                rid_value = rid_data.get('value', '')
-                if rid_url:
-                    coauthors_html += f"""
-                        <a href="{rid_url}" target="_blank" class="coauthor-profile-link researcherid">
-                            🆔 {t('coauthor_researcherid')}
-                        </a>
-                    """
-                elif rid_value:
-                    coauthors_html += f"""
-                        <a href="https://www.webofscience.com/wos/author/record/{rid_value}" target="_blank" class="coauthor-profile-link researcherid">
-                            🆔 {t('coauthor_researcherid')}
+                        <a href="{item['url']}" target="_blank" class="coauthor-profile-link website">
+                            🌐 {item.get('name', 'Website')[:20]}
                         </a>
                     """
             
-            # Google Scholar
-            if 'googlescholar' in external_ids:
-                gs_data = external_ids['googlescholar']
-                gs_url = gs_data.get('url', '')
-                gs_value = gs_data.get('value', '')
-                if gs_url:
-                    coauthors_html += f"""
-                        <a href="{gs_url}" target="_blank" class="coauthor-profile-link other">
-                            🎓 Google Scholar
-                        </a>
-                    """
-                elif gs_value:
-                    coauthors_html += f"""
-                        <a href="https://scholar.google.com/citations?user={gs_value}" target="_blank" class="coauthor-profile-link other">
-                            🎓 Google Scholar
-                        </a>
-                    """
-            
-            # Web of Science / WOS
-            if 'wos' in external_ids:
-                wos_data = external_ids['wos']
-                wos_url = wos_data.get('url', '')
-                wos_value = wos_data.get('value', '')
-                if wos_url:
-                    coauthors_html += f"""
-                        <a href="{wos_url}" target="_blank" class="coauthor-profile-link researcherid">
-                            🌐 Web of Science
-                        </a>
-                    """
-                elif wos_value:
-                    coauthors_html += f"""
-                        <a href="https://www.webofscience.com/wos/author/record/{wos_value}" target="_blank" class="coauthor-profile-link researcherid">
-                            🌐 Web of Science
-                        </a>
-                    """
-            
-            # Loop / Elsevier
-            if 'lg' in external_ids:
-                lg_data = external_ids['lg']
-                lg_url = lg_data.get('url', '')
-                if lg_url:
-                    coauthors_html += f"""
-                        <a href="{lg_url}" target="_blank" class="coauthor-profile-link other">
-                            🔗 Loop
-                        </a>
-                    """
-            
-            # Добавляем веб-сайты
-            websites = person_info.get('websites', [])
-            for site in websites[:2]:  # Максимум 2 сайта
-                site_name = site.get('name', '🌐 Website')
-                site_url = site.get('url', '')
-                if site_url:
-                    coauthors_html += f"""
-                        <a href="{site_url}" target="_blank" class="coauthor-profile-link website">
-                            🌐 {html.escape(site_name)}
-                        </a>
-                    """
-            
-            # Добавляем социальные ссылки
-            social_links = person_info.get('social_links', [])
+            # Добавляем Social links
+            social_links = person_info.get('social_links', []) if person_info else []
             social_icons = {
                 'ResearchGate': '🔬',
                 'Google Scholar': '🎓',
@@ -3648,19 +3450,14 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 'Facebook': '📘',
                 'GitHub': '🐙',
                 'Academia.edu': '📖',
-                'Mendeley': '📚',
-                'Instagram': '📷',
-                'YouTube': '▶️'
+                'Mendeley': '📚'
             }
-            for social in social_links[:2]:  # Максимум 2 социальные ссылки
-                social_name = social.get('name', '')
-                social_url = social.get('url', '')
-                if social_url:
-                    icon = social_icons.get(social_name, '🔗')
-                    display_name = social_name
+            for item in social_links[:2]:  # Ограничиваем до 2 для компактности
+                if item.get('url'):
+                    icon = social_icons.get(item.get('name', ''), '🔗')
                     coauthors_html += f"""
-                        <a href="{social_url}" target="_blank" class="coauthor-profile-link other">
-                            {icon} {html.escape(display_name)}
+                        <a href="{item['url']}" target="_blank" class="coauthor-profile-link other">
+                            {icon} {item.get('name', 'Social')[:15]}
                         </a>
                     """
             
@@ -3669,7 +3466,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
             </div>
             """
     
-    # ====== Генерация HTML для секции типов источников (включая "From Orcid") ======
+    # ====== Генерация HTML для секции типов источников (исключая журнальные статьи) ======
     source_section_html = ""
     if source_categories:
         source_section_html = f"""
@@ -3685,8 +3482,8 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 <tbody>
         """
         
-        # Определяем порядок категорий для отображения
-        category_order = ['repositories', 'ebooks', 'proceedings', 'other', 'from_orcid']
+        # Определяем порядок категорий для отображения (исключаем 'articles')
+        category_order = ['repositories', 'ebooks', 'proceedings', 'other']
         
         for cat in category_order:
             if cat in source_categories:
@@ -3704,13 +3501,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                         doi = item.get('doi', '')
                         item_id = item.get('id', '')
                         
-                        if cat == 'from_orcid':
-                            # Для публикаций из ORCID без DOI показываем ссылку на ORCID
-                            if item_id:
-                                examples_html += f'<div class="source-example-item">• {html.escape(title)} — <a href="{item_id}" target="_blank" class="source-example-link">{t("source_view_link")} (ORCID)</a> <span class="source-badge source-badge-nodoi">⚠️ {t("source_no_doi")}</span></div>'
-                            else:
-                                examples_html += f'<div class="source-example-item">• {html.escape(title)} <span class="source-badge source-badge-nodoi">⚠️ {t("source_no_doi")}</span></div>'
-                        elif doi:
+                        if doi:
                             link = f'https://doi.org/{doi}'
                             link_text = f'DOI: {doi[:20]}...' if len(doi) > 20 else f'DOI: {doi}'
                             examples_html += f'<div class="source-example-item">• {html.escape(title)} — <a href="{link}" target="_blank" class="source-example-link">{link_text}</a> <span class="source-badge source-badge-doi">✅ {t("source_doi_available")}</span></div>'
@@ -3741,6 +3532,10 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
         retraction_flag_html = f"""
         <div class="flag-retraction">⚠️ {t('retraction_warning', count=retractions)}</div>
         """
+    
+    # ORCID как кликабельная ссылка
+    orcid_display = profile.get('orcid', 'N/A')
+    orcid_link = f'<a href="https://orcid.org/{orcid_display}" target="_blank" style="color: #2980B9; text-decoration: none;">{orcid_display}</a>' if orcid_display != 'N/A' else 'N/A'
     
     html_content = f"""
     <!DOCTYPE html>
@@ -4294,16 +4089,6 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 font-style: italic;
             }}
             
-            .orcid-info-badge {{
-                display: inline-block;
-                padding: 3px 10px;
-                border-radius: 12px;
-                font-size: 11px;
-                background: #e8f0fe;
-                color: #1a73e8;
-                margin: 2px;
-            }}
-            
             @media print {{
                 .sidebar {{ display: none; }}
                 .main-content {{ margin-left: 0; }}
@@ -4342,18 +4127,17 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 <div class="section-title">📋 {t('profile')}</div>
                 <div class="author-info">
                     <div class="author-name">{author_name}</div>
-                    <div class="author-affil"><strong>{t('orcid')}:</strong> {profile.get('orcid', 'N/A')}</div>
+                    <div class="author-affil"><strong>{t('orcid')}:</strong> {orcid_link}</div>
                     {f'<div class="author-affil"><strong>{t("affiliations")}:</strong> {", ".join(author_affiliations[:5])}</div>' if author_affiliations else ''}
                     {f'<div class="author-affil"><strong>{t("countries")}:</strong> {", ".join(author_countries)}</div>' if author_countries else ''}
                     <div class="author-affil"><strong>{t('total_analyzed')}:</strong> {total_pubs}</div>
-                    {f'<div class="author-affil"><strong>{t("orcid_publications_total")}:</strong> {total_orcid_publications} ({t("orcid_without_doi")}: {orcid_without_doi_count})</div>' if total_orcid_publications > 0 else ''}
                 </div>
                 
                 {retraction_flag_html}
             </div>
             
             <div id="metrics" class="section">
-                <div class="section-title">📈 {t('main_metrics')}</div>
+                <div class="section-title">{t('main_metrics')}</div>
                 <div class="metrics-grid">
                     <div class="metric-card">
                         <div class="metric-value">{total_pubs}</div>
@@ -4371,8 +4155,8 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                         <div class="metric-value">{i10_index}</div>
                         <div class="metric-label">{t('i10_index')}</div>
                     </div>
-                    <div class="metric-card" style="border-left-color: #FFD700;">
-                        <div class="metric-value" style="color: #FFD700;">{i100_index}</div>
+                    <div class="metric-card">
+                        <div class="metric-value">{i100_index}</div>
                         <div class="metric-label">{t('i100_index')}</div>
                     </div>
                     <div class="metric-card">
@@ -4392,14 +4176,6 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                         <div class="metric-label">{t('open_access')}</div>
                     </div>
                 </div>
-                
-                <!-- ORCID Publications Info -->
-                {f'''
-                <div style="margin-top: 15px; padding: 12px; background: #f0f7ff; border-radius: 8px; border-left: 4px solid #1a73e8;">
-                    <strong>📚 {t("orcid_publications_total")}:</strong> {total_orcid_publications} &nbsp;|&nbsp; 
-                    <strong>📄 {t("orcid_without_doi")}:</strong> {orcid_without_doi_count}
-                </div>
-                ''' if total_orcid_publications > 0 else ''}
             </div>
             
             <div id="visualizations" class="section">
@@ -4449,36 +4225,36 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
             <div id="thematic" class="section">
                 <div class="section-title">🏷️ {t('topics')}</div>
                 
-                <h3 style="color: {primary}; margin-top: 20px;">{t('topics')} (Top 10)</h3>
+                <h3 style="color: {primary}; margin-top: 20px;">{t('topics')} (Top 5)</h3>
                 <div class="thematic-grid">
                     {''.join([
                         f'<div class="thematic-card">'
                         f'<div class="thematic-name">{html.escape(topic)}</div>'
                         f'<div class="thematic-count">📄 {count} {t("articles")}</div>'
                         f'</div>'
-                        for topic, count in list(top_primary_topics.items())[:10]
+                        for topic, count in list(top_primary_topics.items())[:5]
                     ])}
                 </div>
                 
-                <h3 style="color: {primary}; margin-top: 20px;">{t('subtopics')} (Top 10)</h3>
+                <h3 style="color: {primary}; margin-top: 20px;">{t('subtopics')} (Top 5)</h3>
                 <div class="thematic-grid">
                     {''.join([
                         f'<div class="thematic-card">'
                         f'<div class="thematic-name">{html.escape(subfield)}</div>'
                         f'<div class="thematic-count">📄 {count} {t("articles")}</div>'
                         f'</div>'
-                        for subfield, count in list(top_subfields.items())[:10]
+                        for subfield, count in list(top_subfields.items())[:5]
                     ])}
                 </div>
                 
-                <h3 style="color: {primary}; margin-top: 20px;">{t('fields')} (Top 10)</h3>
+                <h3 style="color: {primary}; margin-top: 20px;">{t('fields')} (Top 5)</h3>
                 <div class="thematic-grid">
                     {''.join([
                         f'<div class="thematic-card">'
                         f'<div class="thematic-name">{html.escape(field)}</div>'
                         f'<div class="thematic-count">📄 {count} {t("articles")}</div>'
                         f'</div>'
-                        for field, count in list(top_fields_new.items())[:10]
+                        for field, count in list(top_fields_new.items())[:5]
                     ])}
                 </div>
                 
@@ -4550,7 +4326,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
             {source_section_html}
             
             <div class="section">
-                <div class="section-title">📋 {t('main_metrics')}</div>
+                <div class="section-title">📋 {t('h_index')}</div>
                 <div class="stats-grid">
                     <div class="stat-item"><strong>{t('first_publication')}:</strong> {profile.get('first_publication', 'N/A')} - {profile.get('last_publication', 'N/A')}</div>
                     <div class="stat-item"><strong>{t('active_years')}:</strong> {active_years}</div>
@@ -4564,35 +4340,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                     <div class="stat-item"><strong>{t('thematic_diversity')}:</strong> {profile.get('thematic_diversity_shannon', 0):.3f}</div>
                     <div class="stat-item"><strong>{t('domestic_ratio')}:</strong> {profile.get('domestic_papers_ratio', 0)*100:.1f}%</div>
                     <div class="stat-item"><strong>{t('international_ratio')}:</strong> {profile.get('international_papers_ratio', 0)*100:.1f}%</div>
-                    <div class="stat-item"><strong>{t('i100_index')}:</strong> {i100_index}</div>
-                    {f'<div class="stat-item"><strong>{t("orcid_publications_total")}:</strong> {total_orcid_publications}</div>' if total_orcid_publications > 0 else ''}
-                    {f'<div class="stat-item"><strong>{t("orcid_without_doi")}:</strong> {orcid_without_doi_count}</div>' if orcid_without_doi_count > 0 else ''}
                 </div>
-                
-                <!-- Отображаем публикации без DOI из ORCID если они есть -->
-                {f'''
-                <details style="margin-top: 15px;">
-                    <summary style="cursor: pointer; font-weight: 600; color: {primary};">
-                        📚 {t("orcid_publications_list")} ({orcid_without_doi_count} {t("orcid_without_doi")})
-                    </summary>
-                    <div style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 6px; max-height: 400px; overflow-y: auto;">
-                        <ul style="list-style: none; padding: 0; margin: 0;">
-                            {''.join([
-                                f'<li style="padding: 6px 10px; margin: 3px 0; background: white; border-radius: 4px; border-left: 3px solid #1a73e8;">'
-                                f'<strong>{html.escape(pub.get("title", "No title"))}</strong>'
-                                f'<span style="color: #666; font-size: 12px; margin-left: 10px;">{pub.get("year", "")}'
-                                f'{f" — {html.escape(pub.get("journal", ""))}" if pub.get("journal") else ""}'
-                                f'</span>'
-                                f'{f" <a href=\"{pub.get('url', '')}\" target=\"_blank\" style=\"color: #2980B9; font-size: 12px;\">🔗</a>" if pub.get("url") else ""}'
-                                f'<span class="source-badge source-badge-nodoi" style="margin-left: 10px;">⚠️ {t("source_no_doi")}</span>'
-                                f'</li>'
-                                for pub in orcid_without_doi[:20]
-                            ])}
-                        </ul>
-                        {f'<p style="font-size: 12px; color: #888; margin-top: 10px;">{t("showing_limited", shown=20, total=orcid_without_doi_count)}</p>' if len(orcid_without_doi) > 20 else ''}
-                    </div>
-                </details>
-                ''' if orcid_without_doi_count > 0 else ''}
             </div>
             
             <div id="publications" class="section">
@@ -4606,6 +4354,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                                 <th>{t('year')}</th>
                                 <th>{t('journal')}</th>
                                 <th>{t('citations')}</th>
+                                <th>{t('citations_per_year')}</th>
                                 <th>OA</th>
                                 <th>{t('doi')}</th>
                             </tr>
@@ -4619,6 +4368,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                                     <td>{pub.get('publication_year', 'N/A')}</td>
                                     <td>{html.escape(pub.get('journal_name') or 'Unknown')}</td>
                                     <td>{pub.get('cited_by_count', 0)}</td>
+                                    <td>{pub.get('citations_per_year', 0):.1f}</td>
                                     <td>{'✅' if pub.get('is_oa', False) else '❌'}</td>
                                     <td><a href="https://doi.org/{html.escape(pub.get('doi', ''))}" target="_blank" class="doi-link">{html.escape(pub.get('doi', ''))}</a></td>
                                 </tr>
@@ -5068,16 +4818,6 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                 font-style: italic;
             }}
             
-            .orcid-info-badge {{
-                display: inline-block;
-                padding: 3px 10px;
-                border-radius: 12px;
-                font-size: 11px;
-                background: #e8f0fe;
-                color: #1a73e8;
-                margin: 2px;
-            }}
-            
             @media print {{
                 .sidebar {{ display: none; }}
                 .main-content {{ margin-left: 0; }}
@@ -5147,10 +4887,6 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
             avg_citations = profile.get('average_citations', 0)
             oa_percentage = profile.get('oa_percentage', 0)
             retractions = profile.get('retractions', 0)
-            i100_index = profile.get('i100_index', 0)
-            total_orcid_publications = profile.get('total_orcid_publications', 0)
-            orcid_without_doi_count = profile.get('orcid_publications_without_doi_count', 0)
-            orcid_without_doi = profile.get('orcid_publications_without_doi', [])
             
             top_journals = profile.get('top_journals', {})
             top_coauthors_with_orcids = profile.get('top_coauthors_with_orcids', {})
@@ -5163,11 +4899,10 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                 'repositories': {'en': 'source_repositories', 'ru': 'source_repositories'},
                 'ebooks': {'en': 'source_ebooks', 'ru': 'source_ebooks'},
                 'proceedings': {'en': 'source_proceedings', 'ru': 'source_proceedings'},
-                'other': {'en': 'source_other', 'ru': 'source_other'},
-                'from_orcid': {'en': 'source_from_orcid', 'ru': 'source_from_orcid'}
+                'other': {'en': 'source_other', 'ru': 'source_other'}
             }
             
-            # Генерируем карточки соавторов
+            # Генерируем карточки соавторов с обогащенными данными
             coauthors_html = ""
             if top_coauthors_with_orcids:
                 for name, data in list(top_coauthors_with_orcids.items()):
@@ -5197,106 +4932,41 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                             <span class="coauthor-no-orcid">{t('no_orcid_found')}</span>
                         """
                     
-                    # Добавляем внешние профили из ORCID API
-                    external_ids = person_info.get('external_ids', {})
+                    # Добавляем Other IDs (Scopus, ResearcherID и др.)
+                    other_ids = person_info.get('other_ids', []) if person_info else []
+                    for item in other_ids:
+                        if item.get('url'):
+                            if 'Scopus' in item.get('name', ''):
+                                coauthors_html += f"""
+                                    <a href="{item['url']}" target="_blank" class="coauthor-profile-link scopus">
+                                        📚 {t('coauthor_scopus')}
+                                    </a>
+                                """
+                            elif 'ResearcherID' in item.get('name', '') or 'Web of Science' in item.get('name', ''):
+                                coauthors_html += f"""
+                                    <a href="{item['url']}" target="_blank" class="coauthor-profile-link researcherid">
+                                        🆔 {t('coauthor_researcherid')}
+                                    </a>
+                                """
+                            else:
+                                coauthors_html += f"""
+                                    <a href="{item['url']}" target="_blank" class="coauthor-profile-link other">
+                                        🔗 {item.get('name', 'Other')}
+                                    </a>
+                                """
                     
-                    # Scopus
-                    if 'scopus' in external_ids:
-                        scopus_data = external_ids['scopus']
-                        scopus_url = scopus_data.get('url', '')
-                        scopus_value = scopus_data.get('value', '')
-                        if scopus_url:
+                    # Добавляем Websites
+                    websites = person_info.get('websites', []) if person_info else []
+                    for item in websites[:2]:
+                        if item.get('url'):
                             coauthors_html += f"""
-                                <a href="{scopus_url}" target="_blank" class="coauthor-profile-link scopus">
-                                    📚 {t('coauthor_scopus')}
-                                </a>
-                            """
-                        elif scopus_value:
-                            coauthors_html += f"""
-                                <a href="https://www.scopus.com/authid/detail.uri?authorId={scopus_value}" target="_blank" class="coauthor-profile-link scopus">
-                                    📚 {t('coauthor_scopus')}
-                                </a>
-                            """
-                    
-                    # ResearcherID
-                    if 'researcherid' in external_ids:
-                        rid_data = external_ids['researcherid']
-                        rid_url = rid_data.get('url', '')
-                        rid_value = rid_data.get('value', '')
-                        if rid_url:
-                            coauthors_html += f"""
-                                <a href="{rid_url}" target="_blank" class="coauthor-profile-link researcherid">
-                                    🆔 {t('coauthor_researcherid')}
-                                </a>
-                            """
-                        elif rid_value:
-                            coauthors_html += f"""
-                                <a href="https://www.webofscience.com/wos/author/record/{rid_value}" target="_blank" class="coauthor-profile-link researcherid">
-                                    🆔 {t('coauthor_researcherid')}
+                                <a href="{item['url']}" target="_blank" class="coauthor-profile-link website">
+                                    🌐 {item.get('name', 'Website')[:20]}
                                 </a>
                             """
                     
-                    # Google Scholar
-                    if 'googlescholar' in external_ids:
-                        gs_data = external_ids['googlescholar']
-                        gs_url = gs_data.get('url', '')
-                        gs_value = gs_data.get('value', '')
-                        if gs_url:
-                            coauthors_html += f"""
-                                <a href="{gs_url}" target="_blank" class="coauthor-profile-link other">
-                                    🎓 Google Scholar
-                                </a>
-                            """
-                        elif gs_value:
-                            coauthors_html += f"""
-                                <a href="https://scholar.google.com/citations?user={gs_value}" target="_blank" class="coauthor-profile-link other">
-                                    🎓 Google Scholar
-                                </a>
-                            """
-                    
-                    # Web of Science / WOS
-                    if 'wos' in external_ids:
-                        wos_data = external_ids['wos']
-                        wos_url = wos_data.get('url', '')
-                        wos_value = wos_data.get('value', '')
-                        if wos_url:
-                            coauthors_html += f"""
-                                <a href="{wos_url}" target="_blank" class="coauthor-profile-link researcherid">
-                                    🌐 Web of Science
-                                </a>
-                            """
-                        elif wos_value:
-                            coauthors_html += f"""
-                                <a href="https://www.webofscience.com/wos/author/record/{wos_value}" target="_blank" class="coauthor-profile-link researcherid">
-                                    🌐 Web of Science
-                                </a>
-                            """
-                    
-                    # Loop / Elsevier
-                    if 'lg' in external_ids:
-                        lg_data = external_ids['lg']
-                        lg_url = lg_data.get('url', '')
-                        if lg_url:
-                            coauthors_html += f"""
-                                <a href="{lg_url}" target="_blank" class="coauthor-profile-link other">
-                                    🔗 Loop
-                                </a>
-                            """
-                    
-                    # Добавляем веб-сайты
-                    websites = person_info.get('websites', [])
-                    for site in websites[:2]:
-                        site_name = site.get('name', '🌐 Website')
-                        site_url = site.get('url', '')
-                        if site_url:
-                            coauthors_html += f"""
-                                <a href="{site_url}" target="_blank" class="coauthor-profile-link website">
-                                    🌐 {html.escape(site_name)}
-                                </a>
-                            """
-                    
-                    # Добавляем социальные ссылки
-                    social_links = person_info.get('social_links', [])
+                    # Добавляем Social links
+                    social_links = person_info.get('social_links', []) if person_info else []
                     social_icons = {
                         'ResearchGate': '🔬',
                         'Google Scholar': '🎓',
@@ -5306,19 +4976,14 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                         'Facebook': '📘',
                         'GitHub': '🐙',
                         'Academia.edu': '📖',
-                        'Mendeley': '📚',
-                        'Instagram': '📷',
-                        'YouTube': '▶️'
+                        'Mendeley': '📚'
                     }
-                    for social in social_links[:2]:
-                        social_name = social.get('name', '')
-                        social_url = social.get('url', '')
-                        if social_url:
-                            icon = social_icons.get(social_name, '🔗')
-                            display_name = social_name
+                    for item in social_links[:2]:
+                        if item.get('url'):
+                            icon = social_icons.get(item.get('name', ''), '🔗')
                             coauthors_html += f"""
-                                <a href="{social_url}" target="_blank" class="coauthor-profile-link other">
-                                    {icon} {html.escape(display_name)}
+                                <a href="{item['url']}" target="_blank" class="coauthor-profile-link other">
+                                    {icon} {item.get('name', 'Social')[:15]}
                                 </a>
                             """
                     
@@ -5327,7 +4992,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                     </div>
                     """
             
-            # Генерируем HTML для секции типов источников (включая "From Orcid")
+            # Генерируем HTML для секции типов источников (исключая журнальные статьи)
             source_section_html = ""
             if source_categories:
                 source_section_html = f"""
@@ -5342,7 +5007,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                     <tbody>
                 """
                 
-                category_order = ['repositories', 'ebooks', 'proceedings', 'other', 'from_orcid']
+                category_order = ['repositories', 'ebooks', 'proceedings', 'other']
                 
                 for cat in category_order:
                     if cat in source_categories:
@@ -5360,12 +5025,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                                 doi = item.get('doi', '')
                                 item_id = item.get('id', '')
                                 
-                                if cat == 'from_orcid':
-                                    if item_id:
-                                        examples_html += f'<div class="source-example-item">• {html.escape(title)} — <a href="{item_id}" target="_blank" class="source-example-link">{t("source_view_link")} (ORCID)</a> <span class="source-badge source-badge-nodoi">⚠️ {t("source_no_doi")}</span></div>'
-                                    else:
-                                        examples_html += f'<div class="source-example-item">• {html.escape(title)} <span class="source-badge source-badge-nodoi">⚠️ {t("source_no_doi")}</span></div>'
-                                elif doi:
+                                if doi:
                                     link = f'https://doi.org/{doi}'
                                     link_text = f'DOI: {doi[:20]}...' if len(doi) > 20 else f'DOI: {doi}'
                                     examples_html += f'<div class="source-example-item">• {html.escape(title)} — <a href="{link}" target="_blank" class="source-example-link">{link_text}</a> <span class="source-badge source-badge-doi">✅ {t("source_doi_available")}</span></div>'
@@ -5396,6 +5056,10 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                 <div class="flag-retraction">⚠️ {t('retraction_warning', count=retractions)}</div>
                 """
             
+            # ORCID как кликабельная ссылка
+            orcid_display = profile.get('orcid', 'N/A')
+            orcid_link = f'<a href="https://orcid.org/{orcid_display}" target="_blank" style="color: #2980B9; text-decoration: none;">{orcid_display}</a>' if orcid_display != 'N/A' else 'N/A'
+            
             html_parts.append(f"""
             <div id="author_{i}" class="author-section">
                 <div class="author-card {'best' if is_best and len(all_authors) > 1 else ''}">
@@ -5404,6 +5068,9 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                         <span class="author-name-main">{html.escape(author_name)}</span>
                         <span class="author-hindex">(h-index: {h_index})</span>
                         {'<span class="best-badge">🏆 ' + t("best_author", name="", h_index="") + '</span>' if is_best and len(all_authors) > 1 else ''}
+                    </div>
+                    <div style="margin-top: 5px; font-size: 14px;">
+                        <strong>{t('orcid')}:</strong> {orcid_link}
                     </div>
                     
                     {retraction_flag_html}
@@ -5425,24 +5092,11 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                             <div class="metric-value">{avg_citations:.1f}</div>
                             <div class="metric-label">{t('avg_citations')}</div>
                         </div>
-                        <div class="metric-card" style="border-left-color: #FFD700;">
-                            <div class="metric-value" style="color: #FFD700;">{i100_index}</div>
-                            <div class="metric-label">{t('i100_index')}</div>
-                        </div>
                         <div class="metric-card">
                             <div class="metric-value">{oa_percentage:.1f}%</div>
                             <div class="metric-label">{t('open_access')}</div>
                         </div>
                     </div>
-                    
-                    <!-- ORCID Publications Info -->
-                    {f'''
-                    <div style="margin-top: 10px; padding: 10px; background: #f0f7ff; border-radius: 6px; border-left: 4px solid #1a73e8;">
-                        <strong>📚 {t("orcid_publications_total")}:</strong> {total_orcid_publications} &nbsp;|&nbsp; 
-                        <strong>📄 {t("orcid_without_doi")}:</strong> {orcid_without_doi_count}
-                        {f' <details style="display: inline-block; margin-left: 10px;"><summary style="cursor: pointer; color: #1a73e8; font-size: 12px;">📋 {t("orcid_show_all")}</summary><div style="position: absolute; background: white; border: 1px solid #ddd; border-radius: 6px; padding: 10px; max-height: 200px; overflow-y: auto; min-width: 300px; z-index: 1000; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">{''.join([f"<div style='padding: 4px 0; font-size: 12px;'>{html.escape(pub.get('title', 'No title'))[:50]} — {pub.get('year', '')}</div>" for pub in orcid_without_doi[:10]])}{f"<div style='padding: 4px 0; font-size: 11px; color: #888;'>... и еще {len(orcid_without_doi)-10}" if len(orcid_without_doi) > 10 else ""}</div></details>' if orcid_without_doi_count > 0 else ''}
-                    </div>
-                    ''' if total_orcid_publications > 0 else ''}
                     
                     <div class="chart-container">
                         <img src="data:image/png;base64,{images.get('years_chart', '')}" alt="{t('years_chart_title')}">
@@ -5476,6 +5130,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                                     <th>{t('year')}</th>
                                     <th>{t('journal')}</th>
                                     <th>{t('citations')}</th>
+                                    <th>{t('citations_per_year')}</th>
                                     <th>{t('doi')}</th>
                                 </tr>
                             </thead>
@@ -5488,6 +5143,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                                         <td>{pub.get('publication_year', 'N/A')}</td>
                                         <td>{html.escape(pub.get('journal_name') or 'Unknown')}</td>
                                         <td>{pub.get('cited_by_count', 0)}</td>
+                                        <td>{pub.get('citations_per_year', 0):.1f}</td>
                                         <td><a href="https://doi.org/{html.escape(pub.get('doi', ''))}" target="_blank" class="doi-link">{html.escape(pub.get('doi', ''))}</a></td>
                                     </tr>
                                     """
@@ -5790,7 +5446,7 @@ def main():
         
         st.markdown(f"""
         <div style="font-size: 11px; color: #666; text-align: center;">
-            © daM / Chimica Techno Acta / https://chimicatechnoacta.ru
+            © daM / Chimica Techno Acta \ https://chimicatechnoacta.ru
         </div>
         """, unsafe_allow_html=True)
     
@@ -5886,9 +5542,6 @@ def main():
                     oa_percentage = profile.get('oa_percentage', 0)
                     retractions = profile.get('retractions', 0)
                     i100_index = profile.get('i100_index', 0)
-                    total_orcid_publications = profile.get('total_orcid_publications', 0)
-                    orcid_without_doi_count = profile.get('orcid_publications_without_doi_count', 0)
-                    orcid_without_doi = profile.get('orcid_publications_without_doi', [])
                     
                     author_class = "author-card best" if is_best else "author-card"
                     st.markdown(f"""
@@ -5917,23 +5570,7 @@ def main():
                     with col5:
                         st.metric(t('open_access'), f"{oa_percentage:.1f}%")
                     with col6:
-                        st.metric(t('i100_index'), i100_index, delta=None, delta_color="off")
-                    
-                    # ORCID Publications Info
-                    if total_orcid_publications > 0:
-                        st.markdown(f"""
-                        <div style="padding: 10px; background: #f0f7ff; border-radius: 6px; border-left: 4px solid #1a73e8; margin: 10px 0;">
-                            <strong>📚 {t('orcid_publications_total')}:</strong> {total_orcid_publications} &nbsp;|&nbsp; 
-                            <strong>📄 {t('orcid_without_doi')}:</strong> {orcid_without_doi_count}
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        if orcid_without_doi_count > 0:
-                            with st.expander(f"📋 {t('orcid_publications_list')} ({orcid_without_doi_count} {t('orcid_without_doi')})"):
-                                for pub in orcid_without_doi[:20]:
-                                    st.markdown(f"• **{pub.get('title', 'No title')}** — {pub.get('year', '')} {f'— {pub.get("journal", "")}' if pub.get('journal') else ''} {'🔗' if pub.get('url') else ''} ⚠️ {t('source_no_doi')}")
-                                if len(orcid_without_doi) > 20:
-                                    st.caption(t('showing_limited', shown=20, total=len(orcid_without_doi)))
+                        st.metric(t('i100_index'), i100_index)
                     
                     if images.get('years_chart'):
                         st.image(f"data:image/png;base64,{images['years_chart']}", width='stretch')
@@ -6013,11 +5650,10 @@ def main():
                             'repositories': 'source_repositories',
                             'ebooks': 'source_ebooks',
                             'proceedings': 'source_proceedings',
-                            'other': 'source_other',
-                            'from_orcid': 'source_from_orcid'
+                            'other': 'source_other'
                         }
                         
-                        category_order = ['repositories', 'ebooks', 'proceedings', 'other', 'from_orcid']
+                        category_order = ['repositories', 'ebooks', 'proceedings', 'other']
                         
                         for cat in category_order:
                             if cat in source_categories:
@@ -6029,17 +5665,12 @@ def main():
                                 
                                 with st.expander(f"{label} ({count})"):
                                     if items:
-                                        for item in items[:5]:
+                                        for item in items[:3]:
                                             title = item.get('title', 'No title')
                                             doi = item.get('doi', '')
                                             item_id = item.get('id', '')
                                             
-                                            if cat == 'from_orcid':
-                                                if item_id:
-                                                    st.markdown(f"• **{title[:80]}** — [🔗 {t('source_view_link')} (ORCID)]({item_id}) ⚠️ {t('source_no_doi')}")
-                                                else:
-                                                    st.markdown(f"• **{title[:80]}** ⚠️ {t('source_no_doi')}")
-                                            elif doi:
+                                            if doi:
                                                 st.markdown(f"• **{title[:80]}** — [DOI: {doi}](https://doi.org/{doi}) ✅")
                                             elif item_id:
                                                 st.markdown(f"• **{title[:80]}** — [🔗 {t('source_view_link')}]({item_id}) ⚠️ {t('source_no_doi')}")
@@ -6080,106 +5711,41 @@ def main():
                                 <span class="coauthor-no-orcid">{t('no_orcid_found')}</span>
                                 """, unsafe_allow_html=True)
                             
-                            # Добавляем внешние профили из ORCID API
-                            external_ids = person_info.get('external_ids', {})
+                            # Добавляем Other IDs (Scopus, ResearcherID и др.)
+                            other_ids = person_info.get('other_ids', []) if person_info else []
+                            for item in other_ids:
+                                if item.get('url'):
+                                    if 'Scopus' in item.get('name', ''):
+                                        st.markdown(f"""
+                                        <a href="{item['url']}" target="_blank" class="coauthor-profile-link scopus" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#e97132;color:white;margin-right:6px;">
+                                            📚 {t('coauthor_scopus')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
+                                    elif 'ResearcherID' in item.get('name', '') or 'Web of Science' in item.get('name', ''):
+                                        st.markdown(f"""
+                                        <a href="{item['url']}" target="_blank" class="coauthor-profile-link researcherid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#005a9c;color:white;margin-right:6px;">
+                                            🆔 {t('coauthor_researcherid')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
+                                    else:
+                                        st.markdown(f"""
+                                        <a href="{item['url']}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
+                                            🔗 {item.get('name', 'Other')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
                             
-                            # Scopus
-                            if 'scopus' in external_ids:
-                                scopus_data = external_ids['scopus']
-                                scopus_url = scopus_data.get('url', '')
-                                scopus_value = scopus_data.get('value', '')
-                                if scopus_url:
+                            # Добавляем Websites
+                            websites = person_info.get('websites', []) if person_info else []
+                            for item in websites[:2]:
+                                if item.get('url'):
                                     st.markdown(f"""
-                                    <a href="{scopus_url}" target="_blank" class="coauthor-profile-link scopus" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#e97132;color:white;margin-right:6px;">
-                                        📚 {t('coauthor_scopus')}
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                                elif scopus_value:
-                                    st.markdown(f"""
-                                    <a href="https://www.scopus.com/authid/detail.uri?authorId={scopus_value}" target="_blank" class="coauthor-profile-link scopus" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#e97132;color:white;margin-right:6px;">
-                                        📚 {t('coauthor_scopus')}
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                            
-                            # ResearcherID
-                            if 'researcherid' in external_ids:
-                                rid_data = external_ids['researcherid']
-                                rid_url = rid_data.get('url', '')
-                                rid_value = rid_data.get('value', '')
-                                if rid_url:
-                                    st.markdown(f"""
-                                    <a href="{rid_url}" target="_blank" class="coauthor-profile-link researcherid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#005a9c;color:white;margin-right:6px;">
-                                        🆔 {t('coauthor_researcherid')}
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                                elif rid_value:
-                                    st.markdown(f"""
-                                    <a href="https://www.webofscience.com/wos/author/record/{rid_value}" target="_blank" class="coauthor-profile-link researcherid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#005a9c;color:white;margin-right:6px;">
-                                        🆔 {t('coauthor_researcherid')}
+                                    <a href="{item['url']}" target="_blank" class="coauthor-profile-link website" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#6c757d;color:white;margin-right:6px;">
+                                        🌐 {item.get('name', 'Website')[:20]}
                                     </a>
                                     """, unsafe_allow_html=True)
                             
-                            # Google Scholar
-                            if 'googlescholar' in external_ids:
-                                gs_data = external_ids['googlescholar']
-                                gs_url = gs_data.get('url', '')
-                                gs_value = gs_data.get('value', '')
-                                if gs_url:
-                                    st.markdown(f"""
-                                    <a href="{gs_url}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
-                                        🎓 Google Scholar
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                                elif gs_value:
-                                    st.markdown(f"""
-                                    <a href="https://scholar.google.com/citations?user={gs_value}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
-                                        🎓 Google Scholar
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                            
-                            # Web of Science / WOS
-                            if 'wos' in external_ids:
-                                wos_data = external_ids['wos']
-                                wos_url = wos_data.get('url', '')
-                                wos_value = wos_data.get('value', '')
-                                if wos_url:
-                                    st.markdown(f"""
-                                    <a href="{wos_url}" target="_blank" class="coauthor-profile-link researcherid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#005a9c;color:white;margin-right:6px;">
-                                        🌐 Web of Science
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                                elif wos_value:
-                                    st.markdown(f"""
-                                    <a href="https://www.webofscience.com/wos/author/record/{wos_value}" target="_blank" class="coauthor-profile-link researcherid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#005a9c;color:white;margin-right:6px;">
-                                        🌐 Web of Science
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                            
-                            # Loop / Elsevier
-                            if 'lg' in external_ids:
-                                lg_data = external_ids['lg']
-                                lg_url = lg_data.get('url', '')
-                                if lg_url:
-                                    st.markdown(f"""
-                                    <a href="{lg_url}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
-                                        🔗 Loop
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                            
-                            # Веб-сайты
-                            websites = person_info.get('websites', [])
-                            for site in websites[:2]:
-                                site_name = site.get('name', '🌐 Website')
-                                site_url = site.get('url', '')
-                                if site_url:
-                                    st.markdown(f"""
-                                    <a href="{site_url}" target="_blank" class="coauthor-profile-link website" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#6c757d;color:white;margin-right:6px;">
-                                        🌐 {html.escape(site_name)}
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                            
-                            # Социальные ссылки
-                            social_links = person_info.get('social_links', [])
+                            # Добавляем Social links
+                            social_links = person_info.get('social_links', []) if person_info else []
                             social_icons = {
                                 'ResearchGate': '🔬',
                                 'Google Scholar': '🎓',
@@ -6189,19 +5755,14 @@ def main():
                                 'Facebook': '📘',
                                 'GitHub': '🐙',
                                 'Academia.edu': '📖',
-                                'Mendeley': '📚',
-                                'Instagram': '📷',
-                                'YouTube': '▶️'
+                                'Mendeley': '📚'
                             }
-                            for social in social_links[:2]:
-                                social_name = social.get('name', '')
-                                social_url = social.get('url', '')
-                                if social_url:
-                                    icon = social_icons.get(social_name, '🔗')
-                                    display_name = social_name
+                            for item in social_links[:2]:
+                                if item.get('url'):
+                                    icon = social_icons.get(item.get('name', ''), '🔗')
                                     st.markdown(f"""
-                                    <a href="{social_url}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
-                                        {icon} {html.escape(display_name)}
+                                    <a href="{item['url']}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
+                                        {icon} {item.get('name', 'Social')[:15]}
                                     </a>
                                     """, unsafe_allow_html=True)
                             
@@ -6216,6 +5777,7 @@ def main():
                                     t('year'): pub.get('publication_year', 'N/A'),
                                     t('journal'): (pub.get('journal_name') or 'Unknown')[:40],
                                     t('citations'): pub.get('cited_by_count', 0),
+                                    t('citations_per_year'): f"{pub.get('citations_per_year', 0):.1f}",
                                     'DOI': pub.get('doi', ''),
                                     'Type': pub.get('source_category', 'unknown')
                                 })
@@ -6236,7 +5798,12 @@ def main():
                     images = author_data.get('images', {})
                     coauthor_profiles = profile.get('coauthor_profiles', {})
                     
+                    # ORCID как кликабельная ссылка
+                    orcid_display = profile.get('orcid', 'N/A')
+                    orcid_link = f'<a href="https://orcid.org/{orcid_display}" target="_blank" style="color: #2980B9; text-decoration: none;">{orcid_display}</a>' if orcid_display != 'N/A' else 'N/A'
+                    
                     st.markdown(f"### {t('single_author', name=author_name, h_index=profile.get('h_index', 0))}")
+                    st.markdown(f"**{t('orcid')}:** {orcid_link}", unsafe_allow_html=True)
                     
                     if profile.get('retractions', 0) > 0:
                         st.error(t('retraction_warning', count=profile.get('retractions', 0)))
@@ -6262,26 +5829,6 @@ def main():
                         st.metric(t('open_access'), f"{profile.get('oa_percentage', 0):.1f}%")
                     with col4:
                         st.metric(t('active_years'), profile.get('active_years', 0))
-                    
-                    # ORCID Publications Info
-                    total_orcid_publications = profile.get('total_orcid_publications', 0)
-                    orcid_without_doi_count = profile.get('orcid_publications_without_doi_count', 0)
-                    orcid_without_doi = profile.get('orcid_publications_without_doi', [])
-                    
-                    if total_orcid_publications > 0:
-                        st.markdown(f"""
-                        <div style="padding: 10px; background: #f0f7ff; border-radius: 6px; border-left: 4px solid #1a73e8; margin: 10px 0;">
-                            <strong>📚 {t('orcid_publications_total')}:</strong> {total_orcid_publications} &nbsp;|&nbsp; 
-                            <strong>📄 {t('orcid_without_doi')}:</strong> {orcid_without_doi_count}
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        if orcid_without_doi_count > 0:
-                            with st.expander(f"📋 {t('orcid_publications_list')} ({orcid_without_doi_count} {t('orcid_without_doi')})"):
-                                for pub in orcid_without_doi[:20]:
-                                    st.markdown(f"• **{pub.get('title', 'No title')}** — {pub.get('year', '')} {f'— {pub.get("journal", "")}' if pub.get('journal') else ''} {'🔗' if pub.get('url') else ''} ⚠️ {t('source_no_doi')}")
-                                if len(orcid_without_doi) > 20:
-                                    st.caption(t('showing_limited', shown=20, total=len(orcid_without_doi)))
                     
                     if images.get('years_chart'):
                         st.image(f"data:image/png;base64,{images['years_chart']}", width='stretch')
@@ -6377,11 +5924,10 @@ def main():
                             'repositories': 'source_repositories',
                             'ebooks': 'source_ebooks',
                             'proceedings': 'source_proceedings',
-                            'other': 'source_other',
-                            'from_orcid': 'source_from_orcid'
+                            'other': 'source_other'
                         }
                         
-                        category_order = ['repositories', 'ebooks', 'proceedings', 'other', 'from_orcid']
+                        category_order = ['repositories', 'ebooks', 'proceedings', 'other']
                         
                         for cat in category_order:
                             if cat in source_categories:
@@ -6393,17 +5939,12 @@ def main():
                                 
                                 with st.expander(f"{label} ({count})"):
                                     if items:
-                                        for item in items[:5]:
+                                        for item in items[:3]:
                                             title = item.get('title', 'No title')
                                             doi = item.get('doi', '')
                                             item_id = item.get('id', '')
                                             
-                                            if cat == 'from_orcid':
-                                                if item_id:
-                                                    st.markdown(f"• **{title[:80]}** — [🔗 {t('source_view_link')} (ORCID)]({item_id}) ⚠️ {t('source_no_doi')}")
-                                                else:
-                                                    st.markdown(f"• **{title[:80]}** ⚠️ {t('source_no_doi')}")
-                                            elif doi:
+                                            if doi:
                                                 st.markdown(f"• **{title[:80]}** — [DOI: {doi}](https://doi.org/{doi}) ✅")
                                             elif item_id:
                                                 st.markdown(f"• **{title[:80]}** — [🔗 {t('source_view_link')}]({item_id}) ⚠️ {t('source_no_doi')}")
@@ -6443,106 +5984,41 @@ def main():
                                 <span class="coauthor-no-orcid">{t('no_orcid_found')}</span>
                                 """, unsafe_allow_html=True)
                             
-                            # Добавляем внешние профили из ORCID API
-                            external_ids = person_info.get('external_ids', {})
+                            # Добавляем Other IDs (Scopus, ResearcherID и др.)
+                            other_ids = person_info.get('other_ids', []) if person_info else []
+                            for item in other_ids:
+                                if item.get('url'):
+                                    if 'Scopus' in item.get('name', ''):
+                                        st.markdown(f"""
+                                        <a href="{item['url']}" target="_blank" class="coauthor-profile-link scopus" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#e97132;color:white;margin-right:6px;">
+                                            📚 {t('coauthor_scopus')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
+                                    elif 'ResearcherID' in item.get('name', '') or 'Web of Science' in item.get('name', ''):
+                                        st.markdown(f"""
+                                        <a href="{item['url']}" target="_blank" class="coauthor-profile-link researcherid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#005a9c;color:white;margin-right:6px;">
+                                            🆔 {t('coauthor_researcherid')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
+                                    else:
+                                        st.markdown(f"""
+                                        <a href="{item['url']}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
+                                            🔗 {item.get('name', 'Other')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
                             
-                            # Scopus
-                            if 'scopus' in external_ids:
-                                scopus_data = external_ids['scopus']
-                                scopus_url = scopus_data.get('url', '')
-                                scopus_value = scopus_data.get('value', '')
-                                if scopus_url:
+                            # Добавляем Websites
+                            websites = person_info.get('websites', []) if person_info else []
+                            for item in websites[:2]:
+                                if item.get('url'):
                                     st.markdown(f"""
-                                    <a href="{scopus_url}" target="_blank" class="coauthor-profile-link scopus" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#e97132;color:white;margin-right:6px;">
-                                        📚 {t('coauthor_scopus')}
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                                elif scopus_value:
-                                    st.markdown(f"""
-                                    <a href="https://www.scopus.com/authid/detail.uri?authorId={scopus_value}" target="_blank" class="coauthor-profile-link scopus" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#e97132;color:white;margin-right:6px;">
-                                        📚 {t('coauthor_scopus')}
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                            
-                            # ResearcherID
-                            if 'researcherid' in external_ids:
-                                rid_data = external_ids['researcherid']
-                                rid_url = rid_data.get('url', '')
-                                rid_value = rid_data.get('value', '')
-                                if rid_url:
-                                    st.markdown(f"""
-                                    <a href="{rid_url}" target="_blank" class="coauthor-profile-link researcherid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#005a9c;color:white;margin-right:6px;">
-                                        🆔 {t('coauthor_researcherid')}
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                                elif rid_value:
-                                    st.markdown(f"""
-                                    <a href="https://www.webofscience.com/wos/author/record/{rid_value}" target="_blank" class="coauthor-profile-link researcherid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#005a9c;color:white;margin-right:6px;">
-                                        🆔 {t('coauthor_researcherid')}
+                                    <a href="{item['url']}" target="_blank" class="coauthor-profile-link website" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#6c757d;color:white;margin-right:6px;">
+                                        🌐 {item.get('name', 'Website')[:20]}
                                     </a>
                                     """, unsafe_allow_html=True)
                             
-                            # Google Scholar
-                            if 'googlescholar' in external_ids:
-                                gs_data = external_ids['googlescholar']
-                                gs_url = gs_data.get('url', '')
-                                gs_value = gs_data.get('value', '')
-                                if gs_url:
-                                    st.markdown(f"""
-                                    <a href="{gs_url}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
-                                        🎓 Google Scholar
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                                elif gs_value:
-                                    st.markdown(f"""
-                                    <a href="https://scholar.google.com/citations?user={gs_value}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
-                                        🎓 Google Scholar
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                            
-                            # Web of Science / WOS
-                            if 'wos' in external_ids:
-                                wos_data = external_ids['wos']
-                                wos_url = wos_data.get('url', '')
-                                wos_value = wos_data.get('value', '')
-                                if wos_url:
-                                    st.markdown(f"""
-                                    <a href="{wos_url}" target="_blank" class="coauthor-profile-link researcherid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#005a9c;color:white;margin-right:6px;">
-                                        🌐 Web of Science
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                                elif wos_value:
-                                    st.markdown(f"""
-                                    <a href="https://www.webofscience.com/wos/author/record/{wos_value}" target="_blank" class="coauthor-profile-link researcherid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#005a9c;color:white;margin-right:6px;">
-                                        🌐 Web of Science
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                            
-                            # Loop / Elsevier
-                            if 'lg' in external_ids:
-                                lg_data = external_ids['lg']
-                                lg_url = lg_data.get('url', '')
-                                if lg_url:
-                                    st.markdown(f"""
-                                    <a href="{lg_url}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
-                                        🔗 Loop
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                            
-                            # Веб-сайты
-                            websites = person_info.get('websites', [])
-                            for site in websites[:2]:
-                                site_name = site.get('name', '🌐 Website')
-                                site_url = site.get('url', '')
-                                if site_url:
-                                    st.markdown(f"""
-                                    <a href="{site_url}" target="_blank" class="coauthor-profile-link website" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#6c757d;color:white;margin-right:6px;">
-                                        🌐 {html.escape(site_name)}
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                            
-                            # Социальные ссылки
-                            social_links = person_info.get('social_links', [])
+                            # Добавляем Social links
+                            social_links = person_info.get('social_links', []) if person_info else []
                             social_icons = {
                                 'ResearchGate': '🔬',
                                 'Google Scholar': '🎓',
@@ -6552,19 +6028,14 @@ def main():
                                 'Facebook': '📘',
                                 'GitHub': '🐙',
                                 'Academia.edu': '📖',
-                                'Mendeley': '📚',
-                                'Instagram': '📷',
-                                'YouTube': '▶️'
+                                'Mendeley': '📚'
                             }
-                            for social in social_links[:2]:
-                                social_name = social.get('name', '')
-                                social_url = social.get('url', '')
-                                if social_url:
-                                    icon = social_icons.get(social_name, '🔗')
-                                    display_name = social_name
+                            for item in social_links[:2]:
+                                if item.get('url'):
+                                    icon = social_icons.get(item.get('name', ''), '🔗')
                                     st.markdown(f"""
-                                    <a href="{social_url}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
-                                        {icon} {html.escape(display_name)}
+                                    <a href="{item['url']}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
+                                        {icon} {item.get('name', 'Social')[:15]}
                                     </a>
                                     """, unsafe_allow_html=True)
                             
@@ -6579,6 +6050,7 @@ def main():
                                     t('year'): pub.get('publication_year', 'N/A'),
                                     t('journal'): pub.get('journal_name', 'Unknown')[:40],
                                     t('citations'): pub.get('cited_by_count', 0),
+                                    t('citations_per_year'): f"{pub.get('citations_per_year', 0):.1f}",
                                     'OA': '✅' if pub.get('is_oa', False) else '❌',
                                     'DOI': pub.get('doi', ''),
                                     'Type': pub.get('source_category', 'unknown')
@@ -6594,7 +6066,12 @@ def main():
                     images = best_author.get('images', {})
                     coauthor_profiles = profile.get('coauthor_profiles', {})
                     
+                    # ORCID как кликабельная ссылка
+                    orcid_display = profile.get('orcid', 'N/A')
+                    orcid_link = f'<a href="https://orcid.org/{orcid_display}" target="_blank" style="color: #2980B9; text-decoration: none;">{orcid_display}</a>' if orcid_display != 'N/A' else 'N/A'
+                    
                     st.markdown(f"### {t('best_author', name=author_name, h_index=profile.get('h_index', 0))}")
+                    st.markdown(f"**{t('orcid')}:** {orcid_link}", unsafe_allow_html=True)
                     
                     if profile.get('retractions', 0) > 0:
                         st.error(t('retraction_warning', count=profile.get('retractions', 0)))
@@ -6620,26 +6097,6 @@ def main():
                         st.metric(t('open_access'), f"{profile.get('oa_percentage', 0):.1f}%")
                     with col4:
                         st.metric(t('active_years'), profile.get('active_years', 0))
-                    
-                    # ORCID Publications Info
-                    total_orcid_publications = profile.get('total_orcid_publications', 0)
-                    orcid_without_doi_count = profile.get('orcid_publications_without_doi_count', 0)
-                    orcid_without_doi = profile.get('orcid_publications_without_doi', [])
-                    
-                    if total_orcid_publications > 0:
-                        st.markdown(f"""
-                        <div style="padding: 10px; background: #f0f7ff; border-radius: 6px; border-left: 4px solid #1a73e8; margin: 10px 0;">
-                            <strong>📚 {t('orcid_publications_total')}:</strong> {total_orcid_publications} &nbsp;|&nbsp; 
-                            <strong>📄 {t('orcid_without_doi')}:</strong> {orcid_without_doi_count}
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        if orcid_without_doi_count > 0:
-                            with st.expander(f"📋 {t('orcid_publications_list')} ({orcid_without_doi_count} {t('orcid_without_doi')})"):
-                                for pub in orcid_without_doi[:20]:
-                                    st.markdown(f"• **{pub.get('title', 'No title')}** — {pub.get('year', '')} {f'— {pub.get("journal", "")}' if pub.get('journal') else ''} {'🔗' if pub.get('url') else ''} ⚠️ {t('source_no_doi')}")
-                                if len(orcid_without_doi) > 20:
-                                    st.caption(t('showing_limited', shown=20, total=len(orcid_without_doi)))
                     
                     if images.get('years_chart'):
                         st.image(f"data:image/png;base64,{images['years_chart']}", width='stretch')
@@ -6735,11 +6192,10 @@ def main():
                             'repositories': 'source_repositories',
                             'ebooks': 'source_ebooks',
                             'proceedings': 'source_proceedings',
-                            'other': 'source_other',
-                            'from_orcid': 'source_from_orcid'
+                            'other': 'source_other'
                         }
                         
-                        category_order = ['repositories', 'ebooks', 'proceedings', 'other', 'from_orcid']
+                        category_order = ['repositories', 'ebooks', 'proceedings', 'other']
                         
                         for cat in category_order:
                             if cat in source_categories:
@@ -6751,17 +6207,12 @@ def main():
                                 
                                 with st.expander(f"{label} ({count})"):
                                     if items:
-                                        for item in items[:5]:
+                                        for item in items[:3]:
                                             title = item.get('title', 'No title')
                                             doi = item.get('doi', '')
                                             item_id = item.get('id', '')
                                             
-                                            if cat == 'from_orcid':
-                                                if item_id:
-                                                    st.markdown(f"• **{title[:80]}** — [🔗 {t('source_view_link')} (ORCID)]({item_id}) ⚠️ {t('source_no_doi')}")
-                                                else:
-                                                    st.markdown(f"• **{title[:80]}** ⚠️ {t('source_no_doi')}")
-                                            elif doi:
+                                            if doi:
                                                 st.markdown(f"• **{title[:80]}** — [DOI: {doi}](https://doi.org/{doi}) ✅")
                                             elif item_id:
                                                 st.markdown(f"• **{title[:80]}** — [🔗 {t('source_view_link')}]({item_id}) ⚠️ {t('source_no_doi')}")
@@ -6801,106 +6252,41 @@ def main():
                                 <span class="coauthor-no-orcid">{t('no_orcid_found')}</span>
                                 """, unsafe_allow_html=True)
                             
-                            # Добавляем внешние профили из ORCID API
-                            external_ids = person_info.get('external_ids', {})
+                            # Добавляем Other IDs (Scopus, ResearcherID и др.)
+                            other_ids = person_info.get('other_ids', []) if person_info else []
+                            for item in other_ids:
+                                if item.get('url'):
+                                    if 'Scopus' in item.get('name', ''):
+                                        st.markdown(f"""
+                                        <a href="{item['url']}" target="_blank" class="coauthor-profile-link scopus" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#e97132;color:white;margin-right:6px;">
+                                            📚 {t('coauthor_scopus')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
+                                    elif 'ResearcherID' in item.get('name', '') or 'Web of Science' in item.get('name', ''):
+                                        st.markdown(f"""
+                                        <a href="{item['url']}" target="_blank" class="coauthor-profile-link researcherid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#005a9c;color:white;margin-right:6px;">
+                                            🆔 {t('coauthor_researcherid')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
+                                    else:
+                                        st.markdown(f"""
+                                        <a href="{item['url']}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
+                                            🔗 {item.get('name', 'Other')}
+                                        </a>
+                                        """, unsafe_allow_html=True)
                             
-                            # Scopus
-                            if 'scopus' in external_ids:
-                                scopus_data = external_ids['scopus']
-                                scopus_url = scopus_data.get('url', '')
-                                scopus_value = scopus_data.get('value', '')
-                                if scopus_url:
+                            # Добавляем Websites
+                            websites = person_info.get('websites', []) if person_info else []
+                            for item in websites[:2]:
+                                if item.get('url'):
                                     st.markdown(f"""
-                                    <a href="{scopus_url}" target="_blank" class="coauthor-profile-link scopus" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#e97132;color:white;margin-right:6px;">
-                                        📚 {t('coauthor_scopus')}
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                                elif scopus_value:
-                                    st.markdown(f"""
-                                    <a href="https://www.scopus.com/authid/detail.uri?authorId={scopus_value}" target="_blank" class="coauthor-profile-link scopus" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#e97132;color:white;margin-right:6px;">
-                                        📚 {t('coauthor_scopus')}
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                            
-                            # ResearcherID
-                            if 'researcherid' in external_ids:
-                                rid_data = external_ids['researcherid']
-                                rid_url = rid_data.get('url', '')
-                                rid_value = rid_data.get('value', '')
-                                if rid_url:
-                                    st.markdown(f"""
-                                    <a href="{rid_url}" target="_blank" class="coauthor-profile-link researcherid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#005a9c;color:white;margin-right:6px;">
-                                        🆔 {t('coauthor_researcherid')}
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                                elif rid_value:
-                                    st.markdown(f"""
-                                    <a href="https://www.webofscience.com/wos/author/record/{rid_value}" target="_blank" class="coauthor-profile-link researcherid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#005a9c;color:white;margin-right:6px;">
-                                        🆔 {t('coauthor_researcherid')}
+                                    <a href="{item['url']}" target="_blank" class="coauthor-profile-link website" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#6c757d;color:white;margin-right:6px;">
+                                        🌐 {item.get('name', 'Website')[:20]}
                                     </a>
                                     """, unsafe_allow_html=True)
                             
-                            # Google Scholar
-                            if 'googlescholar' in external_ids:
-                                gs_data = external_ids['googlescholar']
-                                gs_url = gs_data.get('url', '')
-                                gs_value = gs_data.get('value', '')
-                                if gs_url:
-                                    st.markdown(f"""
-                                    <a href="{gs_url}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
-                                        🎓 Google Scholar
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                                elif gs_value:
-                                    st.markdown(f"""
-                                    <a href="https://scholar.google.com/citations?user={gs_value}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
-                                        🎓 Google Scholar
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                            
-                            # Web of Science / WOS
-                            if 'wos' in external_ids:
-                                wos_data = external_ids['wos']
-                                wos_url = wos_data.get('url', '')
-                                wos_value = wos_data.get('value', '')
-                                if wos_url:
-                                    st.markdown(f"""
-                                    <a href="{wos_url}" target="_blank" class="coauthor-profile-link researcherid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#005a9c;color:white;margin-right:6px;">
-                                        🌐 Web of Science
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                                elif wos_value:
-                                    st.markdown(f"""
-                                    <a href="https://www.webofscience.com/wos/author/record/{wos_value}" target="_blank" class="coauthor-profile-link researcherid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#005a9c;color:white;margin-right:6px;">
-                                        🌐 Web of Science
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                            
-                            # Loop / Elsevier
-                            if 'lg' in external_ids:
-                                lg_data = external_ids['lg']
-                                lg_url = lg_data.get('url', '')
-                                if lg_url:
-                                    st.markdown(f"""
-                                    <a href="{lg_url}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
-                                        🔗 Loop
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                            
-                            # Веб-сайты
-                            websites = person_info.get('websites', [])
-                            for site in websites[:2]:
-                                site_name = site.get('name', '🌐 Website')
-                                site_url = site.get('url', '')
-                                if site_url:
-                                    st.markdown(f"""
-                                    <a href="{site_url}" target="_blank" class="coauthor-profile-link website" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#6c757d;color:white;margin-right:6px;">
-                                        🌐 {html.escape(site_name)}
-                                    </a>
-                                    """, unsafe_allow_html=True)
-                            
-                            # Социальные ссылки
-                            social_links = person_info.get('social_links', [])
+                            # Добавляем Social links
+                            social_links = person_info.get('social_links', []) if person_info else []
                             social_icons = {
                                 'ResearchGate': '🔬',
                                 'Google Scholar': '🎓',
@@ -6910,19 +6296,14 @@ def main():
                                 'Facebook': '📘',
                                 'GitHub': '🐙',
                                 'Academia.edu': '📖',
-                                'Mendeley': '📚',
-                                'Instagram': '📷',
-                                'YouTube': '▶️'
+                                'Mendeley': '📚'
                             }
-                            for social in social_links[:2]:
-                                social_name = social.get('name', '')
-                                social_url = social.get('url', '')
-                                if social_url:
-                                    icon = social_icons.get(social_name, '🔗')
-                                    display_name = social_name
+                            for item in social_links[:2]:
+                                if item.get('url'):
+                                    icon = social_icons.get(item.get('name', ''), '🔗')
                                     st.markdown(f"""
-                                    <a href="{social_url}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
-                                        {icon} {html.escape(display_name)}
+                                    <a href="{item['url']}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
+                                        {icon} {item.get('name', 'Social')[:15]}
                                     </a>
                                     """, unsafe_allow_html=True)
                             
@@ -6937,6 +6318,7 @@ def main():
                                     t('year'): pub.get('publication_year', 'N/A'),
                                     t('journal'): pub.get('journal_name', 'Unknown')[:40],
                                     t('citations'): pub.get('cited_by_count', 0),
+                                    t('citations_per_year'): f"{pub.get('citations_per_year', 0):.1f}",
                                     'OA': '✅' if pub.get('is_oa', False) else '❌',
                                     'DOI': pub.get('doi', ''),
                                     'Type': pub.get('source_category', 'unknown')
