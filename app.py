@@ -4003,7 +4003,6 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
             <div class="header">
                 {f'<img src="data:image/png;base64,{app_logo_base64}" class="header-logo-app" alt="App Logo">' if app_logo_base64 else ''}
                 {f'<img src="data:image/png;base64,{logo_base64}" class="header-logo" alt="Journal Logo">' if logo_base64 else ''}
-                <h1>📊 {t('app_title')}</h1>
                 <div class="date">{t('report_preview')}: {datetime.now().strftime('%d.%m.%Y')}</div>
             </div>
             
