@@ -1878,7 +1878,7 @@ async def get_institution_homepages(institution_ids: List[str], session) -> Dict
 
 async def get_orcid_person_info(orcid: str, session) -> Dict:
     """
-    Получает информацию о персональных профилях (Scopus, ResearcherID и др.)
+    Получает информацию о персональных профилях (Scopus, ResearcherID, Websites, Social links и др.)
     из API ORCID для указанного ORCID
     """
     if not orcid:
@@ -1897,6 +1897,8 @@ async def get_orcid_person_info(orcid: str, session) -> Dict:
     data = await fetch_with_retry(session, url, headers=headers)
     
     if not data:
+        if SHOW_DEBUG_LOGS:
+            print(f"⚠️ Не удалось получить персональные данные для {orcid_clean}")
         return {}
     
     external_ids = {}
@@ -1905,36 +1907,117 @@ async def get_orcid_person_info(orcid: str, session) -> Dict:
         # Извлекаем внешние идентификаторы
         external_ids_data = data.get('external-identifiers', {}).get('external-identifier', [])
         
+        if SHOW_DEBUG_LOGS:
+            print(f"  Найдено внешних идентификаторов: {len(external_ids_data)}")
+        
         for ext_id in external_ids_data:
             ext_type = ext_id.get('external-id-type', '').lower()
             ext_value = ext_id.get('external-id-value', '')
             ext_url = ext_id.get('external-id-url', {}).get('value', '')
             
             if ext_type and ext_value:
+                # Создаем URL если его нет
+                if not ext_url:
+                    ext_url = _build_external_id_url(ext_type, ext_value)
+                
                 external_ids[ext_type] = {
                     'value': ext_value,
                     'url': ext_url
                 }
+                
+                if SHOW_DEBUG_LOGS:
+                    print(f"    - {ext_type}: {ext_value}")
         
-        # Также можно получить персональные веб-страницы
+        # Извлекаем персональные веб-страницы (researcher-urls)
         websites = []
         researcher_urls = data.get('researcher-urls', {}).get('researcher-url', [])
+        
+        if SHOW_DEBUG_LOGS:
+            print(f"  Найдено веб-страниц: {len(researcher_urls)}")
+        
         for url_item in researcher_urls:
             url_value = url_item.get('url', {}).get('value', '')
+            url_name = url_item.get('url-name', '')
             if url_value:
-                websites.append(url_value)
+                websites.append({
+                    'url': url_value,
+                    'name': url_name or 'Personal website'
+                })
         
         if websites:
+            # Сохраняем все сайты как список
+            external_ids['websites'] = websites
+            # Для обратной совместимости сохраняем первый сайт как 'website'
             external_ids['website'] = {
-                'value': ', '.join(websites[:3]),
-                'url': websites[0] if websites else ''
+                'value': websites[0].get('name', 'Personal website'),
+                'url': websites[0].get('url', '')
             }
+        
+        # Извлекаем другие идентификаторы из external-identifiers
+        # которые могут включать LinkedIn, Twitter, Facebook, ResearchGate, Academia, Mendeley, Publons
+        social_ids = ['linkedin', 'twitter', 'facebook', 'researchgate', 'academia', 'mendeley', 'publons']
+        
+        for social_id in social_ids:
+            # Проверяем, есть ли такой идентификатор в уже собранных
+            # Если нет, но он есть в raw данных, добавляем
+            if social_id not in external_ids:
+                # Ищем в raw данных по частичному совпадению
+                for ext_id in external_ids_data:
+                    ext_type = ext_id.get('external-id-type', '').lower()
+                    if social_id in ext_type or ext_type in social_id:
+                        ext_value = ext_id.get('external-id-value', '')
+                        ext_url = ext_id.get('external-id-url', {}).get('value', '')
+                        if ext_value:
+                            if not ext_url:
+                                ext_url = _build_external_id_url(ext_type, ext_value)
+                            external_ids[social_id] = {
+                                'value': ext_value,
+                                'url': ext_url
+                            }
+                            break
+        
+        if SHOW_DEBUG_LOGS:
+            print(f"  Итоговые профили: {list(external_ids.keys())}")
         
     except Exception as e:
         if SHOW_DEBUG_LOGS:
             print(f"⚠️ Ошибка парсинга персональной информации ORCID: {e}")
+            import traceback
+            traceback.print_exc()
     
     return external_ids
+
+
+def _build_external_id_url(ext_type: str, ext_value: str) -> str:
+    """Строит URL для внешнего идентификатора на основе типа"""
+    ext_type_lower = ext_type.lower()
+    
+    # Карта типов идентификаторов и соответствующих URL
+    url_templates = {
+        'scopus': f"https://www.scopus.com/authid/detail.uri?authorId={ext_value}",
+        'researcherid': f"https://www.researcherid.com/rid/{ext_value}",
+        'orcid': f"https://orcid.org/{ext_value}",
+        'linkedin': f"https://www.linkedin.com/in/{ext_value}",
+        'twitter': f"https://twitter.com/{ext_value}",
+        'facebook': f"https://www.facebook.com/{ext_value}",
+        'researchgate': f"https://www.researchgate.net/profile/{ext_value}",
+        'academia': f"https://independent.academia.edu/{ext_value}",
+        'mendeley': f"https://www.mendeley.com/profiles/{ext_value}/",
+        'publons': f"https://publons.com/researcher/{ext_value}/",
+        'loop': f"https://loop.frontiersin.org/people/{ext_value}/",
+        'impactstory': f"https://impactstory.org/u/{ext_value}",
+        'google-scholar': f"https://scholar.google.com/citations?user={ext_value}",
+        'github': f"https://github.com/{ext_value}",
+        'orcid': f"https://orcid.org/{ext_value}"
+    }
+    
+    # Ищем совпадение по частичному вхождению
+    for key, url_template in url_templates.items():
+        if key in ext_type_lower or ext_type_lower in key:
+            return url_template
+    
+    # Если шаблон не найден, возвращаем пустую строку
+    return ""
 
 # ============================================
 # КЛАСС ДЛЯ АНАЛИЗА ПРОФИЛЯ УЧЕНОГО
@@ -2590,6 +2673,7 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
         
         if 'coauthor_profiles' in cached_data:
             analyzer.coauthor_profiles = cached_data['coauthor_profiles']
+            print(f"📊 Загружено профилей соавторов из кэша: {len(analyzer.coauthor_profiles)}")
         
         return analyzer, analyzer.profile, analyzer.publications
     
@@ -2624,7 +2708,6 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
         
         doi_batches = list(chunks(all_dois, BATCH_SIZE))
         
-        # Вместо tqdm используем простой вывод прогресса
         print(f"📚 Обработка {len(doi_batches)} батчей метаданных OpenAlex...")
         
         for batch_idx, batch in enumerate(doi_batches, 1):
@@ -2662,11 +2745,22 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
         print("🔍 Получение персональной информации для соавторов...")
         coauthor_profiles = {}
         
+        # Сначала анализируем публикации, чтобы собрать соавторов
+        analyzer.analyze_publications()
+        
         # Получаем список уникальных ORCID соавторов
         unique_coauthor_orcids = set()
         for name, data in analyzer.coauthors_with_orcids.items():
             if data.get('orcid'):
-                unique_coauthor_orcids.add(data['orcid'])
+                # Очищаем ORCID от префикса https://orcid.org/
+                orcid_clean_for_coauthor = data['orcid'].replace('https://orcid.org/', '').strip()
+                if orcid_clean_for_coauthor:
+                    unique_coauthor_orcids.add(orcid_clean_for_coauthor)
+        
+        if SHOW_DEBUG_LOGS:
+            print(f"  Найдено уникальных ORCID соавторов: {len(unique_coauthor_orcids)}")
+            for oc in list(unique_coauthor_orcids)[:5]:
+                print(f"    - {oc}")
         
         if unique_coauthor_orcids:
             print(f"  Получение профилей для {len(unique_coauthor_orcids)} соавторов...")
@@ -2679,7 +2773,13 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
             
             async def fetch_coauthor_profile(orcid_id: str):
                 async with semaphore:
-                    return orcid_id, await get_orcid_person_info(orcid_id, session)
+                    try:
+                        person_info = await get_orcid_person_info(orcid_id, session)
+                        return orcid_id, person_info
+                    except Exception as e:
+                        if SHOW_DEBUG_LOGS:
+                            print(f"    ⚠️ Ошибка получения профиля для {orcid_id}: {e}")
+                        return orcid_id, {}
             
             # Параллельные запросы через asyncio.gather
             tasks = [fetch_coauthor_profile(orcid_id) for orcid_id in coauthor_orcids_list]
@@ -2689,12 +2789,21 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
             for orcid_id, person_info in results:
                 if person_info:
                     coauthor_profiles[orcid_id] = person_info
+                    if SHOW_DEBUG_LOGS:
+                        print(f"    ✅ Получен профиль для {orcid_id}: {list(person_info.keys())}")
             
-            print(f"✅ Получено профилей для {len(coauthor_profiles)} соавторов")
+            print(f"  ✅ Получено профилей для {len(coauthor_profiles)} соавторов")
+            
+            # Если есть соавторы без ORCID, но с именем, можно попробовать поискать по имени
+            # Но это会增加 сложность, оставляем как есть
+        else:
+            print("  ℹ️ Нет ORCID соавторов для запроса")
         
         # Сохраняем профили соавторов в analyzer
         analyzer.coauthor_profiles = coauthor_profiles
         
+        # Повторно анализируем публикации с учетом профилей соавторов
+        # (это нужно, чтобы добавить профили в топ соавторов)
         analyzer.analyze_publications()
         
         # Добавляем профили соавторов в профиль для кэширования
@@ -3212,10 +3321,8 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     domestic_papers = collaborations.get('domestic_papers', 0)
     international_papers = collaborations.get('international_papers', 0)
     
-    # Получаем данные по типам источников
     source_categories = profile.get('source_categories', {})
     
-    # Карта категорий для отображения
     category_labels = {
         'articles': {'en': 'source_journal_articles', 'ru': 'source_journal_articles'},
         'repositories': {'en': 'source_repositories', 'ru': 'source_repositories'},
@@ -3224,17 +3331,14 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
         'other': {'en': 'source_other', 'ru': 'source_other'}
     }
     
-    # ====== ФИЛЬТРАЦИЯ: Удаляем аффилиации автора из коллабораций при отображении ======
     author_affils = set(profile.get('author_affiliations', []))
     
-    # Фильтруем domestic коллаборации для отображения
     domestic_collab_filtered = {}
     for country, affils_dict in collaborations.get('domestic', {}).items():
         filtered_affils = {k: v for k, v in affils_dict.items() if k not in author_affils}
         if filtered_affils:
             domestic_collab_filtered[country] = filtered_affils
     
-    # Фильтруем international коллаборации для отображения
     international_collab_filtered = {}
     for country, affils_dict in collaborations.get('international', {}).items():
         filtered_affils = {k: v for k, v in affils_dict.items() if k not in author_affils}
@@ -3249,20 +3353,23 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     
     css_vars = generate_css_variables(primary, secondary)
     
-    # Заголовки на выбранном языке
     def t(key: str, **kwargs) -> str:
         return translate(key, lang, **kwargs)
     
-    # ====== Генерация карточек соавторов ======
     coauthors_html = ""
     if top_coauthors_with_orcids:
         for name, data in list(top_coauthors_with_orcids.items()):
             count = data.get('count', 0)
             orcid = data.get('orcid', '')
             
-            # Получаем персональные профили для этого соавтора
-            coauthor_profiles_dict = coauthor_profiles or {}
-            person_info = coauthor_profiles_dict.get(orcid, {}) if orcid else {}
+            clean_orcid_for_lookup = orcid.replace('https://orcid.org/', '').strip() if orcid else ''
+            
+            person_info = {}
+            if coauthor_profiles:
+                if clean_orcid_for_lookup and clean_orcid_for_lookup in coauthor_profiles:
+                    person_info = coauthor_profiles.get(clean_orcid_for_lookup, {})
+                elif orcid and orcid in coauthor_profiles:
+                    person_info = coauthor_profiles.get(orcid, {})
             
             coauthors_html += f"""
             <div class="coauthor-card">
@@ -3271,9 +3378,9 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 <div class="coauthor-profiles">
             """
             
-            # Добавляем ORCID если есть
             if orcid:
-                orcid_url = f"https://orcid.org/{orcid}"
+                orcid_clean = orcid.replace('https://orcid.org/', '').strip()
+                orcid_url = f"https://orcid.org/{orcid_clean}"
                 coauthors_html += f"""
                     <a href="{orcid_url}" target="_blank" class="coauthor-profile-link orcid">
                         🆔 {t('coauthor_orcid')}
@@ -3284,9 +3391,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                     <span class="coauthor-no-orcid">{t('no_orcid_found')}</span>
                 """
             
-            # Добавляем внешние профили из ORCID API
             if person_info:
-                # Scopus
                 if 'scopus' in person_info:
                     scopus_data = person_info['scopus']
                     scopus_url = scopus_data.get('url', '')
@@ -3304,7 +3409,6 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                             </a>
                         """
                 
-                # ResearcherID
                 if 'researcherid' in person_info:
                     rid_data = person_info['researcherid']
                     rid_url = rid_data.get('url', '')
@@ -3322,8 +3426,27 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                             </a>
                         """
                 
-                # Personal website
-                if 'website' in person_info:
+                if 'websites' in person_info:
+                    websites_list = person_info['websites']
+                    if isinstance(websites_list, list):
+                        for website in websites_list[:3]:
+                            website_url = website.get('url', '')
+                            website_name = website.get('name', '🌐 Website')
+                            if website_url:
+                                coauthors_html += f"""
+                                    <a href="{website_url}" target="_blank" class="coauthor-profile-link website">
+                                        🌐 {html.escape(website_name[:20])}
+                                    </a>
+                                """
+                    elif isinstance(websites_list, dict):
+                        website_url = websites_list.get('url', '')
+                        if website_url:
+                            coauthors_html += f"""
+                                <a href="{website_url}" target="_blank" class="coauthor-profile-link website">
+                                    🌐 {t('coauthor_website')}
+                                </a>
+                            """
+                elif 'website' in person_info:
                     website_data = person_info['website']
                     website_url = website_data.get('url', '')
                     if website_url:
@@ -3333,28 +3456,90 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                             </a>
                         """
                 
-                # Другие идентификаторы
-                other_ids = ['linkedin', 'twitter', 'facebook', 'researchgate', 'academia', 'mendeley', 'publons']
-                found_other = False
-                for other_id in other_ids:
-                    if other_id in person_info:
-                        other_data = person_info[other_id]
-                        other_url = other_data.get('url', '')
-                        if other_url and not found_other:
+                social_profiles = [
+                    ('linkedin', '🔗 LinkedIn'),
+                    ('twitter', '🐦 Twitter'),
+                    ('facebook', '📘 Facebook'),
+                    ('researchgate', '🔬 ResearchGate'),
+                    ('academia', '📖 Academia'),
+                    ('mendeley', '📑 Mendeley'),
+                    ('publons', '📝 Publons'),
+                    ('loop', '🔄 Loop'),
+                    ('impactstory', '📊 ImpactStory'),
+                    ('google-scholar', '🎓 Google Scholar'),
+                    ('github', '💻 GitHub')
+                ]
+                
+                found_social = False
+                for social_key, social_label in social_profiles:
+                    if social_key in person_info:
+                        social_data = person_info[social_key]
+                        social_url = social_data.get('url', '')
+                        social_value = social_data.get('value', '')
+                        
+                        if not social_url and social_value:
+                            social_url = _build_external_id_url(social_key, social_value)
+                        
+                        if social_url:
+                            social_class = "other"
+                            if social_key == 'linkedin':
+                                social_class = "linkedin"
+                            elif social_key == 'twitter':
+                                social_class = "twitter"
+                            elif social_key == 'researchgate':
+                                social_class = "researchgate"
+                            elif social_key == 'academia':
+                                social_class = "academia"
+                            elif social_key == 'mendeley':
+                                social_class = "mendeley"
+                            elif social_key == 'publons':
+                                social_class = "publons"
+                            elif social_key == 'loop':
+                                social_class = "loop"
+                            elif social_key == 'impactstory':
+                                social_class = "impactstory"
+                            elif social_key == 'google-scholar':
+                                social_class = "google-scholar"
+                            elif social_key == 'github':
+                                social_class = "github"
+                            
                             coauthors_html += f"""
-                                <a href="{other_url}" target="_blank" class="coauthor-profile-link other">
-                                    🔗 {t('coauthor_other')}
+                                <a href="{social_url}" target="_blank" class="coauthor-profile-link {social_class}">
+                                    {social_label}
                                 </a>
                             """
-                            found_other = True
-                            break
+                            found_social = True
+                
+                other_ids = set(person_info.keys()) - {'scopus', 'researcherid', 'website', 'websites', 
+                                                       'linkedin', 'twitter', 'facebook', 'researchgate', 
+                                                       'academia', 'mendeley', 'publons', 'loop', 
+                                                       'impactstory', 'google-scholar', 'github'}
+                
+                if other_ids:
+                    for other_id in other_ids:
+                        other_data = person_info[other_id]
+                        other_url = other_data.get('url', '')
+                        if other_url:
+                            coauthors_html += f"""
+                                <a href="{other_url}" target="_blank" class="coauthor-profile-link other">
+                                    🔗 {html.escape(other_id)}
+                                </a>
+                            """
+            
+            elif orcid:
+                coauthors_html += f"""
+                    <span class="coauthor-no-orcid" style="font-size:11px;">
+                        ℹ️ {t('coauthor_info')}
+                    </span>
+                """
             
             coauthors_html += """
                 </div>
             </div>
             """
+    else:
+        coauthors_html = f'<p>{t("no_publications")}</p>'
     
-    # ====== Генерация HTML для секции типов источников (исключая журнальные статьи) ======
     source_section_html = ""
     if source_categories:
         source_section_html = f"""
@@ -3370,7 +3555,6 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 <tbody>
         """
         
-        # Определяем порядок категорий для отображения (исключаем 'articles')
         category_order = ['repositories', 'ebooks', 'proceedings', 'other']
         
         for cat in category_order:
@@ -3414,7 +3598,6 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
         </div>
         """
     
-    # Проверяем наличие ретракций для отображения флага
     retraction_flag_html = ""
     if retractions > 0:
         retraction_flag_html = f"""
@@ -3815,7 +3998,6 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 margin-left: 8px;
             }}
             
-            /* Source table styles */
             .source-table {{
                 width: 100%;
                 border-collapse: collapse;
@@ -3865,7 +4047,6 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 color: #721c24;
             }}
             
-            /* Co-author card styles */
             .coauthor-card {{
                 background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
                 border-radius: 12px;
@@ -3956,6 +4137,96 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
             
             .coauthor-profile-link.website:hover {{
                 background: #5a6268;
+            }}
+            
+            .coauthor-profile-link.linkedin {{
+                background: #0077b5;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.linkedin:hover {{
+                background: #005e8c;
+            }}
+            
+            .coauthor-profile-link.twitter {{
+                background: #1da1f2;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.twitter:hover {{
+                background: #0d8bdb;
+            }}
+            
+            .coauthor-profile-link.researchgate {{
+                background: #00ccbb;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.researchgate:hover {{
+                background: #00a898;
+            }}
+            
+            .coauthor-profile-link.academia {{
+                background: #8a2be2;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.academia:hover {{
+                background: #7a1fcb;
+            }}
+            
+            .coauthor-profile-link.mendeley {{
+                background: #9d1620;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.mendeley:hover {{
+                background: #7a1118;
+            }}
+            
+            .coauthor-profile-link.publons {{
+                background: #2a7de1;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.publons:hover {{
+                background: #1d66b8;
+            }}
+            
+            .coauthor-profile-link.loop {{
+                background: #ff6b00;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.loop:hover {{
+                background: #cc5500;
+            }}
+            
+            .coauthor-profile-link.impactstory {{
+                background: #993366;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.impactstory:hover {{
+                background: #7a2950;
+            }}
+            
+            .coauthor-profile-link.google-scholar {{
+                background: #4285f4;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.google-scholar:hover {{
+                background: #3367d6;
+            }}
+            
+            .coauthor-profile-link.github {{
+                background: #24292e;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.github:hover {{
+                background: #1a1d21;
             }}
             
             .coauthor-profile-link.other {{
@@ -4302,7 +4573,6 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
     
     html_parts = []
     
-    # Если показываем только одного автора, используем generate_html_report без дублирования заголовка
     if not show_all and len(authors_to_show) == 1:
         author_data = authors_to_show[0]
         profile = author_data.get('profile', {})
@@ -4310,7 +4580,12 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
         images = author_data.get('images', {})
         analyzer = author_data.get('analyzer')
         institution_homepages = analyzer.institution_homepages if analyzer else {}
-        coauthor_profiles = profile.get('coauthor_profiles', {})
+        
+        coauthor_profiles = {}
+        if analyzer and hasattr(analyzer, 'coauthor_profiles'):
+            coauthor_profiles = analyzer.coauthor_profiles
+        if not coauthor_profiles:
+            coauthor_profiles = profile.get('coauthor_profiles', {})
         
         return generate_html_report(
             profile, 
@@ -4324,7 +4599,6 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
             coauthor_profiles
         )
     
-    # Для множественных авторов генерируем общий отчет с заголовком
     html_parts.append(f"""
     <!DOCTYPE html>
     <html>
@@ -4409,8 +4683,8 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                 margin-bottom: 15px;
             }}
             .header-logo-app {{
-                max-height: 80px;
-                max-width: 240px;
+                max-height: 120px;
+                max-width: 360px;
                 margin-bottom: 10px;
             }}
             .author-card {{
@@ -4593,7 +4867,6 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                 color: #721c24;
             }}
             
-            /* Co-author card styles */
             .coauthor-card {{
                 background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
                 border-radius: 12px;
@@ -4686,6 +4959,105 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                 background: #5a6268;
             }}
             
+            .coauthor-profile-link.linkedin {{
+                background: #0077b5;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.linkedin:hover {{
+                background: #005e8c;
+            }}
+            
+            .coauthor-profile-link.twitter {{
+                background: #1da1f2;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.twitter:hover {{
+                background: #0d8bdb;
+            }}
+            
+            .coauthor-profile-link.facebook {{
+                background: #1877f2;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.facebook:hover {{
+                background: #0d65d4;
+            }}
+            
+            .coauthor-profile-link.researchgate {{
+                background: #00ccbb;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.researchgate:hover {{
+                background: #00a898;
+            }}
+            
+            .coauthor-profile-link.academia {{
+                background: #8a2be2;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.academia:hover {{
+                background: #7a1fcb;
+            }}
+            
+            .coauthor-profile-link.mendeley {{
+                background: #9d1620;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.mendeley:hover {{
+                background: #7a1118;
+            }}
+            
+            .coauthor-profile-link.publons {{
+                background: #2a7de1;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.publons:hover {{
+                background: #1d66b8;
+            }}
+            
+            .coauthor-profile-link.loop {{
+                background: #ff6b00;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.loop:hover {{
+                background: #cc5500;
+            }}
+            
+            .coauthor-profile-link.impactstory {{
+                background: #993366;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.impactstory:hover {{
+                background: #7a2950;
+            }}
+            
+            .coauthor-profile-link.google-scholar {{
+                background: #4285f4;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.google-scholar:hover {{
+                background: #3367d6;
+            }}
+            
+            .coauthor-profile-link.github {{
+                background: #24292e;
+                color: white;
+            }}
+            
+            .coauthor-profile-link.github:hover {{
+                background: #1a1d21;
+            }}
+            
             .coauthor-profile-link.other {{
                 background: #17a2b8;
                 color: white;
@@ -4762,7 +5134,13 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
             profile = author_data.get('profile', {})
             publications = author_data.get('publications', [])
             images = create_visualizations(profile, lang) if profile else {}
-            coauthor_profiles = profile.get('coauthor_profiles', {})
+            
+            analyzer = author_data.get('analyzer')
+            coauthor_profiles = {}
+            if analyzer and hasattr(analyzer, 'coauthor_profiles'):
+                coauthor_profiles = analyzer.coauthor_profiles
+            if not coauthor_profiles:
+                coauthor_profiles = profile.get('coauthor_profiles', {})
             
             h_index = profile.get('h_index', 0)
             total_pubs = profile.get('total_publications', 0)
@@ -4774,26 +5152,19 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
             top_journals = profile.get('top_journals', {})
             top_coauthors_with_orcids = profile.get('top_coauthors_with_orcids', {})
             
-            # Получаем данные по типам источников
-            source_categories = profile.get('source_categories', {})
-            
-            category_labels = {
-                'articles': {'en': 'source_journal_articles', 'ru': 'source_journal_articles'},
-                'repositories': {'en': 'source_repositories', 'ru': 'source_repositories'},
-                'ebooks': {'en': 'source_ebooks', 'ru': 'source_ebooks'},
-                'proceedings': {'en': 'source_proceedings', 'ru': 'source_proceedings'},
-                'other': {'en': 'source_other', 'ru': 'source_other'}
-            }
-            
-            # Генерируем карточки соавторов
             coauthors_html = ""
             if top_coauthors_with_orcids:
-                for name, data in list(top_coauthors_with_orcids.items()):
+                for name, data in list(top_coauthors_with_orcids.items())[:15]:
                     count = data.get('count', 0)
                     orcid = data.get('orcid', '')
                     
-                    # Получаем персональные профили для этого соавтора
-                    person_info = coauthor_profiles.get(orcid, {}) if orcid else {}
+                    clean_orcid_for_lookup = orcid.replace('https://orcid.org/', '').strip() if orcid else ''
+                    
+                    person_info = {}
+                    if clean_orcid_for_lookup and clean_orcid_for_lookup in coauthor_profiles:
+                        person_info = coauthor_profiles.get(clean_orcid_for_lookup, {})
+                    elif orcid and orcid in coauthor_profiles:
+                        person_info = coauthor_profiles.get(orcid, {})
                     
                     coauthors_html += f"""
                     <div class="coauthor-card">
@@ -4802,9 +5173,9 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                         <div class="coauthor-profiles">
                     """
                     
-                    # Добавляем ORCID если есть
                     if orcid:
-                        orcid_url = f"https://orcid.org/{orcid}"
+                        orcid_clean = orcid.replace('https://orcid.org/', '').strip()
+                        orcid_url = f"https://orcid.org/{orcid_clean}"
                         coauthors_html += f"""
                             <a href="{orcid_url}" target="_blank" class="coauthor-profile-link orcid">
                                 🆔 {t('coauthor_orcid')}
@@ -4815,9 +5186,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                             <span class="coauthor-no-orcid">{t('no_orcid_found')}</span>
                         """
                     
-                    # Добавляем внешние профили из ORCID API
                     if person_info:
-                        # Scopus
                         if 'scopus' in person_info:
                             scopus_data = person_info['scopus']
                             scopus_url = scopus_data.get('url', '')
@@ -4835,7 +5204,6 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                                     </a>
                                 """
                         
-                        # ResearcherID
                         if 'researcherid' in person_info:
                             rid_data = person_info['researcherid']
                             rid_url = rid_data.get('url', '')
@@ -4853,8 +5221,19 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                                     </a>
                                 """
                         
-                        # Personal website
-                        if 'website' in person_info:
+                        if 'websites' in person_info:
+                            websites_list = person_info['websites']
+                            if isinstance(websites_list, list):
+                                for website in websites_list[:3]:
+                                    website_url = website.get('url', '')
+                                    website_name = website.get('name', '🌐 Website')
+                                    if website_url:
+                                        coauthors_html += f"""
+                                            <a href="{website_url}" target="_blank" class="coauthor-profile-link website">
+                                                🌐 {html.escape(website_name[:20])}
+                                            </a>
+                                        """
+                        elif 'website' in person_info:
                             website_data = person_info['website']
                             website_url = website_data.get('url', '')
                             if website_url:
@@ -4864,28 +5243,69 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                                     </a>
                                 """
                         
-                        # Другие идентификаторы
-                        other_ids = ['linkedin', 'twitter', 'facebook', 'researchgate', 'academia', 'mendeley', 'publons']
-                        found_other = False
-                        for other_id in other_ids:
-                            if other_id in person_info:
-                                other_data = person_info[other_id]
-                                other_url = other_data.get('url', '')
-                                if other_url and not found_other:
+                        social_profiles = [
+                            ('linkedin', '🔗 LinkedIn', 'linkedin'),
+                            ('twitter', '🐦 Twitter', 'twitter'),
+                            ('facebook', '📘 Facebook', 'facebook'),
+                            ('researchgate', '🔬 ResearchGate', 'researchgate'),
+                            ('academia', '📖 Academia', 'academia'),
+                            ('mendeley', '📑 Mendeley', 'mendeley'),
+                            ('publons', '📝 Publons', 'publons'),
+                            ('loop', '🔄 Loop', 'loop'),
+                            ('impactstory', '📊 ImpactStory', 'impactstory'),
+                            ('google-scholar', '🎓 Google Scholar', 'google-scholar'),
+                            ('github', '💻 GitHub', 'github')
+                        ]
+                        
+                        for social_key, social_label, social_class in social_profiles:
+                            if social_key in person_info:
+                                social_data = person_info[social_key]
+                                social_url = social_data.get('url', '')
+                                social_value = social_data.get('value', '')
+                                
+                                if not social_url and social_value:
+                                    social_url = _build_external_id_url(social_key, social_value)
+                                
+                                if social_url:
                                     coauthors_html += f"""
-                                        <a href="{other_url}" target="_blank" class="coauthor-profile-link other">
-                                            🔗 {t('coauthor_other')}
+                                        <a href="{social_url}" target="_blank" class="coauthor-profile-link {social_class}">
+                                            {social_label}
                                         </a>
                                     """
-                                    found_other = True
-                                    break
+                        
+                        other_ids = set(person_info.keys()) - {'scopus', 'researcherid', 'website', 'websites', 
+                                                               'linkedin', 'twitter', 'facebook', 'researchgate', 
+                                                               'academia', 'mendeley', 'publons', 'loop', 
+                                                               'impactstory', 'google-scholar', 'github'}
+                        
+                        if other_ids:
+                            for other_id in other_ids:
+                                other_data = person_info[other_id]
+                                other_url = other_data.get('url', '')
+                                if other_url:
+                                    coauthors_html += f"""
+                                        <a href="{other_url}" target="_blank" class="coauthor-profile-link other">
+                                            🔗 {html.escape(other_id)}
+                                        </a>
+                                    """
                     
                     coauthors_html += """
                         </div>
                     </div>
                     """
+            else:
+                coauthors_html = f'<p>{t("no_publications")}</p>'
             
-            # Генерируем HTML для секции типов источников (исключая журнальные статьи)
+            source_categories = profile.get('source_categories', {})
+            
+            category_labels = {
+                'articles': {'en': 'source_journal_articles', 'ru': 'source_journal_articles'},
+                'repositories': {'en': 'source_repositories', 'ru': 'source_repositories'},
+                'ebooks': {'en': 'source_ebooks', 'ru': 'source_ebooks'},
+                'proceedings': {'en': 'source_proceedings', 'ru': 'source_proceedings'},
+                'other': {'en': 'source_other', 'ru': 'source_other'}
+            }
+            
             source_section_html = ""
             if source_categories:
                 source_section_html = f"""
@@ -4942,13 +5362,6 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                 </table>
                 """
             
-            # Проверяем наличие ретракций для отображения флага
-            retraction_flag_html = ""
-            if retractions > 0:
-                retraction_flag_html = f"""
-                <div class="flag-retraction">⚠️ {t('retraction_warning', count=retractions)}</div>
-                """
-            
             html_parts.append(f"""
             <div id="author_{i}" class="author-section">
                 <div class="author-card {'best' if is_best and len(all_authors) > 1 else ''}">
@@ -4959,7 +5372,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                         {'<span class="best-badge">🏆 ' + t("best_author", name="", h_index="") + '</span>' if is_best and len(all_authors) > 1 else ''}
                     </div>
                     
-                    {retraction_flag_html}
+                    {'<div class="flag-retraction">⚠️ ' + t("retraction_warning", count=retractions) + '</div>' if retractions > 0 else ''}
                     
                     <div class="metrics-grid">
                         <div class="metric-card">
@@ -5002,7 +5415,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                     </div>
                     
                     <h3>{t('top_coauthors')}</h3>
-                    {coauthors_html if coauthors_html else f'<p>{t("no_publications")}</p>'}
+                    {coauthors_html}
                     
                     {source_section_html}
                     
@@ -5044,14 +5457,19 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
             """)
     
     else:
-        # Для случая show_all=False но множественных авторов (не должен происходить, но на всякий случай)
         author_data = authors_to_show[0]
         author_name = author_data.get('author_name', 'Unknown')
         profile = author_data.get('profile', {})
         publications = author_data.get('publications', [])
         analyzer = author_data.get('analyzer')
         institution_homepages = analyzer.institution_homepages if analyzer else {}
-        coauthor_profiles = profile.get('coauthor_profiles', {})
+        
+        coauthor_profiles = {}
+        if analyzer and hasattr(analyzer, 'coauthor_profiles'):
+            coauthor_profiles = analyzer.coauthor_profiles
+        if not coauthor_profiles:
+            coauthor_profiles = profile.get('coauthor_profiles', {})
+        
         images = create_visualizations(profile, lang) if profile else {}
         
         html_parts.append(generate_html_report(
@@ -5564,7 +5982,14 @@ def main():
                     
                     # ====== СЕКЦИЯ ТОП СОАВТОРОВ С ORCID ======
                     top_coauthors_with_orcids = profile.get('top_coauthors_with_orcids', {})
-                    coauthor_profiles = profile.get('coauthor_profiles', {})
+                    
+                    # Получаем coauthor_profiles из analyzer или из профиля
+                    analyzer = author_data.get('analyzer')
+                    coauthor_profiles = {}
+                    if analyzer and hasattr(analyzer, 'coauthor_profiles'):
+                        coauthor_profiles = analyzer.coauthor_profiles
+                    if not coauthor_profiles:
+                        coauthor_profiles = profile.get('coauthor_profiles', {})
                     
                     if top_coauthors_with_orcids:
                         st.markdown(f"### {t('top_coauthors')}")
@@ -5573,19 +5998,29 @@ def main():
                             count = data.get('count', 0)
                             orcid = data.get('orcid', '')
                             
+                            # Очищаем ORCID для поиска в coauthor_profiles
+                            clean_orcid_for_lookup = orcid.replace('https://orcid.org/', '').strip() if orcid else ''
+                            
                             # Получаем персональные профили для этого соавтора
-                            person_info = coauthor_profiles.get(orcid, {}) if orcid else {}
+                            person_info = {}
+                            if clean_orcid_for_lookup and clean_orcid_for_lookup in coauthor_profiles:
+                                person_info = coauthor_profiles.get(clean_orcid_for_lookup, {})
+                            elif orcid and orcid in coauthor_profiles:
+                                person_info = coauthor_profiles.get(orcid, {})
                             
                             st.markdown(f"""
                             <div class="coauthor-card">
                                 <div class="coauthor-name">{html.escape(name)}</div>
                                 <div class="coauthor-joint">{count} {t('joint_works')}</div>
+                                <div class="coauthor-profiles">
                             """, unsafe_allow_html=True)
                             
                             # Добавляем ORCID если есть
                             if orcid:
+                                orcid_clean = orcid.replace('https://orcid.org/', '').strip()
+                                orcid_url = f"https://orcid.org/{orcid_clean}"
                                 st.markdown(f"""
-                                <a href="https://orcid.org/{orcid}" target="_blank" class="coauthor-profile-link orcid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#a6ce39;color:#1a1a1a;margin-right:6px;">
+                                <a href="{orcid_url}" target="_blank" class="coauthor-profile-link orcid" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#a6ce39;color:#1a1a1a;margin-right:6px;">
                                     🆔 {t('coauthor_orcid')}
                                 </a>
                                 """, unsafe_allow_html=True)
@@ -5632,8 +6067,20 @@ def main():
                                         </a>
                                         """, unsafe_allow_html=True)
                                 
-                                # Personal website
-                                if 'website' in person_info:
+                                # Personal websites
+                                if 'websites' in person_info:
+                                    websites_list = person_info['websites']
+                                    if isinstance(websites_list, list):
+                                        for website in websites_list[:3]:
+                                            website_url = website.get('url', '')
+                                            website_name = website.get('name', '🌐 Website')
+                                            if website_url:
+                                                st.markdown(f"""
+                                                <a href="{website_url}" target="_blank" class="coauthor-profile-link website" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#6c757d;color:white;margin-right:6px;">
+                                                    🌐 {html.escape(website_name[:20])}
+                                                </a>
+                                                """, unsafe_allow_html=True)
+                                elif 'website' in person_info:
                                     website_data = person_info['website']
                                     website_url = website_data.get('url', '')
                                     if website_url:
@@ -5643,23 +6090,66 @@ def main():
                                         </a>
                                         """, unsafe_allow_html=True)
                                 
-                                # Другие идентификаторы
-                                other_ids = ['linkedin', 'twitter', 'facebook', 'researchgate', 'academia', 'mendeley', 'publons']
-                                found_other = False
-                                for other_id in other_ids:
-                                    if other_id in person_info:
-                                        other_data = person_info[other_id]
-                                        other_url = other_data.get('url', '')
-                                        if other_url and not found_other:
+                                # Социальные сети
+                                social_profiles = [
+                                    ('linkedin', '🔗 LinkedIn', 'linkedin'),
+                                    ('twitter', '🐦 Twitter', 'twitter'),
+                                    ('facebook', '📘 Facebook', 'facebook'),
+                                    ('researchgate', '🔬 ResearchGate', 'researchgate'),
+                                    ('academia', '📖 Academia', 'academia'),
+                                    ('mendeley', '📑 Mendeley', 'mendeley'),
+                                    ('publons', '📝 Publons', 'publons'),
+                                    ('loop', '🔄 Loop', 'other'),
+                                    ('impactstory', '📊 ImpactStory', 'other'),
+                                    ('google-scholar', '🎓 Google Scholar', 'other'),
+                                    ('github', '💻 GitHub', 'other')
+                                ]
+                                
+                                for social_key, social_label, social_class in social_profiles:
+                                    if social_key in person_info:
+                                        social_data = person_info[social_key]
+                                        social_url = social_data.get('url', '')
+                                        social_value = social_data.get('value', '')
+                                        
+                                        if not social_url and social_value:
+                                            social_url = _build_external_id_url(social_key, social_value)
+                                        
+                                        if social_url:
+                                            # Определяем цвета для разных соцсетей
+                                            color_map = {
+                                                'linkedin': '#0077b5',
+                                                'twitter': '#1da1f2',
+                                                'facebook': '#1877f2',
+                                                'researchgate': '#00ccbb',
+                                                'academia': '#8a2be2',
+                                                'mendeley': '#9d1620',
+                                                'publons': '#2a7de1',
+                                                'other': '#17a2b8'
+                                            }
+                                            bg_color = color_map.get(social_class, '#17a2b8')
                                             st.markdown(f"""
-                                            <a href="{other_url}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
-                                                🔗 {t('coauthor_other')}
+                                            <a href="{social_url}" target="_blank" class="coauthor-profile-link {social_class}" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:{bg_color};color:white;margin-right:6px;">
+                                                {social_label}
                                             </a>
                                             """, unsafe_allow_html=True)
-                                            found_other = True
-                                            break
+                                
+                                # Другие идентификаторы
+                                other_ids = set(person_info.keys()) - {'scopus', 'researcherid', 'website', 'websites', 
+                                                                       'linkedin', 'twitter', 'facebook', 'researchgate', 
+                                                                       'academia', 'mendeley', 'publons', 'loop', 
+                                                                       'impactstory', 'google-scholar', 'github'}
+                                
+                                for other_id in other_ids:
+                                    other_data = person_info[other_id]
+                                    other_url = other_data.get('url', '')
+                                    if other_url:
+                                        st.markdown(f"""
+                                        <a href="{other_url}" target="_blank" class="coauthor-profile-link other" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;font-size:11px;font-weight:500;text-decoration:none;background:#17a2b8;color:white;margin-right:6px;">
+                                            🔗 {html.escape(other_id)}
+                                        </a>
+                                        """, unsafe_allow_html=True)
                             
-                            st.markdown("</div>", unsafe_allow_html=True)
+                            st.markdown("</div></div>", unsafe_allow_html=True)
                     
                     with st.expander(f"{t('publications_list')} ({len(publications)})"):
                         if publications:
