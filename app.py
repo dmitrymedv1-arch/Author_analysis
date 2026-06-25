@@ -3511,8 +3511,8 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 margin-bottom: 15px;
             }}
             .header-logo-app {{
-                max-height: 80px;
-                max-width: 240px;
+                max-height: 120px;
+                max-width: 360px;
                 margin-bottom: 10px;
             }}
             .author-info {{
