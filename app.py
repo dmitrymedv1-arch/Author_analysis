@@ -2117,14 +2117,14 @@ def generate_coauthor_links_html(links: List[Dict], lang: str = 'en') -> str:
                    style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;
                           font-size:11px;font-weight:500;text-decoration:none;background:#6c757d;color:white;
                           transition:all 0.2s;margin:2px;">
-                    {icon} {html.escape(link_name[:30])}
+                    {icon} {html_module.escape(link_name[:30])}
                 </a>
                 """
             else:
                 html += f"""
                 <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;
                              font-size:11px;font-weight:500;background:#e9ecef;color:#666;margin:2px;">
-                    {html.escape(link_name[:30])} (no link)
+                    {html_module.escape(link_name[:30])} (no link)
                 </span>
                 """
         
@@ -2194,14 +2194,14 @@ def generate_coauthor_links_html(links: List[Dict], lang: str = 'en') -> str:
                    style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;
                           font-size:11px;font-weight:500;text-decoration:none;background:{bg_color};color:white;
                           transition:all 0.2s;margin:2px;">
-                    {icon} {html.escape(link_name[:40])}
+                    {icon} {html_module.escape(link_name[:40])}
                 </a>
                 """
             else:
                 html += f"""
                 <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:15px;
                              font-size:11px;font-weight:500;background:#e9ecef;color:#666;margin:2px;">
-                    {icon} {html.escape(link_name[:40])} (no link)
+                    {icon} {html_module.escape(link_name[:40])} (no link)
                 </span>
                 """
         
