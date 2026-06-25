@@ -647,7 +647,7 @@ def apply_theme_css(base_color: str, accent_color: str = None):
             font-size: 13px;
             color: #666;
             margin-bottom: 8px;
-        }}}
+        }}
         
         .coauthor-profile-link {{
             display: inline-flex;
