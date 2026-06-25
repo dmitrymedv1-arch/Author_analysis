@@ -4361,7 +4361,7 @@ def generate_coauthor_links_html(links: List[Dict], lang: str = 'en') -> str:
         link_url = link.get('url')
         
         if link_url:
-            link_html = f'<a href="{link_url}" target="_blank" class="coauthor-link">{html.escape(link_url)}</a>'
+            link_html = f'<a href="{link_url}" target="_blank" class="coauthor-link">{link_url}</a>'
         else:
             link_html = '<span class="no-link">(no direct link)</span>'
         
