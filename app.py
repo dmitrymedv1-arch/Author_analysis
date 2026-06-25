@@ -52,6 +52,7 @@ import os
 import hashlib
 from matplotlib.ticker import MaxNLocator
 import html
+import html as html_module
 import colorsys
 from tenacity import retry, stop_after_attempt, wait_exponential, wait_random
 from concurrent.futures import ThreadPoolExecutor, as_completed
