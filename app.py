@@ -683,7 +683,7 @@ def apply_theme_css(base_color: str, accent_color: str = None):
         
         .coauthor-profile-link.website:hover {{
             background: #5a6268;
-        }
+        }}
         
         .coauthor-profile-link.other {{
             background: #17a2b8;
