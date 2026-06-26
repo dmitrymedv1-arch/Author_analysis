@@ -9,6 +9,7 @@ TIMEOUT = 30  # Таймаут на запрос в секундах
 DELAY_BETWEEN_BATCHES = 0.5  # Задержка между батчами (сек)
 MAX_CONCURRENT_REQUESTS = 10  # Максимум параллельных запросов
 RETRY_DELAY = 2  # Задержка перед повторной попыткой (сек)
+ORCID_REQUEST_DELAY = 0.3  # Задержка между запросами к ORCID API (сек)
 
 # Параметры вывода
 SHOW_DEBUG_LOGS = True  # Показывать детальные логи
@@ -224,7 +225,10 @@ LANG = {
         'coauthor_info': 'Co-author information',
         'coauthor_profiles': 'External profiles',
         'main_metrics': 'Main Metrics',
-        'citations_per_year': 'Citations/year'
+        'citations_per_year': 'Citations/year',
+        'fetching_orcid_profiles': '🆔 Fetching ORCID profiles...',
+        'orcid_profiles_fetched': '✅ ORCID profiles fetched: {count}',
+        'no_orcid_profiles_found': 'No ORCID profiles found',
     },
     'ru': {
         'app_title': 'Анализ профиля ученого',
@@ -385,7 +389,10 @@ LANG = {
         'coauthor_info': 'Информация о соавторе',
         'coauthor_profiles': 'Внешние профили',
         'main_metrics': 'Основные метрики',
-        'citations_per_year': 'Цитирований/год'
+        'citations_per_year': 'Цитирований/год',
+        'fetching_orcid_profiles': '🆔 Получение профилей ORCID...',
+        'orcid_profiles_fetched': '✅ Получено профилей ORCID: {count}',
+        'no_orcid_profiles_found': 'Профили ORCID не найдены',
     }
 }
 
@@ -1699,7 +1706,8 @@ def parse_openalex_publication(item: Dict) -> Dict:
         return None
 
 # ============================================
-# ФУНКЦИИ ДЛЯ ПОЛУЧЕНИЯ ДАННЫХ ИЗ API# ============================================
+# ФУНКЦИИ ДЛЯ ПОЛУЧЕНИЯ ДАННЫХ ИЗ API
+# ============================================
 
 async def get_orcid_dois(orcid: str, session) -> Set[str]:
     """
@@ -1965,12 +1973,20 @@ async def get_institution_homepages(institution_ids: List[str], session) -> Dict
 # НОВАЯ ФУНКЦИЯ: Получение информации о персональных профилях из ORCID API
 # ============================================
 
-async def get_orcid_person_info(orcid: str, session) -> Dict:
+async def get_orcid_person_info(orcid: str, session, max_retries: int = 3) -> Dict:
     """
     Получает информацию о персональных профилях из API ORCID.
     Возвращает структурированный список ссылок из разделов:
     - Websites & Social Links (researcher-urls)
     - Other IDs (external-identifiers)
+    
+    Args:
+        orcid: ORCID идентификатор
+        session: aiohttp сессия
+        max_retries: количество попыток при ошибке
+    
+    Returns:
+        Dict: Словарь с ключом 'links' содержащий список ссылок
     """
     if not orcid:
         return {}
@@ -1985,78 +2001,203 @@ async def get_orcid_person_info(orcid: str, session) -> Dict:
     if SHOW_DEBUG_LOGS:
         print(f"🔍 Запрос персональной информации для ORCID: {orcid_clean}")
     
-    try:
-        data = await fetch_with_retry(session, url, headers=headers)
-        
-        if not data:
+    # Внутренний retry механизм с экспоненциальной задержкой
+    for attempt in range(max_retries):
+        try:
+            async with session.get(url, headers=headers, timeout=TIMEOUT) as response:
+                if response.status == 429:
+                    retry_after = int(response.headers.get('Retry-After', RETRY_DELAY * (attempt + 1)))
+                    if SHOW_DEBUG_LOGS:
+                        print(f"⚠️ Rate limit для ORCID {orcid_clean}, ждем {retry_after} сек...")
+                    await asyncio.sleep(retry_after)
+                    continue
+                
+                if response.status == 200:
+                    data = await response.json()
+                    
+                    if not data:
+                        if SHOW_DEBUG_LOGS:
+                            print(f"⚠️ Пустой ответ для ORCID {orcid_clean}")
+                        if attempt < max_retries - 1:
+                            await asyncio.sleep(RETRY_DELAY * (attempt + 1))
+                            continue
+                        return {}
+                    
+                    links = []
+                    
+                    # 1. Websites & Social Links → researcher-urls
+                    researcher_urls = data.get('researcher-urls', {}).get('researcher-url', [])
+                    if not isinstance(researcher_urls, list):
+                        researcher_urls = [researcher_urls] if researcher_urls else []
+                    
+                    if SHOW_DEBUG_LOGS:
+                        print(f"  Найдено researcher-urls: {len(researcher_urls)}")
+                    
+                    for item in researcher_urls:
+                        name = item.get('url-name') or 'Personal website'
+                        url_value = item.get('url', {}).get('value')
+                        if url_value:
+                            links.append({
+                                'type': 'Websites & Social Links',
+                                'name': name,
+                                'url': url_value
+                            })
+                            if SHOW_DEBUG_LOGS:
+                                print(f"    - Website: {name} -> {url_value}")
+                    
+                    # 2. Other IDs → external-identifiers
+                    external_ids = data.get('external-identifiers', {}).get('external-identifier', [])
+                    if not isinstance(external_ids, list):
+                        external_ids = [external_ids] if external_ids else []
+                    
+                    if SHOW_DEBUG_LOGS:
+                        print(f"  Найдено external-identifiers: {len(external_ids)}")
+                    
+                    for item in external_ids:
+                        id_type = item.get('external-id-type', 'Other ID')
+                        id_value = item.get('external-id-value', '')
+                        id_url = item.get('external-id-url', {}).get('value')
+                        
+                        # Создаем читаемое название для типа ID
+                        display_type = id_type
+                        if 'scopus' in id_type.lower() or 'scopus-author-id' in id_type.lower():
+                            display_type = 'Scopus Author ID'
+                        elif 'researcher' in id_type.lower() or 'researcher-id' in id_type.lower():
+                            display_type = 'Researcher ID'
+                        elif 'orcid' in id_type.lower():
+                            display_type = 'ORCID'
+                        elif 'linkedin' in id_type.lower():
+                            display_type = 'LinkedIn'
+                        elif 'twitter' in id_type.lower():
+                            display_type = 'Twitter'
+                        elif 'facebook' in id_type.lower():
+                            display_type = 'Facebook'
+                        elif 'researchgate' in id_type.lower():
+                            display_type = 'ResearchGate'
+                        elif 'academia' in id_type.lower():
+                            display_type = 'Academia'
+                        elif 'mendeley' in id_type.lower():
+                            display_type = 'Mendeley'
+                        elif 'publons' in id_type.lower():
+                            display_type = 'Publons'
+                        elif 'loop' in id_type.lower():
+                            display_type = 'Loop'
+                        elif 'impactstory' in id_type.lower():
+                            display_type = 'ImpactStory'
+                        elif 'google-scholar' in id_type.lower():
+                            display_type = 'Google Scholar'
+                        elif 'github' in id_type.lower():
+                            display_type = 'GitHub'
+                        
+                        if id_url:
+                            links.append({
+                                'type': 'Other IDs',
+                                'name': f"{display_type}: {id_value}",
+                                'url': id_url
+                            })
+                            if SHOW_DEBUG_LOGS:
+                                print(f"    - Other ID: {display_type}: {id_value} -> {id_url}")
+                        elif id_value:
+                            # Если нет прямой ссылки, но есть значение
+                            links.append({
+                                'type': 'Other IDs',
+                                'name': f"{display_type}: {id_value}",
+                                'url': None
+                            })
+                            if SHOW_DEBUG_LOGS:
+                                print(f"    - Other ID (no URL): {display_type}: {id_value}")
+                    
+                    if SHOW_DEBUG_LOGS:
+                        print(f"  Итого ссылок: {len(links)}")
+                    
+                    return {'links': links}
+                
+                else:
+                    if SHOW_DEBUG_LOGS:
+                        print(f"⚠️ Ошибка {response.status} для ORCID {orcid_clean}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(RETRY_DELAY * (attempt + 1))
+                        continue
+                    return {}
+                    
+        except asyncio.TimeoutError:
             if SHOW_DEBUG_LOGS:
-                print(f"⚠️ Не удалось получить персональные данные для {orcid_clean}")
-            return {}
-        
-        links = []
-        
-        # 1. Websites & Social Links → researcher-urls
-        researcher_urls = data.get('researcher-urls', {}).get('researcher-url', [])
-        if not isinstance(researcher_urls, list):
-            researcher_urls = [researcher_urls] if researcher_urls else []
-        
-        if SHOW_DEBUG_LOGS:
-            print(f"  Найдено researcher-urls: {len(researcher_urls)}")
-        
-        for item in researcher_urls:
-            name = item.get('url-name') or 'Personal website'
-            url_value = item.get('url', {}).get('value')
-            if url_value:
-                links.append({
-                    'type': 'Websites & Social Links',
-                    'name': name,
-                    'url': url_value
-                })
-                if SHOW_DEBUG_LOGS:
-                    print(f"    - Website: {name} -> {url_value}")
-        
-        # 2. Other IDs → external-identifiers
-        external_ids = data.get('external-identifiers', {}).get('external-identifier', [])
-        if not isinstance(external_ids, list):
-            external_ids = [external_ids] if external_ids else []
-        
-        if SHOW_DEBUG_LOGS:
-            print(f"  Найдено external-identifiers: {len(external_ids)}")
-        
-        for item in external_ids:
-            id_type = item.get('external-id-type', 'Other ID')
-            id_value = item.get('external-id-value', '')
-            id_url = item.get('external-id-url', {}).get('value')
-            
-            if id_url:
-                links.append({
-                    'type': 'Other IDs',
-                    'name': f"{id_type}: {id_value}",
-                    'url': id_url
-                })
-                if SHOW_DEBUG_LOGS:
-                    print(f"    - Other ID: {id_type}: {id_value} -> {id_url}")
-            elif id_value:
-                # Если нет прямой ссылки, но есть значение
-                links.append({
-                    'type': 'Other IDs',
-                    'name': f"{id_type}: {id_value}",
-                    'url': None
-                })
-                if SHOW_DEBUG_LOGS:
-                    print(f"    - Other ID (no URL): {id_type}: {id_value}")
-        
-        if SHOW_DEBUG_LOGS:
-            print(f"  Итого ссылок: {len(links)}")
-        
-        return {'links': links}
-        
-    except Exception as e:
-        if SHOW_DEBUG_LOGS:
-            print(f"⚠️ Ошибка получения персональной информации: {e}")
-            import traceback
-            traceback.print_exc()
+                print(f"⚠️ Таймаут для ORCID {orcid_clean}, попытка {attempt+1}/{max_retries}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(RETRY_DELAY * (attempt + 1))
+            else:
+                return {}
+                
+        except Exception as e:
+            if SHOW_DEBUG_LOGS:
+                print(f"⚠️ Ошибка получения персональной информации для {orcid_clean}: {e}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(RETRY_DELAY * (attempt + 1))
+            else:
+                return {}
+    
+    return {}
+
+async def fetch_coauthor_profiles_sequentially(orcid_list: List[str], session, delay: float = 0.3, max_retries: int = 3) -> Dict[str, Dict]:
+    """
+    Последовательно получает профили соавторов из ORCID API с задержкой между запросами.
+    
+    Args:
+        orcid_list: Список ORCID идентификаторов
+        session: aiohttp сессия
+        delay: Задержка между запросами в секундах
+        max_retries: Количество попыток на каждый запрос
+    
+    Returns:
+        Dict[str, Dict]: Словарь {orcid: profile_data}
+    """
+    if not orcid_list:
         return {}
+    
+    # Очищаем ORCID и удаляем дубликаты
+    cleaned_orcids = []
+    seen = set()
+    for orcid in orcid_list:
+        cleaned = clean_orcid(orcid)
+        if cleaned and cleaned not in seen:
+            seen.add(cleaned)
+            cleaned_orcids.append(cleaned)
+    
+    if not cleaned_orcids:
+        return {}
+    
+    if SHOW_DEBUG_LOGS:
+        print(f"🆔 Начинаем последовательное получение профилей для {len(cleaned_orcids)} соавторов с задержкой {delay} сек")
+    
+    profiles = {}
+    total = len(cleaned_orcids)
+    
+    for idx, orcid in enumerate(cleaned_orcids, 1):
+        if SHOW_DEBUG_LOGS:
+            print(f"  [{idx}/{total}] Получение профиля для ORCID: {orcid}")
+        
+        try:
+            person_info = await get_orcid_person_info(orcid, session, max_retries=max_retries)
+            if person_info:
+                profiles[orcid] = person_info
+                if SHOW_DEBUG_LOGS:
+                    links_count = len(person_info.get('links', []))
+                    print(f"    ✅ Получено {links_count} ссылок для {orcid}")
+            else:
+                if SHOW_DEBUG_LOGS:
+                    print(f"    ⚠️ Не удалось получить профиль для {orcid}")
+        except Exception as e:
+            if SHOW_DEBUG_LOGS:
+                print(f"    ❌ Ошибка при получении профиля для {orcid}: {e}")
+        
+        # Задержка между запросами (кроме последнего)
+        if idx < total:
+            await asyncio.sleep(delay)
+    
+    if SHOW_DEBUG_LOGS:
+        print(f"✅ Получено профилей для {len(profiles)} из {total} соавторов")
+    
+    return profiles
 
 def generate_coauthor_links_html(links: List[Dict], lang: str = 'en') -> str:
     """
@@ -2147,12 +2288,13 @@ def generate_coauthor_links_html(links: List[Dict], lang: str = 'en') -> str:
             
             # Определяем цвет для разных типов ID
             bg_color = "#17a2b8"  # default
+            icon = "🔗"
             name_lower = link_name.lower()
             
             if "scopus" in name_lower:
                 bg_color = "#e97132"
                 icon = "📚"
-            elif "researcherid" in name_lower or "researcher id" in name_lower:
+            elif "researcher" in name_lower:
                 bg_color = "#005a9c"
                 icon = "🆔"
             elif "orcid" in name_lower:
@@ -2185,8 +2327,12 @@ def generate_coauthor_links_html(links: List[Dict], lang: str = 'en') -> str:
             elif "github" in name_lower:
                 bg_color = "#333333"
                 icon = "💻"
-            else:
-                icon = "🔗"
+            elif "impactstory" in name_lower:
+                bg_color = "#993366"
+                icon = "📊"
+            elif "google-scholar" in name_lower:
+                bg_color = "#4285f4"
+                icon = "🎓"
             
             if link_url:
                 html += f"""
@@ -2867,7 +3013,7 @@ class ScholarProfileAnalyzer:
 # ОСНОВНАЯ ФУНКЦИЯ СБОРА ДАННЫХ
 # ============================================
 
-async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict, List[Dict]]:
+async def collect_scholar_data(orcid: str, progress_callback=None) -> Tuple[ScholarProfileAnalyzer, Dict, List[Dict]]:
     """Собирает все данные для профиля ученого"""
     
     orcid_clean = clean_orcid(orcid)
@@ -2969,7 +3115,7 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
             analyzer.set_institution_homepages(homepages)
             print(f"✅ Получено homepage для {len(homepages)} институтов")
         
-        # ====== НОВОЕ: Получение персональной информации для соавторов ПАРАЛЛЕЛЬНО ======
+        # ====== НОВОЕ: Получение персональной информации для соавторов ПОСЛЕДОВАТЕЛЬНО ======
         print("🔍 Получение персональной информации для соавторов...")
         coauthor_profiles = {}
         
@@ -2991,39 +3137,20 @@ async def collect_scholar_data(orcid: str) -> Tuple[ScholarProfileAnalyzer, Dict
                 print(f"    - {oc}")
         
         if unique_coauthor_orcids:
-            print(f"  Получение профилей для {len(unique_coauthor_orcids)} соавторов...")
-            
             # Ограничиваем количество для производительности
             coauthor_orcids_list = list(unique_coauthor_orcids)[:50]
             
-            # Создаем семафор для ограничения параллельных запросов
-            semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
-            
-            async def fetch_coauthor_profile(orcid_id: str):
-                async with semaphore:
-                    try:
-                        person_info = await get_orcid_person_info(orcid_id, session)
-                        return orcid_id, person_info
-                    except Exception as e:
-                        if SHOW_DEBUG_LOGS:
-                            print(f"    ⚠️ Ошибка получения профиля для {orcid_id}: {e}")
-                        return orcid_id, {}
-            
-            # Параллельные запросы через asyncio.gather
-            tasks = [fetch_coauthor_profile(orcid_id) for orcid_id in coauthor_orcids_list]
-            results = await asyncio.gather(*tasks)
-            
-            # Сохраняем результаты
-            for orcid_id, person_info in results:
-                if person_info:
-                    coauthor_profiles[orcid_id] = person_info
-                    if SHOW_DEBUG_LOGS:
-                        print(f"    ✅ Получен профиль для {orcid_id}: {list(person_info.keys())}")
+            # ====== ИЗМЕНЕНИЕ: Используем последовательные запросы вместо параллельных ======
+            # Используем новую функцию fetch_coauthor_profiles_sequentially
+            coauthor_profiles = await fetch_coauthor_profiles_sequentially(
+                coauthor_orcids_list, 
+                session, 
+                delay=ORCID_REQUEST_DELAY,
+                max_retries=3
+            )
             
             print(f"  ✅ Получено профилей для {len(coauthor_profiles)} соавторов")
             
-            # Если есть соавторы без ORCID, но с именем, можно попробовать поискать по имени
-            # Но это会增加 сложность, оставляем как есть
         else:
             print("  ℹ️ Нет ORCID соавторов для запроса")
         
@@ -5560,24 +5687,107 @@ def run_profile_analysis(orcid_list: List[str], show_all_authors: bool, journal_
                 st.warning(f"⚠️ Ошибка загрузки логотипа журнала: {e}")
         
         total_authors = len(orcid_list)
+        
+        # ====== ИЗМЕНЕНИЕ: Добавляем этап для ORCID профилей ======
         stage_weights = {
-            'api': 0.6,  # 60% времени на API запросы
-            'analysis': 0.25,  # 25% на анализ данных
-            'visualization': 0.15  # 15% на генерацию графиков
+            'api': 0.60,      # 60% - API запросы (OpenAlex)
+            'analysis': 0.25,  # 25% - анализ данных
+            'orcid_profiles': 0.10,  # 10% - получение ORCID профилей (НОВЫЙ ЭТАП)
+            'visualization': 0.05    # 5% - генерация визуализаций
         }
         
         def progress_callback(current, total, orcid):
+            """Прогресс для этапа API запросов"""
             api_progress = (current / total) * stage_weights['api'] * 100
             analysis_progress.progress(api_progress / 100, text=f"📡 {t('loading_data')}: {orcid} ({current}/{total})")
             status_container.info(f"📡 {t('fetching_data')} {current}/{total}: {orcid}")
         
+        def orcid_profiles_callback(current, total):
+            """Прогресс для этапа получения ORCID профилей"""
+            base_progress = (stage_weights['api'] + stage_weights['analysis']) * 100
+            orcid_progress = (current / total) * stage_weights['orcid_profiles'] * 100
+            total_progress = (base_progress + orcid_progress) / 100
+            analysis_progress.progress(total_progress, text=f"🆔 {t('fetching_orcid_profiles')} ({current}/{total})")
+            status_container.info(f"🆔 {t('fetching_orcid_profiles')} ({current}/{total})")
+        
         start_time = time.time()
         
+        # ====== ИЗМЕНЕНИЕ: Сбор данных с прогрессом ======
+        # Сначала собираем основные данные через analyze_multiple_authors
         all_authors_data = asyncio.run(
             analyze_multiple_authors(orcid_list, progress_callback)
         )
         
+        # Обновляем прогресс после API этапа
         analysis_progress.progress(stage_weights['api'], text=f"📊 {t('analyzing_data')}...")
+        
+        # ====== НОВЫЙ ЭТАП: Получение ORCID профилей для всех соавторов ======
+        # Собираем всех соавторов из всех профилей
+        all_coauthor_orcids = set()
+        for author_data in all_authors_data:
+            profile = author_data.get('profile', {})
+            top_coauthors = profile.get('top_coauthors_with_orcids', {})
+            for name, data in top_coauthors.items():
+                if data.get('orcid'):
+                    orcid_clean = data['orcid'].replace('https://orcid.org/', '').strip()
+                    if orcid_clean:
+                        all_coauthor_orcids.add(orcid_clean)
+        
+        if all_coauthor_orcids:
+            # Получаем профили для всех соавторов
+            coauthor_orcids_list = list(all_coauthor_orcids)[:50]
+            
+            if SHOW_DEBUG_LOGS:
+                print(f"🆔 Получение профилей для {len(coauthor_orcids_list)} уникальных соавторов")
+            
+            # Используем asyncio для последовательных запросов
+            async def fetch_all_profiles():
+                async with aiohttp.ClientSession() as session:
+                    profiles = await fetch_coauthor_profiles_sequentially(
+                        coauthor_orcids_list,
+                        session,
+                        delay=ORCID_REQUEST_DELAY,
+                        max_retries=3
+                    )
+                    return profiles
+            
+            # Обновляем прогресс при получении каждого профиля
+            coauthor_profiles = asyncio.run(fetch_all_profiles())
+            
+            # Обновляем прогресс после получения ORCID профилей
+            orcid_progress = (stage_weights['api'] + stage_weights['analysis'] + stage_weights['orcid_profiles']) * 100
+            analysis_progress.progress(orcid_progress / 100, text=f"🆔 {t('orcid_profiles_fetched', count=len(coauthor_profiles))}")
+            status_container.info(f"🆔 {t('orcid_profiles_fetched', count=len(coauthor_profiles))}")
+            
+            # Добавляем профили в данные каждого автора
+            for author_data in all_authors_data:
+                analyzer = author_data.get('analyzer')
+                if analyzer:
+                    # Обновляем analyzer с новыми профилями
+                    for orcid, profile_data in coauthor_profiles.items():
+                        if orcid not in analyzer.coauthor_profiles:
+                            analyzer.coauthor_profiles[orcid] = profile_data
+                    
+                    # Передаем профили в profile для кэширования
+                    if 'profile' in author_data:
+                        author_data['profile']['coauthor_profiles'] = analyzer.coauthor_profiles
+                    
+                    # Повторно анализируем чтобы обновить топ соавторов с профилями
+                    analyzer.analyze_publications()
+                    author_data['profile'] = analyzer.profile
+                    
+                    # Обновляем профили в кэше
+                    if USE_CACHE:
+                        cache_data = {
+                            'publications': analyzer.publications,
+                            'author_info': analyzer.author_info,
+                            'profile': analyzer.profile,
+                            'institution_homepages': analyzer.institution_homepages,
+                            'coauthors_with_orcids': analyzer.coauthors_with_orcids,
+                            'coauthor_profiles': analyzer.coauthor_profiles,
+                            'timestamp': datetime.now().isoformat()
+                        }
+                        save_to_cache(analyzer.orcid, cache_data)
         
         elapsed = time.time() - start_time
         
@@ -5588,15 +5798,21 @@ def run_profile_analysis(orcid_list: List[str], show_all_authors: bool, journal_
         
         sorted_authors = sort_authors_by_h_index(all_authors_data)
         
-        analysis_progress.progress(stage_weights['api'] + stage_weights['analysis'] * 0.5, text=f"🎨 {t('generating_viz')}...")
+        # ====== ИЗМЕНЕНИЕ: Генерация визуализаций (параллельно с ORCID профилями) ======
+        # Прогресс для визуализаций
+        viz_start_progress = (stage_weights['api'] + stage_weights['analysis'] + stage_weights['orcid_profiles']) * 100
+        analysis_progress.progress(viz_start_progress / 100, text=f"🎨 {t('generating_viz')}...")
         
         for idx, author_data in enumerate(sorted_authors):
             profile = author_data.get('profile', {})
             if profile:
                 images = create_visualizations(profile, current_lang)
                 author_data['images'] = images
-                progress_percent = stage_weights['api'] + stage_weights['analysis'] + (idx + 1) / len(sorted_authors) * stage_weights['visualization']
-                analysis_progress.progress(progress_percent, text=f"🎨 {t('creating_charts')} {idx+1}/{len(sorted_authors)}...")
+                
+                # Обновляем прогресс визуализаций
+                viz_progress = (idx + 1) / len(sorted_authors) * stage_weights['visualization'] * 100
+                total_progress = (viz_start_progress + viz_progress) / 100
+                analysis_progress.progress(min(total_progress, 0.99), text=f"🎨 {t('creating_charts')} {idx+1}/{len(sorted_authors)}...")
         
         st.session_state['all_authors'] = sorted_authors
         st.session_state['show_all_authors'] = show_all_authors
