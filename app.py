@@ -9,7 +9,7 @@ TIMEOUT = 30  # Таймаут на запрос в секундах
 DELAY_BETWEEN_BATCHES = 0.5  # Задержка между батчами (сек)
 MAX_CONCURRENT_REQUESTS = 10  # Максимум параллельных запросов
 RETRY_DELAY = 2  # Задержка перед повторной попыткой (сек)
-ORCID_REQUEST_DELAY = 0.3  # Задержка между запросами к ORCID API (сек)
+ORCID_REQUEST_DELAY = 0.2  # Задержка между запросами к ORCID API (сек)
 
 # Параметры вывода
 SHOW_DEBUG_LOGS = True  # Показывать детальные логи
