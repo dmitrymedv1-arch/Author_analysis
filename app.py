@@ -5424,7 +5424,10 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                         if other_ids:
                             for other_id in other_ids:
                                 other_data = person_info[other_id]
-                                other_url = other_data.get('url', '')
+                                if isinstance(other_data, dict):
+                                    other_url = other_data.get('url', '')
+                                else:
+                                    other_url = ''
                                 if other_url:
                                     coauthors_html += f"""
                                         <a href="{other_url}" target="_blank" class="coauthor-profile-link other">
