@@ -2665,478 +2665,477 @@ class ScholarProfileAnalyzer:
         return []
     
     def analyze_publications(self):
-def analyze_publications(self):
-    """Анализирует все публикации и строит профиль"""
-    if not self.publications:
-        print("⚠️ Нет публикаций для анализа")
-        return
-    
-    print(f"📊 Анализирую {len(self.publications)} публикаций...")
-    
-    self.profile['total_publications'] = len(self.publications)
-    self.profile['orcid'] = self.orcid
-    self.profile['author_name'] = self.author_name or 'Unknown'
-    self.profile['author_affiliations'] = self.author_affiliations
-    self.profile['author_countries'] = self.author_countries
-    
-    # Годы
-    years = [p.get('publication_year') for p in self.publications if p.get('publication_year')]
-    self.profile['years_distribution'] = dict(Counter(years))
-    self.profile['first_publication'] = min(years) if years else None
-    self.profile['last_publication'] = max(years) if years else None
-    self.profile['active_years'] = len(set(years)) if years else 0
-    
-    # Журналы
-    journals = [p.get('journal_name') for p in self.publications if p.get('journal_name')]
-    self.profile['journals'] = dict(Counter(journals))
-    self.profile['top_journals'] = dict(Counter(journals).most_common(10))
-    
-    # Издательства
-    publishers = [p.get('publisher') for p in self.publications if p.get('publisher') and p.get('publisher') != 'Unknown']
-    self.profile['publishers'] = dict(Counter(publishers))
-    
-    # Типы публикаций
-    pub_types = [p.get('type') for p in self.publications if p.get('type')]
-    self.profile['publication_types'] = dict(Counter(pub_types))
-    
-    # Open Access
-    oa_statuses = [p.get('open_access_status') for p in self.publications if p.get('open_access_status')]
-    self.profile['open_access'] = dict(Counter(oa_statuses))
-    self.profile['total_oa'] = sum(1 for p in self.publications if p.get('is_oa', False))
-    self.profile['oa_percentage'] = (self.profile['total_oa'] / len(self.publications) * 100) if self.publications else 0
-    
-    # Аффилиации
-    affiliations = []
-    affiliation_countries = []
-    all_institutions = []
-    
-    for p in self.publications:
-        if p.get('affiliations'):
-            affiliations.extend(p['affiliations'])
-        if p.get('affiliation_countries'):
-            affiliation_countries.extend(p['affiliation_countries'])
-        if p.get('institutions'):
-            all_institutions.extend(p['institutions'])
-    
-    self.profile['affiliations'] = dict(Counter(affiliations))
-    self.profile['top_affiliations'] = dict(Counter(affiliations).most_common(5))
-    self.profile['countries_all'] = dict(Counter(affiliation_countries))
-    self.profile['all_institutions'] = all_institutions
-    
-    countries = [p.get('country') for p in self.publications if p.get('country')]
-    self.profile['countries'] = dict(Counter(countries))
-    
-    # ============================================================
-    # ИСПРАВЛЕННАЯ ЧАСТЬ: Используем множества для уникальных значений
-    # ============================================================
-    
-    # Используем множества для хранения уникальных значений из всех публикаций
-    all_concepts_set = set()
-    all_fields_set = set()
-    all_domains_set = set()
-    all_topics_set = set()
-    all_subtopics_set = set()
-    all_subfields_set = set()
-    all_keywords_set = set()
-    all_primary_topics_set = set()
-    
-    # Также собираем информацию по уровням концептов
-    concept_levels = {}
-    
-    # Статистика по типам источников
-    source_categories = {}
-    
-    for p in self.publications:
-        # Добавляем концепты (уникальные в пределах публикации)
-        if p.get('concepts'):
-            all_concepts_set.update(p['concepts'])
+        """Анализирует все публикации и строит профиль"""
+        if not self.publications:
+            print("⚠️ Нет публикаций для анализа")
+            return
         
-        # Добавляем поля (уникальные в пределах публикации)
-        if p.get('fields'):
-            all_fields_set.update(p['fields'])
+        print(f"📊 Анализирую {len(self.publications)} публикаций...")
         
-        # Добавляем домены (уникальные в пределах публикации)
-        if p.get('domains'):
-            all_domains_set.update(p['domains'])
+        self.profile['total_publications'] = len(self.publications)
+        self.profile['orcid'] = self.orcid
+        self.profile['author_name'] = self.author_name or 'Unknown'
+        self.profile['author_affiliations'] = self.author_affiliations
+        self.profile['author_countries'] = self.author_countries
         
-        # Добавляем топики (старые)
-        if p.get('topics_old'):
-            all_topics_set.update(p['topics_old'])
+        # Годы
+        years = [p.get('publication_year') for p in self.publications if p.get('publication_year')]
+        self.profile['years_distribution'] = dict(Counter(years))
+        self.profile['first_publication'] = min(years) if years else None
+        self.profile['last_publication'] = max(years) if years else None
+        self.profile['active_years'] = len(set(years)) if years else 0
         
-        # Добавляем сабтопики
-        if p.get('subtopics'):
-            all_subtopics_set.update(p['subtopics'])
+        # Журналы
+        journals = [p.get('journal_name') for p in self.publications if p.get('journal_name')]
+        self.profile['journals'] = dict(Counter(journals))
+        self.profile['top_journals'] = dict(Counter(journals).most_common(10))
         
-        # Добавляем keywords
-        if p.get('keywords'):
-            all_keywords_set.update(p['keywords'])
+        # Издательства
+        publishers = [p.get('publisher') for p in self.publications if p.get('publisher') and p.get('publisher') != 'Unknown']
+        self.profile['publishers'] = dict(Counter(publishers))
         
-        # Primary topic
-        if p.get('primary_topic'):
-            pt = p['primary_topic']
-            if pt.get('display_name'):
-                all_primary_topics_set.add(pt['display_name'])
-            if pt.get('subfield'):
-                all_subfields_set.add(pt['subfield'])
+        # Типы публикаций
+        pub_types = [p.get('type') for p in self.publications if p.get('type')]
+        self.profile['publication_types'] = dict(Counter(pub_types))
         
-        # Topics (новые) - здесь важно не дублировать с уже добавленными
-        if p.get('topics'):
-            for t in p['topics']:
-                if t.get('display_name'):
-                    all_topics_set.add(t['display_name'])
-                if t.get('subfield'):
-                    all_subfields_set.add(t['subfield'])
-                if t.get('field'):
-                    all_fields_set.add(t['field'])
-                if t.get('domain'):
-                    all_domains_set.add(t['domain'])
+        # Open Access
+        oa_statuses = [p.get('open_access_status') for p in self.publications if p.get('open_access_status')]
+        self.profile['open_access'] = dict(Counter(oa_statuses))
+        self.profile['total_oa'] = sum(1 for p in self.publications if p.get('is_oa', False))
+        self.profile['oa_percentage'] = (self.profile['total_oa'] / len(self.publications) * 100) if self.publications else 0
         
-        # Собираем уровни концептов
-        if p.get('concept_levels'):
-            for concept, info in p['concept_levels'].items():
-                if concept not in concept_levels:
-                    concept_levels[concept] = []
-                concept_levels[concept].append(info)
+        # Аффилиации
+        affiliations = []
+        affiliation_countries = []
+        all_institutions = []
         
-        # Сбор статистики по типам источников
-        category = p.get('source_category', 'other')
-        if category not in source_categories:
-            source_categories[category] = []
+        for p in self.publications:
+            if p.get('affiliations'):
+                affiliations.extend(p['affiliations'])
+            if p.get('affiliation_countries'):
+                affiliation_countries.extend(p['affiliation_countries'])
+            if p.get('institutions'):
+                all_institutions.extend(p['institutions'])
         
-        # Сохраняем информацию о публикации для отображения в отчете
-        source_categories[category].append({
-            'title': p.get('title', 'No title'),
-            'doi': p.get('doi', ''),
-            'id': p.get('id', ''),
-            'year': p.get('publication_year', ''),
-            'journal': p.get('journal_name', ''),
-            'raw_type': p.get('raw_type', ''),
-            'source_type': p.get('source_type', ''),
-            'is_oa': p.get('is_oa', False),
-            'any_repository_has_fulltext': p.get('any_repository_has_fulltext', False)
-        })
-    
-    # Преобразуем множества в списки для Counter
-    all_concepts = list(all_concepts_set)
-    all_fields = list(all_fields_set)
-    all_domains = list(all_domains_set)
-    all_topics = list(all_topics_set)
-    all_subtopics = list(all_subtopics_set)
-    all_subfields = list(all_subfields_set)
-    all_keywords = list(all_keywords_set)
-    all_primary_topics = list(all_primary_topics_set)
-    
-    # Сохраняем статистику по типам источников
-    self.profile['source_categories'] = {
-        cat: {
-            'count': len(items),
-            'items': items[:3]  # Только топ-3 для отображения
+        self.profile['affiliations'] = dict(Counter(affiliations))
+        self.profile['top_affiliations'] = dict(Counter(affiliations).most_common(5))
+        self.profile['countries_all'] = dict(Counter(affiliation_countries))
+        self.profile['all_institutions'] = all_institutions
+        
+        countries = [p.get('country') for p in self.publications if p.get('country')]
+        self.profile['countries'] = dict(Counter(countries))
+        
+        # ============================================================
+        # ИСПРАВЛЕННАЯ ЧАСТЬ: Используем множества для уникальных значений
+        # ============================================================
+        
+        # Используем множества для хранения уникальных значений из всех публикаций
+        all_concepts_set = set()
+        all_fields_set = set()
+        all_domains_set = set()
+        all_topics_set = set()
+        all_subtopics_set = set()
+        all_subfields_set = set()
+        all_keywords_set = set()
+        all_primary_topics_set = set()
+        
+        # Также собираем информацию по уровням концептов
+        concept_levels = {}
+        
+        # Статистика по типам источников
+        source_categories = {}
+        
+        for p in self.publications:
+            # Добавляем концепты (уникальные в пределах публикации)
+            if p.get('concepts'):
+                all_concepts_set.update(p['concepts'])
+            
+            # Добавляем поля (уникальные в пределах публикации)
+            if p.get('fields'):
+                all_fields_set.update(p['fields'])
+            
+            # Добавляем домены (уникальные в пределах публикации)
+            if p.get('domains'):
+                all_domains_set.update(p['domains'])
+            
+            # Добавляем топики (старые)
+            if p.get('topics_old'):
+                all_topics_set.update(p['topics_old'])
+            
+            # Добавляем сабтопики
+            if p.get('subtopics'):
+                all_subtopics_set.update(p['subtopics'])
+            
+            # Добавляем keywords
+            if p.get('keywords'):
+                all_keywords_set.update(p['keywords'])
+            
+            # Primary topic
+            if p.get('primary_topic'):
+                pt = p['primary_topic']
+                if pt.get('display_name'):
+                    all_primary_topics_set.add(pt['display_name'])
+                if pt.get('subfield'):
+                    all_subfields_set.add(pt['subfield'])
+            
+            # Topics (новые) - здесь важно не дублировать с уже добавленными
+            if p.get('topics'):
+                for t in p['topics']:
+                    if t.get('display_name'):
+                        all_topics_set.add(t['display_name'])
+                    if t.get('subfield'):
+                        all_subfields_set.add(t['subfield'])
+                    if t.get('field'):
+                        all_fields_set.add(t['field'])
+                    if t.get('domain'):
+                        all_domains_set.add(t['domain'])
+            
+            # Собираем уровни концептов
+            if p.get('concept_levels'):
+                for concept, info in p['concept_levels'].items():
+                    if concept not in concept_levels:
+                        concept_levels[concept] = []
+                    concept_levels[concept].append(info)
+            
+            # Сбор статистики по типам источников
+            category = p.get('source_category', 'other')
+            if category not in source_categories:
+                source_categories[category] = []
+            
+            # Сохраняем информацию о публикации для отображения в отчете
+            source_categories[category].append({
+                'title': p.get('title', 'No title'),
+                'doi': p.get('doi', ''),
+                'id': p.get('id', ''),
+                'year': p.get('publication_year', ''),
+                'journal': p.get('journal_name', ''),
+                'raw_type': p.get('raw_type', ''),
+                'source_type': p.get('source_type', ''),
+                'is_oa': p.get('is_oa', False),
+                'any_repository_has_fulltext': p.get('any_repository_has_fulltext', False)
+            })
+        
+        # Преобразуем множества в списки для Counter
+        all_concepts = list(all_concepts_set)
+        all_fields = list(all_fields_set)
+        all_domains = list(all_domains_set)
+        all_topics = list(all_topics_set)
+        all_subtopics = list(all_subtopics_set)
+        all_subfields = list(all_subfields_set)
+        all_keywords = list(all_keywords_set)
+        all_primary_topics = list(all_primary_topics_set)
+        
+        # Сохраняем статистику по типам источников
+        self.profile['source_categories'] = {
+            cat: {
+                'count': len(items),
+                'items': items[:3]  # Только топ-3 для отображения
+            }
+            for cat, items in source_categories.items()
         }
-        for cat, items in source_categories.items()
-    }
-    
-    # Создаем словари с подсчетом количества публикаций для каждой категории
-    # Теперь это количество уникальных публикаций, а не количество вхождений
-    
-    # Для концептов считаем, сколько публикаций содержат каждый концепт
-    concept_to_pubs = defaultdict(int)
-    for p in self.publications:
-        if p.get('concepts'):
-            unique_concepts = set(p['concepts'])
-            for concept in unique_concepts:
-                concept_to_pubs[concept] += 1
-    
-    # Для полей
-    field_to_pubs = defaultdict(int)
-    for p in self.publications:
-        # Собираем поля из разных источников, исключая дубли в пределах публикации
-        fields_in_pub = set()
-        if p.get('fields'):
-            fields_in_pub.update(p['fields'])
-        if p.get('topics'):
-            for t in p['topics']:
-                if t.get('field'):
-                    fields_in_pub.add(t['field'])
-        for field in fields_in_pub:
-            field_to_pubs[field] += 1
-    
-    # Для доменов
-    domain_to_pubs = defaultdict(int)
-    for p in self.publications:
-        domains_in_pub = set()
-        if p.get('domains'):
-            domains_in_pub.update(p['domains'])
-        if p.get('topics'):
-            for t in p['topics']:
-                if t.get('domain'):
-                    domains_in_pub.add(t['domain'])
-        for domain in domains_in_pub:
-            domain_to_pubs[domain] += 1
-    
-    # Для топиков (старых)
-    topic_to_pubs = defaultdict(int)
-    for p in self.publications:
-        if p.get('topics_old'):
-            unique_topics = set(p['topics_old'])
-            for topic in unique_topics:
-                topic_to_pubs[topic] += 1
-    
-    # Для сабтопиков
-    subtopic_to_pubs = defaultdict(int)
-    for p in self.publications:
-        if p.get('subtopics'):
-            unique_subtopics = set(p['subtopics'])
-            for subtopic in unique_subtopics:
-                subtopic_to_pubs[subtopic] += 1
-    
-    # Для primary topics
-    primary_topic_to_pubs = defaultdict(int)
-    for p in self.publications:
-        if p.get('primary_topic'):
-            pt = p['primary_topic']
-            if pt.get('display_name'):
-                primary_topic_to_pubs[pt['display_name']] += 1
-    
-    # Для subfields
-    subfield_to_pubs = defaultdict(int)
-    for p in self.publications:
-        subfields_in_pub = set()
-        if p.get('primary_topic') and p['primary_topic'].get('subfield'):
-            subfields_in_pub.add(p['primary_topic']['subfield'])
-        if p.get('topics'):
-            for t in p['topics']:
-                if t.get('subfield'):
-                    subfields_in_pub.add(t['subfield'])
-        for subfield in subfields_in_pub:
-            subfield_to_pubs[subfield] += 1
-    
-    # Для keywords
-    keyword_to_pubs = defaultdict(int)
-    for p in self.publications:
-        if p.get('keywords'):
-            unique_keywords = set(p['keywords'])
-            for keyword in unique_keywords:
-                keyword_to_pubs[keyword] += 1
-    
-    # Сохраняем в профиль
-    self.profile['concepts'] = dict(concept_to_pubs)
-    self.profile['top_concepts'] = dict(sorted(concept_to_pubs.items(), key=lambda x: x[1], reverse=True)[:15])
-    
-    self.profile['fields'] = dict(field_to_pubs)
-    self.profile['top_fields'] = dict(sorted(field_to_pubs.items(), key=lambda x: x[1], reverse=True)[:10])
-    
-    self.profile['domains'] = dict(domain_to_pubs)
-    self.profile['top_domains'] = dict(sorted(domain_to_pubs.items(), key=lambda x: x[1], reverse=True)[:5])
-    
-    self.profile['topics'] = dict(topic_to_pubs)
-    self.profile['top_topics'] = dict(sorted(topic_to_pubs.items(), key=lambda x: x[1], reverse=True)[:15])
-    
-    self.profile['subtopics'] = dict(subtopic_to_pubs)
-    self.profile['top_subtopics'] = dict(sorted(subtopic_to_pubs.items(), key=lambda x: x[1], reverse=True)[:20])
-    
-    self.profile['concept_levels'] = concept_levels
-    
-    self.profile['primary_topics'] = dict(primary_topic_to_pubs)
-    self.profile['top_primary_topics'] = dict(sorted(primary_topic_to_pubs.items(), key=lambda x: x[1], reverse=True)[:10])
-    
-    self.profile['subfields'] = dict(subfield_to_pubs)
-    self.profile['top_subfields'] = dict(sorted(subfield_to_pubs.items(), key=lambda x: x[1], reverse=True)[:10])
-    
-    self.profile['keywords'] = dict(keyword_to_pubs)
-    self.profile['top_keywords'] = dict(sorted(keyword_to_pubs.items(), key=lambda x: x[1], reverse=True)[:20])
-    
-    # Ретрации и коррекции
-    self.profile['retractions'] = sum(1 for p in self.publications if p.get('is_retracted', False))
-    self.profile['corrections'] = sum(1 for p in self.publications if p.get('is_correction', False))
-    self.profile['paratexts'] = sum(1 for p in self.publications if p.get('is_paratext', False))
-    self.profile['retraction_details'] = [p.get('retraction_info') for p in self.publications if p.get('is_retracted')]
-    
-    # ====== Сбор соавторов с ORCID ======
-    coauthors = []
-    coauthors_with_orcids = defaultdict(lambda: {'count': 0, 'orcid': None})
-    
-    author_name_normalized = normalize_author_name(self.author_name or '')
-    author_orcid = self.orcid
-    
-    for p in self.publications:
-        if p.get('authors_with_orcids'):
-            authors_list = p['authors_with_orcids']
-            
-            for author_data in authors_list:
-                name = author_data.get('name', '')
-                orcid = author_data.get('orcid', '')
-                
-                is_self = False
-                
-                if author_name_normalized:
-                    name_normalized = normalize_author_name(name)
-                    if name_normalized == author_name_normalized:
-                        is_self = True
-                
-                if not is_self and orcid:
-                    if orcid == author_orcid or orcid.replace('https://orcid.org/', '') == author_orcid:
-                        is_self = True
-                
-                if not is_self and name:
-                    coauthors.append(name)
-                    if name not in coauthors_with_orcids:
-                        coauthors_with_orcids[name] = {'count': 0, 'orcid': None}
-                    coauthors_with_orcids[name]['count'] += 1
-                    if orcid and not coauthors_with_orcids[name]['orcid']:
-                        coauthors_with_orcids[name]['orcid'] = orcid
-    
-    self.coauthors_with_orcids = dict(coauthors_with_orcids)
-    
-    self.profile['coauthors'] = dict(Counter(coauthors))
-    self.profile['top_coauthors'] = dict(Counter(coauthors).most_common(20))
-    self.profile['top_coauthors_with_orcids'] = {
-        name: data 
-        for name, data in sorted(
-            coauthors_with_orcids.items(), 
-            key=lambda x: x[1]['count'], 
-            reverse=True
-        )[:20]
-    }
-    self.profile['unique_coauthors'] = len(set(coauthors))
-    
-    # Статистика по количеству авторов
-    author_counts = [p.get('author_count', 0) for p in self.publications if p.get('author_count', 0) > 0]
-    if author_counts:
-        self.profile['avg_authors_per_paper'] = np.mean(author_counts)
-        self.profile['median_authors_per_paper'] = np.median(author_counts)
-        self.profile['max_authors_per_paper'] = max(author_counts)
-        self.profile['min_authors_per_paper'] = min(author_counts)
-    
-    # Цитирования
-    citations = [p.get('cited_by_count', 0) for p in self.publications]
-    self.profile['total_citations'] = sum(citations)
-    self.profile['average_citations'] = sum(citations) / len(citations) if citations else 0
-    self.profile['median_citations'] = np.median(citations) if citations else 0
-    self.profile['max_citations'] = max(citations) if citations else 0
-    self.profile['citations_per_year'] = self.profile['total_citations'] / self.profile['active_years'] if self.profile['active_years'] > 0 else 0
-    
-    # i100 индекс
-    self.profile['i100_index'] = sum(1 for c in citations if c >= 100)
-    
-    # Распределение цитирований
-    citation_bins = [0, 1, 5, 10, 20, 50, 100, 500, 1000]
-    citation_dist = {}
-    for i in range(len(citation_bins)-1):
-        lower = citation_bins[i]
-        upper = citation_bins[i+1]
-        citation_dist[f"{lower}-{upper}"] = sum(1 for c in citations if lower <= c < upper)
-    citation_dist[f">{citation_bins[-1]}"] = sum(1 for c in citations if c >= citation_bins[-1])
-    self.profile['citation_distribution'] = citation_dist
-    
-    # h-index
-    citations_sorted = sorted([c for c in citations if c > 0], reverse=True)
-    h_index = 0
-    for i, c in enumerate(citations_sorted, 1):
-        if c >= i:
-            h_index = i
-        else:
-            break
-    self.profile['h_index'] = h_index
-    
-    # i10-index
-    self.profile['i10_index'] = sum(1 for c in citations if c >= 10)
-    
-    # g-index
-    total_citations_sorted = 0
-    g_index = 0
-    for i, c in enumerate(citations_sorted, 1):
-        total_citations_sorted += c
-        if total_citations_sorted >= i**2:
-            g_index = i
-    self.profile['g_index'] = g_index
-    
-    # Самые цитируемые
-    sorted_pubs = sorted(self.publications, key=lambda x: x.get('cited_by_count', 0), reverse=True)
-    self.profile['most_cited'] = [
-        {
-            'title': p.get('title', 'No title'),
-            'citations': p.get('cited_by_count', 0),
-            'year': p.get('publication_year', 'Unknown'),
-            'journal': p.get('journal_name', 'Unknown'),
-            'doi': p.get('doi', '')
-        }
-        for p in sorted_pubs[:10]
-    ]
-    
-    # Цитирования в год для каждой публикации
-    current_year = datetime.now().year
-    for p in self.publications:
-        pub_year = p.get('publication_year')
-        if pub_year:
-            years_since = current_year - pub_year + 1
-            citations_count = p.get('cited_by_count', 0)
-            p['citations_per_year'] = citations_count / max(years_since, 1)
-        else:
-            p['citations_per_year'] = 0
-    
-    # Тренд
-    if years:
-        sorted_years = sorted(set(years))
-        year_counts = Counter(years)
-        years_range = range(min(sorted_years), max(sorted_years) + 1)
-        counts = [year_counts.get(y, 0) for y in years_range]
         
-        if len(counts) >= 3:
-            x = np.arange(len(counts))
-            z = np.polyfit(x, counts, 1)
-            self.profile['trend_slope'] = z[0]
-            self.profile['trend_intercept'] = z[1]
+        # Создаем словари с подсчетом количества публикаций для каждой категории
+        # Теперь это количество уникальных публикаций, а не количество вхождений
+        
+        # Для концептов считаем, сколько публикаций содержат каждый концепт
+        concept_to_pubs = defaultdict(int)
+        for p in self.publications:
+            if p.get('concepts'):
+                unique_concepts = set(p['concepts'])
+                for concept in unique_concepts:
+                    concept_to_pubs[concept] += 1
+        
+        # Для полей
+        field_to_pubs = defaultdict(int)
+        for p in self.publications:
+            # Собираем поля из разных источников, исключая дубли в пределах публикации
+            fields_in_pub = set()
+            if p.get('fields'):
+                fields_in_pub.update(p['fields'])
+            if p.get('topics'):
+                for t in p['topics']:
+                    if t.get('field'):
+                        fields_in_pub.add(t['field'])
+            for field in fields_in_pub:
+                field_to_pubs[field] += 1
+        
+        # Для доменов
+        domain_to_pubs = defaultdict(int)
+        for p in self.publications:
+            domains_in_pub = set()
+            if p.get('domains'):
+                domains_in_pub.update(p['domains'])
+            if p.get('topics'):
+                for t in p['topics']:
+                    if t.get('domain'):
+                        domains_in_pub.add(t['domain'])
+            for domain in domains_in_pub:
+                domain_to_pubs[domain] += 1
+        
+        # Для топиков (старых)
+        topic_to_pubs = defaultdict(int)
+        for p in self.publications:
+            if p.get('topics_old'):
+                unique_topics = set(p['topics_old'])
+                for topic in unique_topics:
+                    topic_to_pubs[topic] += 1
+        
+        # Для сабтопиков
+        subtopic_to_pubs = defaultdict(int)
+        for p in self.publications:
+            if p.get('subtopics'):
+                unique_subtopics = set(p['subtopics'])
+                for subtopic in unique_subtopics:
+                    subtopic_to_pubs[subtopic] += 1
+        
+        # Для primary topics
+        primary_topic_to_pubs = defaultdict(int)
+        for p in self.publications:
+            if p.get('primary_topic'):
+                pt = p['primary_topic']
+                if pt.get('display_name'):
+                    primary_topic_to_pubs[pt['display_name']] += 1
+        
+        # Для subfields
+        subfield_to_pubs = defaultdict(int)
+        for p in self.publications:
+            subfields_in_pub = set()
+            if p.get('primary_topic') and p['primary_topic'].get('subfield'):
+                subfields_in_pub.add(p['primary_topic']['subfield'])
+            if p.get('topics'):
+                for t in p['topics']:
+                    if t.get('subfield'):
+                        subfields_in_pub.add(t['subfield'])
+            for subfield in subfields_in_pub:
+                subfield_to_pubs[subfield] += 1
+        
+        # Для keywords
+        keyword_to_pubs = defaultdict(int)
+        for p in self.publications:
+            if p.get('keywords'):
+                unique_keywords = set(p['keywords'])
+                for keyword in unique_keywords:
+                    keyword_to_pubs[keyword] += 1
+        
+        # Сохраняем в профиль
+        self.profile['concepts'] = dict(concept_to_pubs)
+        self.profile['top_concepts'] = dict(sorted(concept_to_pubs.items(), key=lambda x: x[1], reverse=True)[:15])
+        
+        self.profile['fields'] = dict(field_to_pubs)
+        self.profile['top_fields'] = dict(sorted(field_to_pubs.items(), key=lambda x: x[1], reverse=True)[:10])
+        
+        self.profile['domains'] = dict(domain_to_pubs)
+        self.profile['top_domains'] = dict(sorted(domain_to_pubs.items(), key=lambda x: x[1], reverse=True)[:5])
+        
+        self.profile['topics'] = dict(topic_to_pubs)
+        self.profile['top_topics'] = dict(sorted(topic_to_pubs.items(), key=lambda x: x[1], reverse=True)[:15])
+        
+        self.profile['subtopics'] = dict(subtopic_to_pubs)
+        self.profile['top_subtopics'] = dict(sorted(subtopic_to_pubs.items(), key=lambda x: x[1], reverse=True)[:20])
+        
+        self.profile['concept_levels'] = concept_levels
+        
+        self.profile['primary_topics'] = dict(primary_topic_to_pubs)
+        self.profile['top_primary_topics'] = dict(sorted(primary_topic_to_pubs.items(), key=lambda x: x[1], reverse=True)[:10])
+        
+        self.profile['subfields'] = dict(subfield_to_pubs)
+        self.profile['top_subfields'] = dict(sorted(subfield_to_pubs.items(), key=lambda x: x[1], reverse=True)[:10])
+        
+        self.profile['keywords'] = dict(keyword_to_pubs)
+        self.profile['top_keywords'] = dict(sorted(keyword_to_pubs.items(), key=lambda x: x[1], reverse=True)[:20])
+        
+        # Ретрации и коррекции
+        self.profile['retractions'] = sum(1 for p in self.publications if p.get('is_retracted', False))
+        self.profile['corrections'] = sum(1 for p in self.publications if p.get('is_correction', False))
+        self.profile['paratexts'] = sum(1 for p in self.publications if p.get('is_paratext', False))
+        self.profile['retraction_details'] = [p.get('retraction_info') for p in self.publications if p.get('is_retracted')]
+        
+        # ====== Сбор соавторов с ORCID ======
+        coauthors = []
+        coauthors_with_orcids = defaultdict(lambda: {'count': 0, 'orcid': None})
+        
+        author_name_normalized = normalize_author_name(self.author_name or '')
+        author_orcid = self.orcid
+        
+        for p in self.publications:
+            if p.get('authors_with_orcids'):
+                authors_list = p['authors_with_orcids']
+                
+                for author_data in authors_list:
+                    name = author_data.get('name', '')
+                    orcid = author_data.get('orcid', '')
+                    
+                    is_self = False
+                    
+                    if author_name_normalized:
+                        name_normalized = normalize_author_name(name)
+                        if name_normalized == author_name_normalized:
+                            is_self = True
+                    
+                    if not is_self and orcid:
+                        if orcid == author_orcid or orcid.replace('https://orcid.org/', '') == author_orcid:
+                            is_self = True
+                    
+                    if not is_self and name:
+                        coauthors.append(name)
+                        if name not in coauthors_with_orcids:
+                            coauthors_with_orcids[name] = {'count': 0, 'orcid': None}
+                        coauthors_with_orcids[name]['count'] += 1
+                        if orcid and not coauthors_with_orcids[name]['orcid']:
+                            coauthors_with_orcids[name]['orcid'] = orcid
+        
+        self.coauthors_with_orcids = dict(coauthors_with_orcids)
+        
+        self.profile['coauthors'] = dict(Counter(coauthors))
+        self.profile['top_coauthors'] = dict(Counter(coauthors).most_common(20))
+        self.profile['top_coauthors_with_orcids'] = {
+            name: data 
+            for name, data in sorted(
+                coauthors_with_orcids.items(), 
+                key=lambda x: x[1]['count'], 
+                reverse=True
+            )[:20]
+        }
+        self.profile['unique_coauthors'] = len(set(coauthors))
+        
+        # Статистика по количеству авторов
+        author_counts = [p.get('author_count', 0) for p in self.publications if p.get('author_count', 0) > 0]
+        if author_counts:
+            self.profile['avg_authors_per_paper'] = np.mean(author_counts)
+            self.profile['median_authors_per_paper'] = np.median(author_counts)
+            self.profile['max_authors_per_paper'] = max(author_counts)
+            self.profile['min_authors_per_paper'] = min(author_counts)
+        
+        # Цитирования
+        citations = [p.get('cited_by_count', 0) for p in self.publications]
+        self.profile['total_citations'] = sum(citations)
+        self.profile['average_citations'] = sum(citations) / len(citations) if citations else 0
+        self.profile['median_citations'] = np.median(citations) if citations else 0
+        self.profile['max_citations'] = max(citations) if citations else 0
+        self.profile['citations_per_year'] = self.profile['total_citations'] / self.profile['active_years'] if self.profile['active_years'] > 0 else 0
+        
+        # i100 индекс
+        self.profile['i100_index'] = sum(1 for c in citations if c >= 100)
+        
+        # Распределение цитирований
+        citation_bins = [0, 1, 5, 10, 20, 50, 100, 500, 1000]
+        citation_dist = {}
+        for i in range(len(citation_bins)-1):
+            lower = citation_bins[i]
+            upper = citation_bins[i+1]
+            citation_dist[f"{lower}-{upper}"] = sum(1 for c in citations if lower <= c < upper)
+        citation_dist[f">{citation_bins[-1]}"] = sum(1 for c in citations if c >= citation_bins[-1])
+        self.profile['citation_distribution'] = citation_dist
+        
+        # h-index
+        citations_sorted = sorted([c for c in citations if c > 0], reverse=True)
+        h_index = 0
+        for i, c in enumerate(citations_sorted, 1):
+            if c >= i:
+                h_index = i
+            else:
+                break
+        self.profile['h_index'] = h_index
+        
+        # i10-index
+        self.profile['i10_index'] = sum(1 for c in citations if c >= 10)
+        
+        # g-index
+        total_citations_sorted = 0
+        g_index = 0
+        for i, c in enumerate(citations_sorted, 1):
+            total_citations_sorted += c
+            if total_citations_sorted >= i**2:
+                g_index = i
+        self.profile['g_index'] = g_index
+        
+        # Самые цитируемые
+        sorted_pubs = sorted(self.publications, key=lambda x: x.get('cited_by_count', 0), reverse=True)
+        self.profile['most_cited'] = [
+            {
+                'title': p.get('title', 'No title'),
+                'citations': p.get('cited_by_count', 0),
+                'year': p.get('publication_year', 'Unknown'),
+                'journal': p.get('journal_name', 'Unknown'),
+                'doi': p.get('doi', '')
+            }
+            for p in sorted_pubs[:10]
+        ]
+        
+        # Цитирования в год для каждой публикации
+        current_year = datetime.now().year
+        for p in self.publications:
+            pub_year = p.get('publication_year')
+            if pub_year:
+                years_since = current_year - pub_year + 1
+                citations_count = p.get('cited_by_count', 0)
+                p['citations_per_year'] = citations_count / max(years_since, 1)
+            else:
+                p['citations_per_year'] = 0
+        
+        # Тренд
+        if years:
+            sorted_years = sorted(set(years))
+            year_counts = Counter(years)
+            years_range = range(min(sorted_years), max(sorted_years) + 1)
+            counts = [year_counts.get(y, 0) for y in years_range]
             
-            if len(counts) > 1:
-                corr_matrix = np.corrcoef(x, counts)
-                self.profile['trend_correlation'] = corr_matrix[0, 1] if len(corr_matrix) > 1 else 0
-            
-            if z[0] > 1.0:
-                self.profile['trend_direction'] = 'strong_up'
-            elif z[0] > 0.3:
-                self.profile['trend_direction'] = 'up'
-            elif z[0] < -1.0:
-                self.profile['trend_direction'] = 'strong_down'
-            elif z[0] < -0.3:
-                self.profile['trend_direction'] = 'down'
+            if len(counts) >= 3:
+                x = np.arange(len(counts))
+                z = np.polyfit(x, counts, 1)
+                self.profile['trend_slope'] = z[0]
+                self.profile['trend_intercept'] = z[1]
+                
+                if len(counts) > 1:
+                    corr_matrix = np.corrcoef(x, counts)
+                    self.profile['trend_correlation'] = corr_matrix[0, 1] if len(corr_matrix) > 1 else 0
+                
+                if z[0] > 1.0:
+                    self.profile['trend_direction'] = 'strong_up'
+                elif z[0] > 0.3:
+                    self.profile['trend_direction'] = 'up'
+                elif z[0] < -1.0:
+                    self.profile['trend_direction'] = 'strong_down'
+                elif z[0] < -0.3:
+                    self.profile['trend_direction'] = 'down'
+                else:
+                    self.profile['trend_direction'] = 'stable'
             else:
                 self.profile['trend_direction'] = 'stable'
-        else:
-            self.profile['trend_direction'] = 'stable'
-            self.profile['trend_correlation'] = 0
-    
-    # Продуктивность
-    self.profile['papers_per_year'] = len(self.publications) / self.profile['active_years'] if self.profile['active_years'] > 0 else 0
-    self.profile['recent_productivity'] = len([y for y in years if y >= (datetime.now().year - 3)]) / 3 if years else 0
-    self.profile['productivity_peak_year'] = max(year_counts.items(), key=lambda x: x[1])[0] if year_counts else None
-    self.profile['productivity_peak_count'] = max(year_counts.values()) if year_counts else 0
-    
-    # OA типы
-    oa_types = {'gold': 0, 'green': 0, 'hybrid': 0, 'bronze': 0, 'closed': 0}
-    for p in self.publications:
-        status = p.get('open_access_status', 'closed')
-        if status in oa_types:
-            oa_types[status] += 1
-    self.profile['oa_types'] = oa_types
-    
-    # Тематическое разнообразие (Shannon)
-    if all_concepts:
-        concept_counts = Counter(all_concepts)
-        total = len(all_concepts)
-        shannon_index = 0
-        for count in concept_counts.values():
-            p = count / total
-            shannon_index -= p * np.log(p)
-        self.profile['thematic_diversity_shannon'] = shannon_index
-        self.profile['unique_concepts'] = len(concept_counts)
-    
-    # Анализ коллабораций
-    self._analyze_collaborations()
-    
-    # Флаг ретракций
-    self.profile['risk_flags'] = self._get_retraction_flag()
-    
-    print("✅ Анализ завершен!")
+                self.profile['trend_correlation'] = 0
+        
+        # Продуктивность
+        self.profile['papers_per_year'] = len(self.publications) / self.profile['active_years'] if self.profile['active_years'] > 0 else 0
+        self.profile['recent_productivity'] = len([y for y in years if y >= (datetime.now().year - 3)]) / 3 if years else 0
+        self.profile['productivity_peak_year'] = max(year_counts.items(), key=lambda x: x[1])[0] if year_counts else None
+        self.profile['productivity_peak_count'] = max(year_counts.values()) if year_counts else 0
+        
+        # OA типы
+        oa_types = {'gold': 0, 'green': 0, 'hybrid': 0, 'bronze': 0, 'closed': 0}
+        for p in self.publications:
+            status = p.get('open_access_status', 'closed')
+            if status in oa_types:
+                oa_types[status] += 1
+        self.profile['oa_types'] = oa_types
+        
+        # Тематическое разнообразие (Shannon)
+        if all_concepts:
+            concept_counts = Counter(all_concepts)
+            total = len(all_concepts)
+            shannon_index = 0
+            for count in concept_counts.values():
+                p = count / total
+                shannon_index -= p * np.log(p)
+            self.profile['thematic_diversity_shannon'] = shannon_index
+            self.profile['unique_concepts'] = len(concept_counts)
+        
+        # Анализ коллабораций
+        self._analyze_collaborations()
+        
+        # Флаг ретракций
+        self.profile['risk_flags'] = self._get_retraction_flag()
+        
+        print("✅ Анализ завершен!")
     
     def get_profile_data(self) -> Dict:
         """Возвращает полный профиль"""
