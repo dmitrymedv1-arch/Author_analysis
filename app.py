@@ -4013,6 +4013,107 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
             if years:
                 filter_info = f"📅 {translate('temporal_gap_filter_info', lang, start_year=min(years), end_year=max(years))}"
     
+    # ====== ИЗМЕНЕНИЕ: Пересоздаем визуализации для отфильтрованных публикаций ======
+    if start_year is not None or end_year is not None:
+        # Создаем временный профиль с отфильтрованными данными для визуализаций
+        filtered_profile = profile.copy()
+        
+        # Обновляем years_distribution в профиле для визуализаций
+        years_filtered = [p.get('publication_year') for p in filtered_publications if p.get('publication_year')]
+        if years_filtered:
+            filtered_profile['years_distribution'] = dict(Counter(years_filtered))
+        
+        # Обновляем top_journals
+        journals_filtered = [p.get('journal_name') for p in filtered_publications if p.get('journal_name')]
+        if journals_filtered:
+            filtered_profile['top_journals'] = dict(Counter(journals_filtered).most_common(10))
+        
+        # Обновляем open_access
+        oa_statuses_filtered = [p.get('open_access_status') for p in filtered_publications if p.get('open_access_status')]
+        if oa_statuses_filtered:
+            filtered_profile['open_access'] = dict(Counter(oa_statuses_filtered))
+        
+        # Обновляем publishers
+        publishers_filtered = [p.get('publisher') for p in filtered_publications if p.get('publisher') and p.get('publisher') != 'Unknown']
+        if publishers_filtered:
+            filtered_profile['publishers'] = dict(Counter(publishers_filtered))
+        
+        # Обновляем top_affiliations
+        affiliations_filtered = []
+        for p in filtered_publications:
+            if p.get('affiliations'):
+                affiliations_filtered.extend(p['affiliations'])
+        if affiliations_filtered:
+            filtered_profile['top_affiliations'] = dict(Counter(affiliations_filtered).most_common(5))
+        
+        # Обновляем most_cited
+        sorted_pubs_filtered = sorted(filtered_publications, key=lambda x: x.get('cited_by_count', 0), reverse=True)
+        filtered_profile['most_cited'] = [
+            {
+                'title': p.get('title', 'No title'),
+                'citations': p.get('cited_by_count', 0),
+                'year': p.get('publication_year', 'Unknown'),
+                'journal': p.get('journal_name', 'Unknown'),
+                'doi': p.get('doi', '')
+            }
+            for p in sorted_pubs_filtered[:10]
+        ]
+        
+        # Обновляем citation_distribution
+        citations_filtered = [p.get('cited_by_count', 0) for p in filtered_publications]
+        if citations_filtered:
+            citation_bins = [0, 1, 5, 10, 20, 50, 100, 500, 1000]
+            citation_dist = {}
+            for i in range(len(citation_bins)-1):
+                lower = citation_bins[i]
+                upper = citation_bins[i+1]
+                citation_dist[f"{lower}-{upper}"] = sum(1 for c in citations_filtered if lower <= c < upper)
+            citation_dist[f">{citation_bins[-1]}"] = sum(1 for c in citations_filtered if c >= citation_bins[-1])
+            filtered_profile['citation_distribution'] = citation_dist
+        
+        # Обновляем концепты и тематическую структуру
+        concepts_counter = defaultdict(int)
+        fields_counter = defaultdict(int)
+        domains_counter = defaultdict(int)
+        topics_counter = defaultdict(int)
+        subtopics_counter = defaultdict(int)
+        
+        for p in filtered_publications:
+            if p.get('concepts'):
+                for c in set(p['concepts']):
+                    concepts_counter[c] += 1
+            if p.get('fields'):
+                for f in set(p['fields']):
+                    fields_counter[f] += 1
+            if p.get('domains'):
+                for d in set(p['domains']):
+                    domains_counter[d] += 1
+            if p.get('topics_old'):
+                for t in set(p['topics_old']):
+                    topics_counter[t] += 1
+            if p.get('subtopics'):
+                for s in set(p['subtopics']):
+                    subtopics_counter[s] += 1
+        
+        if concepts_counter:
+            filtered_profile['top_concepts'] = dict(sorted(concepts_counter.items(), key=lambda x: x[1], reverse=True)[:15])
+            filtered_profile['concepts'] = dict(concepts_counter)
+        if fields_counter:
+            filtered_profile['top_fields'] = dict(sorted(fields_counter.items(), key=lambda x: x[1], reverse=True)[:10])
+            filtered_profile['fields'] = dict(fields_counter)
+        if domains_counter:
+            filtered_profile['top_domains'] = dict(sorted(domains_counter.items(), key=lambda x: x[1], reverse=True)[:5])
+            filtered_profile['domains'] = dict(domains_counter)
+        if topics_counter:
+            filtered_profile['top_topics'] = dict(sorted(topics_counter.items(), key=lambda x: x[1], reverse=True)[:15])
+            filtered_profile['topics'] = dict(topics_counter)
+        if subtopics_counter:
+            filtered_profile['top_subtopics'] = dict(sorted(subtopics_counter.items(), key=lambda x: x[1], reverse=True)[:20])
+            filtered_profile['subtopics'] = dict(subtopics_counter)
+        
+        # Пересоздаем визуализации с обновленным профилем
+        images = create_visualizations(filtered_profile, lang)
+    
     if theme_colors is None:
         theme_colors = {
             'primary': '#667eea',
@@ -5230,7 +5331,8 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
         author_data = authors_to_show[0]
         profile = author_data.get('profile', {})
         publications = author_data.get('publications', [])
-        images = author_data.get('images', {})
+        # ====== ИЗМЕНЕНИЕ: Не используем закэшированные изображения, они будут пересозданы в generate_html_report ======
+        images = {}  # Пустой словарь, generate_html_report пересоздаст визуализации
         analyzer = author_data.get('analyzer')
         institution_homepages = analyzer.institution_homepages if analyzer else {}
         
@@ -5847,7 +5949,106 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                     </div>
                     """
             
-            # Собираем топ журналов из отфильтрованных публикаций
+            # Создаем временный профиль с отфильтрованными данными
+            filtered_profile = profile.copy()
+            
+            # Обновляем years_distribution в профиле для визуализаций
+            years_filtered = [p.get('publication_year') for p in filtered_pubs if p.get('publication_year')]
+            if years_filtered:
+                filtered_profile['years_distribution'] = dict(Counter(years_filtered))
+            
+            # Обновляем top_journals
+            journals_filtered = [p.get('journal_name') for p in filtered_pubs if p.get('journal_name')]
+            if journals_filtered:
+                filtered_profile['top_journals'] = dict(Counter(journals_filtered).most_common(10))
+            
+            # Обновляем open_access
+            oa_statuses_filtered = [p.get('open_access_status') for p in filtered_pubs if p.get('open_access_status')]
+            if oa_statuses_filtered:
+                filtered_profile['open_access'] = dict(Counter(oa_statuses_filtered))
+            
+            # Обновляем publishers
+            publishers_filtered = [p.get('publisher') for p in filtered_pubs if p.get('publisher') and p.get('publisher') != 'Unknown']
+            if publishers_filtered:
+                filtered_profile['publishers'] = dict(Counter(publishers_filtered))
+            
+            # Обновляем top_affiliations
+            affiliations_filtered = []
+            for p in filtered_pubs:
+                if p.get('affiliations'):
+                    affiliations_filtered.extend(p['affiliations'])
+            if affiliations_filtered:
+                filtered_profile['top_affiliations'] = dict(Counter(affiliations_filtered).most_common(5))
+            
+            # Обновляем most_cited
+            sorted_pubs_filtered = sorted(filtered_pubs, key=lambda x: x.get('cited_by_count', 0), reverse=True)
+            filtered_profile['most_cited'] = [
+                {
+                    'title': p.get('title', 'No title'),
+                    'citations': p.get('cited_by_count', 0),
+                    'year': p.get('publication_year', 'Unknown'),
+                    'journal': p.get('journal_name', 'Unknown'),
+                    'doi': p.get('doi', '')
+                }
+                for p in sorted_pubs_filtered[:10]
+            ]
+            
+            # Обновляем citation_distribution
+            citations_filtered = [p.get('cited_by_count', 0) for p in filtered_pubs]
+            if citations_filtered:
+                citation_bins = [0, 1, 5, 10, 20, 50, 100, 500, 1000]
+                citation_dist = {}
+                for j in range(len(citation_bins)-1):
+                    lower = citation_bins[j]
+                    upper = citation_bins[j+1]
+                    citation_dist[f"{lower}-{upper}"] = sum(1 for c in citations_filtered if lower <= c < upper)
+                citation_dist[f">{citation_bins[-1]}"] = sum(1 for c in citations_filtered if c >= citation_bins[-1])
+                filtered_profile['citation_distribution'] = citation_dist
+            
+            # Обновляем концепты и тематическую структуру
+            concepts_counter = defaultdict(int)
+            fields_counter = defaultdict(int)
+            domains_counter = defaultdict(int)
+            topics_counter = defaultdict(int)
+            subtopics_counter = defaultdict(int)
+            
+            for p in filtered_pubs:
+                if p.get('concepts'):
+                    for c in set(p['concepts']):
+                        concepts_counter[c] += 1
+                if p.get('fields'):
+                    for f in set(p['fields']):
+                        fields_counter[f] += 1
+                if p.get('domains'):
+                    for d in set(p['domains']):
+                        domains_counter[d] += 1
+                if p.get('topics_old'):
+                    for t in set(p['topics_old']):
+                        topics_counter[t] += 1
+                if p.get('subtopics'):
+                    for s in set(p['subtopics']):
+                        subtopics_counter[s] += 1
+            
+            if concepts_counter:
+                filtered_profile['top_concepts'] = dict(sorted(concepts_counter.items(), key=lambda x: x[1], reverse=True)[:15])
+                filtered_profile['concepts'] = dict(concepts_counter)
+            if fields_counter:
+                filtered_profile['top_fields'] = dict(sorted(fields_counter.items(), key=lambda x: x[1], reverse=True)[:10])
+                filtered_profile['fields'] = dict(fields_counter)
+            if domains_counter:
+                filtered_profile['top_domains'] = dict(sorted(domains_counter.items(), key=lambda x: x[1], reverse=True)[:5])
+                filtered_profile['domains'] = dict(domains_counter)
+            if topics_counter:
+                filtered_profile['top_topics'] = dict(sorted(topics_counter.items(), key=lambda x: x[1], reverse=True)[:15])
+                filtered_profile['topics'] = dict(topics_counter)
+            if subtopics_counter:
+                filtered_profile['top_subtopics'] = dict(sorted(subtopics_counter.items(), key=lambda x: x[1], reverse=True)[:20])
+                filtered_profile['subtopics'] = dict(subtopics_counter)
+            
+            # Пересоздаем визуализации с обновленным профилем
+            filtered_images = create_visualizations(filtered_profile, lang)
+            
+            # Собираем топ журналов из отфильтрованных публикаций (для отображения в таблице)
             top_journals = dict(Counter([p.get('journal_name') for p in filtered_pubs if p.get('journal_name')]).most_common(10))
             
             # Собираем соавторов из отфильтрованных публикаций
@@ -5931,7 +6132,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                     </div>
                     
                     <div class="chart-container">
-                        <img src="data:image/png;base64,{images.get('years_chart', '')}" alt="{t('years_chart_title')}">
+                        <img src="data:image/png;base64,{filtered_images.get('years_chart', '')}" alt="{t('years_chart_title')}">
                     </div>
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
