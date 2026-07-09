@@ -21,6 +21,14 @@ LOGO_PATH = None  # Путь к логотипу журнала (устанав�
 MAX_PUBLICATIONS_TO_ANALYZE = 1000  # Максимум статей для анализа
 MIN_YEAR_FOR_TREND = 5  # Сколько лет для тренда
 
+# Режим анализа источников данных
+ANALYSIS_MODE = "orcid_openalex"  # "orcid_only" | "orcid_openalex"
+# orcid_only: только публикации из ORCID профиля
+# orcid_openalex: ORCID + OpenAlex (максимальная полнота)
+
+# Параметры для обнаружения временных разрывов
+MIN_GAP_YEARS_FOR_WARNING = 10  # Минимальный разрыв в годах для предупреждения
+
 # ============================================
 # ИМПОРТЫ
 # ============================================
@@ -229,6 +237,24 @@ LANG = {
         'fetching_orcid_profiles': '🆔 Fetching ORCID profiles...',
         'orcid_profiles_fetched': '✅ ORCID profiles fetched: {count}',
         'no_orcid_profiles_found': 'No ORCID profiles found',
+        'analysis_source': '📊 Data source for analysis:',
+        'analysis_source_orcid_only': '🔒 ORCID only (safe)',
+        'analysis_source_orcid_openalex': '🔓 ORCID + OpenAlex (max. completeness)',
+        'analysis_source_help': 'Select data source for publication analysis',
+        'temporal_gap_warning': '⚠️ Significant temporal gap detected in publications!',
+        'temporal_gap_detected': 'Gap of {gap_years} years between {gap_start} and {gap_end}',
+        'temporal_gap_suggestion': 'This may indicate: - Wrongly attributed publications from another scientist with the same name - Long break in scientific activity',
+        'temporal_gap_recommendation': 'Recommended to cut off publications before {cut_off_year}',
+        'temporal_gap_apply_filter': '📅 Apply year filter for report',
+        'temporal_gap_select_period': 'Select analysis period:',
+        'temporal_gap_publications_total': 'Total publications',
+        'temporal_gap_after_filter': 'After filtering',
+        'temporal_gap_filter_info': '📅 Period: {start_year} - {end_year}',
+        'temporal_gap_original_count': 'Original: {count} publications',
+        'temporal_gap_filtered_count': 'Filtered: {count} publications',
+        'show_filtered_report': 'Show report with filtering',
+        'show_original_report': 'Show original report (no filtering)',
+        'temporal_gap_use_filter': 'Use year filter for report',
     },
     'ru': {
         'app_title': 'Анализ профиля ученого',
@@ -393,6 +419,24 @@ LANG = {
         'fetching_orcid_profiles': '🆔 Получение профилей ORCID...',
         'orcid_profiles_fetched': '✅ Получено профилей ORCID: {count}',
         'no_orcid_profiles_found': 'Профили ORCID не найдены',
+        'analysis_source': '📊 Источник данных для анализа:',
+        'analysis_source_orcid_only': '🔒 Только ORCID (безопасный)',
+        'analysis_source_orcid_openalex': '🔓 ORCID + OpenAlex (макс. полнота)',
+        'analysis_source_help': 'Выберите источник данных для анализа публикаций',
+        'temporal_gap_warning': '⚠️ Обнаружен значительный временной разрыв в публикациях!',
+        'temporal_gap_detected': 'Разрыв в {gap_years} лет между {gap_start} и {gap_end} годами',
+        'temporal_gap_suggestion': 'Это может указывать на: - Ошибочную привязку публикаций другого ученого с таким же именем - Длительный перерыв в научной деятельности',
+        'temporal_gap_recommendation': 'Рекомендуется отсечь публикации до {cut_off_year} года',
+        'temporal_gap_apply_filter': '📅 Применить фильтр по годам для отчета',
+        'temporal_gap_select_period': 'Выберите период анализа:',
+        'temporal_gap_publications_total': 'Всего публикаций',
+        'temporal_gap_after_filter': 'После фильтрации',
+        'temporal_gap_filter_info': '📅 Период: {start_year} - {end_year}',
+        'temporal_gap_original_count': 'Исходно: {count} публикаций',
+        'temporal_gap_filtered_count': 'Отфильтровано: {count} публикаций',
+        'show_filtered_report': 'Показать отчет с фильтрацией',
+        'show_original_report': 'Показать исходный отчет (без фильтрации)',
+        'temporal_gap_use_filter': 'Использовать фильтр по годам для отчета',
     }
 }
 
@@ -1435,19 +1479,19 @@ def safe_get(data, *keys, default=None):
             return default
     return data
 
-def get_cache_path(orcid: str) -> str:
-    """Возвращает путь к файлу кэша для ORCID"""
+def get_cache_path(orcid: str, mode: str = "orcid_openalex") -> str:
+    """Возвращает путь к файлу кэша для ORCID с учетом режима анализа"""
     orcid_clean = clean_orcid(orcid)
     if not os.path.exists('cache'):
         os.makedirs('cache')
-    return f"cache/{orcid_clean}.json"
+    return f"cache/{orcid_clean}_{mode}.json"
 
 def load_from_cache(orcid: str) -> Optional[Dict]:
     """Загружает данные из кэша"""
     if not USE_CACHE:
         return None
     
-    cache_path = get_cache_path(orcid)
+    cache_path = get_cache_path(orcid, ANALYSIS_MODE)
     if os.path.exists(cache_path):
         try:
             with open(cache_path, 'r', encoding='utf-8') as f:
@@ -1464,13 +1508,121 @@ def save_to_cache(orcid: str, data: Dict):
     if not USE_CACHE:
         return
     
-    cache_path = get_cache_path(orcid)
+    cache_path = get_cache_path(orcid, ANALYSIS_MODE)
     try:
         with open(cache_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         print(f"✅ Данные сохранены в кэш: {cache_path}")
     except Exception as e:
         print(f"⚠️ Ошибка сохранения кэша: {e}")
+
+# ============================================
+# НОВАЯ ФУНКЦИЯ: ОБНАРУЖЕНИЕ ВРЕМЕННЫХ РАЗРЫВОВ
+# ============================================
+
+def detect_temporal_gaps(publications: List[Dict], min_gap_years: int = 10) -> Dict:
+    """
+    Анализирует временные разрывы между публикациями.
+    
+    Args:
+        publications: Список публикаций
+        min_gap_years: Минимальный разрыв для обнаружения (по умолчанию 10 лет)
+    
+    Returns:
+        Dict: {
+            'has_gap': bool,
+            'gap_years': int,
+            'gap_start': int,  # год начала разрыва
+            'gap_end': int,    # год окончания разрыва
+            'clusters': List[List[int]],  # кластеры публикаций по годам
+            'suggestion': str,  # предложение по отсечению
+            'cut_off_year': int,  # рекомендуемый год отсечения
+            'min_year': int,
+            'max_year': int,
+            'all_years': List[int]
+        }
+    """
+    if not publications:
+        return {'has_gap': False}
+    
+    # Получаем все годы публикаций
+    years = sorted([p.get('publication_year') for p in publications if p.get('publication_year')])
+    if len(years) < 2:
+        return {'has_gap': False}
+    
+    unique_years = sorted(set(years))
+    
+    # Находим самый большой разрыв между соседними годами
+    max_gap = 0
+    gap_start = None
+    gap_end = None
+    
+    for i in range(len(unique_years) - 1):
+        current_gap = unique_years[i+1] - unique_years[i]
+        if current_gap > max_gap:
+            max_gap = current_gap
+            gap_start = unique_years[i]
+            gap_end = unique_years[i+1]
+    
+    if max_gap >= min_gap_years:
+        # Определяем кластеры публикаций
+        clusters = []
+        current_cluster = [unique_years[0]]
+        
+        for i in range(1, len(unique_years)):
+            if unique_years[i] - unique_years[i-1] >= min_gap_years:
+                clusters.append(current_cluster)
+                current_cluster = [unique_years[i]]
+            else:
+                current_cluster.append(unique_years[i])
+        
+        if current_cluster:
+            clusters.append(current_cluster)
+        
+        # Определяем рекомендацию по отсечению
+        # Обычно отсекаем старые публикации (первый кластер)
+        if len(clusters) > 1:
+            # Находим самый большой кластер (предположительно основной период активности)
+            main_cluster = max(clusters, key=len)
+            cut_off_year = min(main_cluster)
+            
+            return {
+                'has_gap': True,
+                'gap_years': max_gap,
+                'gap_start': gap_start,
+                'gap_end': gap_end,
+                'clusters': clusters,
+                'cut_off_year': cut_off_year,
+                'suggestion': f"Рекомендуется отсечь публикации до {cut_off_year} года",
+                'min_year': min(unique_years),
+                'max_year': max(unique_years),
+                'all_years': unique_years
+            }
+    
+    return {
+        'has_gap': False,
+        'min_year': min(years) if years else None,
+        'max_year': max(years) if years else None,
+        'all_years': unique_years
+    }
+
+def get_filtered_publications(publications: List[Dict], start_year: Optional[int] = None, end_year: Optional[int] = None) -> List[Dict]:
+    """Фильтрует публикации по диапазону лет"""
+    if start_year is None and end_year is None:
+        return publications
+    
+    filtered = []
+    for p in publications:
+        pub_year = p.get('publication_year')
+        if pub_year is None:
+            continue
+        if start_year is not None and pub_year < start_year:
+            continue
+        if end_year is not None and pub_year > end_year:
+            continue
+        filtered.append(p)
+    
+    return filtered
 
 # ============================================
 # ФУНКЦИЯ ДЛЯ ОПРЕДЕЛЕНИЯ КАТЕГОРИИ ИСТОЧНИКА
@@ -1709,14 +1861,15 @@ def parse_openalex_publication(item: Dict) -> Dict:
 # ФУНКЦИИ ДЛЯ ПОЛУЧЕНИЯ ДАННЫХ ИЗ API
 # ============================================
 
-async def get_orcid_dois(orcid: str, session) -> Set[str]:
+async def get_orcid_dois(orcid: str, session, mode: str = "orcid_openalex") -> Set[str]:
     """
-    Получает список DOI из профиля ORCID и OpenAlex API.
+    Получает список DOI из профиля ORCID и опционально из OpenAlex API.
     Объединяет результаты из обоих источников для максимальной полноты данных.
     
     Args:
         orcid: ORCID идентификатор
         session: aiohttp сессия
+        mode: "orcid_only" - только ORCID, "orcid_openalex" - ORCID + OpenAlex
         
     Returns:
         Set[str]: Множество уникальных DOI
@@ -1762,7 +1915,15 @@ async def get_orcid_dois(orcid: str, session) -> Set[str]:
                 print(f"⚠️ Ошибка парсинга ORCID API: {e}")
     
     # ============================================================
-    # ЧАСТЬ 2: Получение DOI из OpenAlex API (НОВАЯ ЛОГИКА)
+    # ЧАСТЬ 2: Если mode == "orcid_only" - возвращаем только ORCID DOI
+    # ============================================================
+    if mode == "orcid_only":
+        if SHOW_DEBUG_LOGS:
+            print(f"🔒 Режим ORCID only: возвращено {len(all_dois)} DOI")
+        return all_dois
+    
+    # ============================================================
+    # ЧАСТЬ 3: Получение DOI из OpenAlex API (для mode == "orcid_openalex")
     # ============================================================
     if SHOW_DEBUG_LOGS:
         print(f"🔍 Запрос к OpenAlex API для ORCID: {orcid}")
@@ -3146,11 +3307,85 @@ class ScholarProfileAnalyzer:
         return self.publications
 
 # ============================================
+# НОВАЯ ФУНКЦИЯ: UI для отображения предупреждения о временных разрывах
+# ============================================
+
+def render_temporal_gap_warning(profile: Dict, publications: List[Dict], lang: str = 'en') -> Tuple[bool, Optional[int], Optional[int]]:
+    """
+    Отображает предупреждение о временных разрывах и возвращает выбор пользователя.
+    
+    Returns:
+        Tuple[bool, Optional[int], Optional[int]]: (использовать_фильтр, год_начала, год_конца)
+    """
+    def t(key: str, **kwargs) -> str:
+        return translate(key, lang, **kwargs)
+    
+    gap_analysis = detect_temporal_gaps(publications, MIN_GAP_YEARS_FOR_WARNING)
+    
+    if not gap_analysis.get('has_gap', False):
+        return False, None, None
+    
+    all_years = gap_analysis.get('all_years', [])
+    if not all_years:
+        return False, None, None
+    
+    min_year = min(all_years)
+    max_year = max(all_years)
+    
+    st.warning(f"""
+    ⚠️ **{t('temporal_gap_warning')}**
+    
+    {t('temporal_gap_detected', gap_years=gap_analysis['gap_years'], gap_start=gap_analysis['gap_start'], gap_end=gap_analysis['gap_end'])}
+    
+    {t('temporal_gap_suggestion')}
+    
+    **{t('temporal_gap_recommendation', cut_off_year=gap_analysis['cut_off_year'])}**
+    """)
+    
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        use_filter = st.checkbox(
+            t('temporal_gap_apply_filter'), 
+            value=True,
+            key=f"gap_filter_{profile.get('orcid', 'default')}"
+        )
+        
+        if use_filter:
+            # Предлагаем диапазон от рекомендуемого года до максимального
+            recommended_start = gap_analysis.get('cut_off_year', min_year)
+            
+            year_range = st.slider(
+                t('temporal_gap_select_period'),
+                min_value=min_year,
+                max_value=max_year,
+                value=(recommended_start, max_year),
+                step=1,
+                format="%d",
+                key=f"gap_slider_{profile.get('orcid', 'default')}"
+            )
+            start_year = year_range[0]
+            end_year = year_range[1]
+        else:
+            start_year = None
+            end_year = None
+    
+    with col2:
+        total_pubs = len(publications)
+        st.metric(t('temporal_gap_publications_total'), total_pubs)
+        
+        if use_filter and start_year is not None:
+            filtered_count = len([p for p in publications if p.get('publication_year', 0) >= start_year and p.get('publication_year', 0) <= end_year])
+            st.metric(t('temporal_gap_after_filter'), filtered_count, delta=filtered_count - total_pubs)
+    
+    return use_filter, start_year, end_year
+
+# ============================================
 # ОСНОВНАЯ ФУНКЦИЯ СБОРА ДАННЫХ
 # ============================================
 
-async def collect_scholar_data(orcid: str, progress_callback=None) -> Tuple[ScholarProfileAnalyzer, Dict, List[Dict]]:
-    """Собирает все данные для профиля ученого"""
+async def collect_scholar_data(orcid: str, progress_callback=None, analysis_mode: str = "orcid_openalex") -> Tuple[ScholarProfileAnalyzer, Dict, List[Dict]]:
+    """Собирает все данные для профиля ученого с учетом режима анализа"""
     
     orcid_clean = clean_orcid(orcid)
     
@@ -3158,7 +3393,7 @@ async def collect_scholar_data(orcid: str, progress_callback=None) -> Tuple[Scho
         print(f"❌ Неверный формат ORCID: {orcid}")
         return None, {}, []
     
-    print(f"🚀 Начинаем сбор данных для ORCID: {orcid_clean}")
+    print(f"🚀 Начинаем сбор данных для ORCID: {orcid_clean} (режим: {analysis_mode})")
     
     cached_data = load_from_cache(orcid_clean)
     if cached_data:
@@ -3199,7 +3434,8 @@ async def collect_scholar_data(orcid: str, progress_callback=None) -> Tuple[Scho
             if analyzer.author_affiliations:
                 print(f"🏛️ Аффилиации: {', '.join(analyzer.author_affiliations[:3])}")
         
-        orcid_dois = await get_orcid_dois(orcid_clean, session)
+        # Передаем режим анализа в функцию get_orcid_dois
+        orcid_dois = await get_orcid_dois(orcid_clean, session, mode=analysis_mode)
         
         if not orcid_dois:
             print("❌ Не найдено DOI в профиле ORCID")
@@ -3300,6 +3536,7 @@ async def collect_scholar_data(orcid: str, progress_callback=None) -> Tuple[Scho
         # Добавляем профили соавторов в профиль для кэширования
         analyzer.profile['coauthor_profiles'] = coauthor_profiles
         
+        # Добавляем информацию о режиме анализа в кэш
         cache_data = {
             'publications': analyzer.publications,
             'author_info': analyzer.author_info,
@@ -3307,6 +3544,7 @@ async def collect_scholar_data(orcid: str, progress_callback=None) -> Tuple[Scho
             'institution_homepages': analyzer.institution_homepages,
             'coauthors_with_orcids': analyzer.coauthors_with_orcids,
             'coauthor_profiles': coauthor_profiles,
+            'analysis_mode': analysis_mode,
             'timestamp': datetime.now().isoformat()
         }
         save_to_cache(orcid_clean, cache_data)
@@ -3317,8 +3555,8 @@ async def collect_scholar_data(orcid: str, progress_callback=None) -> Tuple[Scho
 # ФУНКЦИИ ДЛЯ АНАЛИЗА МНОЖЕСТВЕННЫХ АВТОРОВ
 # ============================================
 
-async def analyze_multiple_authors(orcid_list: List[str], progress_callback=None) -> List[Dict]:
-    """Анализирует несколько авторов параллельно"""
+async def analyze_multiple_authors(orcid_list: List[str], progress_callback=None, analysis_mode: str = "orcid_openalex") -> List[Dict]:
+    """Анализирует несколько авторов параллельно с учетом режима анализа"""
     results = []
     total = len(orcid_list)
     
@@ -3326,7 +3564,7 @@ async def analyze_multiple_authors(orcid_list: List[str], progress_callback=None
         if progress_callback:
             progress_callback(idx + 1, total, orcid)
         
-        analyzer, profile, publications = await collect_scholar_data(orcid)
+        analyzer, profile, publications = await collect_scholar_data(orcid, analysis_mode=analysis_mode)
         if profile:
             results.append({
                 'orcid': orcid,
@@ -3752,15 +3990,28 @@ def create_visualizations(profile: Dict, lang: str = 'en') -> Dict[str, str]:
     return images
 
 # ============================================
-# ФУНКЦИИ ДЛЯ ГЕНЕРАЦИИ ОТЧЕТОВ
+# ФУНКЦИИ ДЛЯ ГЕНЕРАЦИИ ОТЧЕТОВ (С ПОДДЕРЖКОЙ ФИЛЬТРАЦИИ)
 # ============================================
 
 def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[str, str], 
                          logo_base64: Optional[str] = None, app_logo_base64: Optional[str] = None, 
                          institution_homepages: Optional[Dict[str, str]] = None, 
                          theme_colors: Optional[Dict] = None, lang: str = 'en', 
-                         coauthor_profiles: Optional[Dict] = None) -> str:
-    """Генерирует HTML отчет с расширенной информацией и дизайном из второго кода"""
+                         coauthor_profiles: Optional[Dict] = None,
+                         start_year: Optional[int] = None,
+                         end_year: Optional[int] = None) -> str:
+    """Генерирует HTML отчет с расширенной информацией и возможностью фильтрации по годам"""
+    
+    # Фильтруем публикации если указан диапазон лет
+    filtered_publications = publications
+    filter_info = None
+    
+    if start_year is not None or end_year is not None:
+        filtered_publications = get_filtered_publications(publications, start_year, end_year)
+        if filtered_publications:
+            years = [p.get('publication_year') for p in filtered_publications if p.get('publication_year')]
+            if years:
+                filter_info = f"📅 {translate('temporal_gap_filter_info', lang, start_year=min(years), end_year=max(years))}"
     
     if theme_colors is None:
         theme_colors = {
@@ -3771,69 +4022,161 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     primary = theme_colors.get('primary', '#667eea')
     secondary = theme_colors.get('secondary', '#f39c12')
     
-    total_pubs = profile.get('total_publications', 0)
-    h_index = profile.get('h_index', 0)
-    g_index = profile.get('g_index', 0)
-    i10_index = profile.get('i10_index', 0)
-    i100_index = profile.get('i100_index', 0)
-    total_citations = profile.get('total_citations', 0)
-    avg_citations = profile.get('average_citations', 0)
-    median_citations = profile.get('median_citations', 0)
-    max_citations = profile.get('max_citations', 0)
-    oa_percentage = profile.get('oa_percentage', 0)
+    total_pubs = len(filtered_publications)
     
-    top_journals = profile.get('top_journals', {})
-    top_concepts = profile.get('top_concepts', {})
-    top_domains = profile.get('top_domains', {})
-    top_fields = profile.get('top_fields', {})
-    top_topics = profile.get('top_topics', {})
-    top_subtopics = profile.get('top_subtopics', {})
-    trend = profile.get('trend_direction', 'unknown')
-    trend_corr = profile.get('trend_correlation', 0)
+    # Пересчитываем метрики для отфильтрованных публикаций
+    h_index = 0
+    g_index = 0
+    i10_index = 0
+    i100_index = 0
+    total_citations = 0
+    avg_citations = 0
+    median_citations = 0
+    max_citations = 0
+    oa_percentage = 0
     
-    risk_flags = profile.get('risk_flags', [])
+    if filtered_publications:
+        citations = [p.get('cited_by_count', 0) for p in filtered_publications]
+        total_citations = sum(citations)
+        avg_citations = sum(citations) / len(citations) if citations else 0
+        median_citations = np.median(citations) if citations else 0
+        max_citations = max(citations) if citations else 0
+        
+        citations_sorted = sorted([c for c in citations if c > 0], reverse=True)
+        for i, c in enumerate(citations_sorted, 1):
+            if c >= i:
+                h_index = i
+            else:
+                break
+        
+        i10_index = sum(1 for c in citations if c >= 10)
+        i100_index = sum(1 for c in citations if c >= 100)
+        
+        total_oa = sum(1 for p in filtered_publications if p.get('is_oa', False))
+        oa_percentage = (total_oa / len(filtered_publications) * 100) if filtered_publications else 0
+        
+        total_citations_sorted = 0
+        for i, c in enumerate(citations_sorted, 1):
+            total_citations_sorted += c
+            if total_citations_sorted >= i**2:
+                g_index = i
     
-    unique_coauthors = profile.get('unique_coauthors', 0)
-    avg_authors = profile.get('avg_authors_per_paper', 0)
-    papers_per_year = profile.get('papers_per_year', 0)
-    active_years = profile.get('active_years', 0)
+    # Используем отфильтрованные публикации для остальных расчетов
+    top_journals = dict(Counter([p.get('journal_name') for p in filtered_publications if p.get('journal_name')]).most_common(10))
+    top_concepts = {}
+    top_domains = {}
+    top_fields = {}
+    top_topics = {}
+    top_subtopics = {}
     
-    retractions = profile.get('retractions', 0)
-    corrections = profile.get('corrections', 0)
+    # Собираем концепты из отфильтрованных публикаций
+    concept_counter = defaultdict(int)
+    domain_counter = defaultdict(int)
+    field_counter = defaultdict(int)
+    topic_counter = defaultdict(int)
+    subtopic_counter = defaultdict(int)
+    
+    for p in filtered_publications:
+        if p.get('concepts'):
+            for concept in set(p['concepts']):
+                concept_counter[concept] += 1
+        if p.get('domains'):
+            for domain in set(p['domains']):
+                domain_counter[domain] += 1
+        if p.get('fields'):
+            for field in set(p['fields']):
+                field_counter[field] += 1
+        if p.get('topics_old'):
+            for topic in set(p['topics_old']):
+                topic_counter[topic] += 1
+        if p.get('subtopics'):
+            for subtopic in set(p['subtopics']):
+                subtopic_counter[subtopic] += 1
+    
+    top_concepts = dict(sorted(concept_counter.items(), key=lambda x: x[1], reverse=True)[:15])
+    top_domains = dict(sorted(domain_counter.items(), key=lambda x: x[1], reverse=True)[:5])
+    top_fields = dict(sorted(field_counter.items(), key=lambda x: x[1], reverse=True)[:10])
+    top_topics = dict(sorted(topic_counter.items(), key=lambda x: x[1], reverse=True)[:15])
+    top_subtopics = dict(sorted(subtopic_counter.items(), key=lambda x: x[1], reverse=True)[:20])
+    
+    # Пересчитываем тренд для отфильтрованных данных
+    trend = 'unknown'
+    trend_corr = 0
+    years = [p.get('publication_year') for p in filtered_publications if p.get('publication_year')]
+    if len(years) >= 3:
+        year_counts = Counter(years)
+        sorted_years = sorted(set(years))
+        years_range = range(min(sorted_years), max(sorted_years) + 1)
+        counts = [year_counts.get(y, 0) for y in years_range]
+        if len(counts) >= 3:
+            x = np.arange(len(counts))
+            z = np.polyfit(x, counts, 1)
+            if len(counts) > 1:
+                corr_matrix = np.corrcoef(x, counts)
+                trend_corr = corr_matrix[0, 1] if len(corr_matrix) > 1 else 0
+            if z[0] > 1.0:
+                trend = 'strong_up'
+            elif z[0] > 0.3:
+                trend = 'up'
+            elif z[0] < -1.0:
+                trend = 'strong_down'
+            elif z[0] < -0.3:
+                trend = 'down'
+            else:
+                trend = 'stable'
+    
+    risk_flags = []
+    retractions = sum(1 for p in filtered_publications if p.get('is_retracted', False))
+    if retractions > 0:
+        risk_flags.append(f"🔴 RETRACTION: {retractions} retracted publication(s)")
+    
+    unique_coauthors = len(set([a for p in filtered_publications for a in p.get('authors', [])]))
+    avg_authors = np.mean([p.get('author_count', 0) for p in filtered_publications if p.get('author_count', 0) > 0]) if filtered_publications else 0
+    papers_per_year = len(filtered_publications) / len(set(years)) if years else 0
+    active_years = len(set(years)) if years else 0
+    
+    corrections = sum(1 for p in filtered_publications if p.get('is_correction', False))
     
     author_name = profile.get('author_name', 'Unknown')
     author_affiliations = profile.get('author_affiliations', [])
     author_countries = profile.get('author_countries', [])
     
-    top_primary_topics = profile.get('top_primary_topics', {})
-    top_subfields = profile.get('top_subfields', {})
-    top_fields_new = profile.get('top_fields', {})
-    top_domains_new = profile.get('top_domains', {})
-    top_keywords = profile.get('top_keywords', {})
+    top_primary_topics = {}
+    top_subfields = {}
+    top_keywords = {}
+    
+    primary_counter = defaultdict(int)
+    subfield_counter = defaultdict(int)
+    keyword_counter = defaultdict(int)
+    
+    for p in filtered_publications:
+        if p.get('primary_topic') and p['primary_topic'].get('display_name'):
+            primary_counter[p['primary_topic']['display_name']] += 1
+        if p.get('primary_topic') and p['primary_topic'].get('subfield'):
+            subfield_counter[p['primary_topic']['subfield']] += 1
+        if p.get('keywords'):
+            for keyword in set(p['keywords']):
+                keyword_counter[keyword] += 1
+    
+    top_primary_topics = dict(sorted(primary_counter.items(), key=lambda x: x[1], reverse=True)[:10])
+    top_subfields = dict(sorted(subfield_counter.items(), key=lambda x: x[1], reverse=True)[:10])
+    top_keywords = dict(sorted(keyword_counter.items(), key=lambda x: x[1], reverse=True)[:20])
     
     collaborations = profile.get('collaborations', {})
     domestic_papers = collaborations.get('domestic_papers', 0)
     international_papers = collaborations.get('international_papers', 0)
     
-    source_categories = profile.get('source_categories', {})
-    
-    category_labels = {
-        'articles': {'en': 'source_journal_articles', 'ru': 'source_journal_articles'},
-        'repositories': {'en': 'source_repositories', 'ru': 'source_repositories'},
-        'ebooks': {'en': 'source_ebooks', 'ru': 'source_ebooks'},
-        'proceedings': {'en': 'source_proceedings', 'ru': 'source_proceedings'},
-        'other': {'en': 'source_other', 'ru': 'source_other'}
-    }
+    # Пересчитываем коллаборации для отфильтрованных публикаций
+    domestic_collab_filtered = {}
+    international_collab_filtered = {}
     
     author_affils = set(profile.get('author_affiliations', []))
     
-    domestic_collab_filtered = {}
     for country, affils_dict in collaborations.get('domestic', {}).items():
         filtered_affils = {k: v for k, v in affils_dict.items() if k not in author_affils}
         if filtered_affils:
             domestic_collab_filtered[country] = filtered_affils
     
-    international_collab_filtered = {}
     for country, affils_dict in collaborations.get('international', {}).items():
         filtered_affils = {k: v for k, v in affils_dict.items() if k not in author_affils}
         if filtered_affils:
@@ -3909,6 +4252,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     
     # ====== Генерация секции типов источников ======
     source_section_html = ""
+    source_categories = profile.get('source_categories', {})
     if source_categories:
         source_section_html = f"""
         <div id="sources" class="section">
@@ -3922,6 +4266,14 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                 </thead>
                 <tbody>
         """
+        
+        category_labels = {
+            'articles': {'en': 'source_journal_articles', 'ru': 'source_journal_articles'},
+            'repositories': {'en': 'source_repositories', 'ru': 'source_repositories'},
+            'ebooks': {'en': 'source_ebooks', 'ru': 'source_ebooks'},
+            'proceedings': {'en': 'source_proceedings', 'ru': 'source_proceedings'},
+            'other': {'en': 'source_other', 'ru': 'source_other'}
+        }
         
         category_order = ['repositories', 'ebooks', 'proceedings', 'other']
         
@@ -3970,6 +4322,19 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     if retractions > 0:
         retraction_flag_html = f"""
         <div class="flag-retraction">⚠️ {t('retraction_warning', count=retractions)}</div>
+        """
+    
+    # Информация о фильтрации
+    filter_info_html = ""
+    if filter_info:
+        filter_info_html = f"""
+        <div style="background: #e8f4f8; padding: 12px 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid {primary};">
+            <strong>{filter_info}</strong>
+            <span style="margin-left: 15px; font-size: 13px; color: #555;">
+                {t('temporal_gap_original_count', count=len(publications))} | 
+                {t('temporal_gap_filtered_count', count=len(filtered_publications))}
+            </span>
+        </div>
         """
     
     html_content = f"""
@@ -4558,6 +4923,9 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
             
             <div id="overview" class="section">
                 <div class="section-title">📋 {t('profile')}</div>
+                
+                {filter_info_html}
+                
                 <div class="author-info">
                     <div class="author-name">{author_name}</div>
                     <div class="author-affil"><strong>{t('orcid')}:</strong> <a href="https://orcid.org/{profile.get('orcid', '')}" target="_blank">{profile.get('orcid', 'N/A')}</a></div>
@@ -4687,7 +5055,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                         f'<div class="thematic-name">{html.escape(field)}</div>'
                         f'<div class="thematic-count">📄 {count} {t("articles")}</div>'
                         f'</div>'
-                        for field, count in list(top_fields_new.items())[:5]
+                        for field, count in list(top_fields.items())[:5]
                     ])}
                 </div>
                 
@@ -4698,7 +5066,7 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                         f'<div class="thematic-name">{html.escape(domain)}</div>'
                         f'<div class="thematic-count">📄 {count} {t("articles")}</div>'
                         f'</div>'
-                        for domain, count in list(top_domains_new.items())[:5]
+                        for domain, count in list(top_domains.items())[:5]
                     ])}
                 </div>
                 
@@ -4806,11 +5174,11 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                                     <td><a href="https://doi.org/{html.escape(pub.get('doi', ''))}" target="_blank" class="doi-link">{html.escape(pub.get('doi', ''))}</a></td>
                                 </tr>
                                 """
-                                for i, pub in enumerate(sorted(publications, key=lambda x: x.get('publication_year', 0), reverse=True))
+                                for i, pub in enumerate(sorted(filtered_publications, key=lambda x: x.get('publication_year', 0), reverse=True))
                             ])}
                         </tbody>
                     </table>
-                    <p><em>{t('publications')}: {len(publications)}</em></p>
+                    <p><em>{t('publications')}: {len(filtered_publications)}</em></p>
                 </div>
             </div>
             
@@ -4825,8 +5193,14 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
     
     return html_content
 
-def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all: bool, journal_logo_base64: Optional[str] = None, app_logo_base64: Optional[str] = None, theme_colors: Optional[Dict] = None, lang: str = 'en') -> str:
-    """Генерирует HTML отчет с множественными авторами"""
+def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all: bool, journal_logo_base64: Optional[str] = None, app_logo_base64: Optional[str] = None, theme_colors: Optional[Dict] = None, lang: str = 'en', filter_params: Optional[Dict] = None) -> str:
+    """Генерирует HTML отчет с множественными авторами с поддержкой фильтрации"""
+    
+    if filter_params is None:
+        filter_params = {}
+    
+    start_year = filter_params.get('start_year')
+    end_year = filter_params.get('end_year')
     
     if theme_colors is None:
         theme_colors = {
@@ -4875,7 +5249,9 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
             institution_homepages, 
             theme_colors, 
             lang,
-            coauthor_profiles
+            coauthor_profiles,
+            start_year,
+            end_year
         )
     
     html_parts.append(f"""
@@ -5352,6 +5728,14 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                 font-style: italic;
             }}
             
+            .filter-info {{
+                background: #e8f4f8;
+                padding: 12px 15px;
+                border-radius: 8px;
+                margin-bottom: 20px;
+                border-left: 4px solid {primary};
+            }}
+            
             @media print {{
                 .sidebar {{ display: none; }}
                 .main-content {{ margin-left: 0; }}
@@ -5421,228 +5805,93 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
             if not coauthor_profiles:
                 coauthor_profiles = profile.get('coauthor_profiles', {})
             
-            h_index = profile.get('h_index', 0)
-            total_pubs = profile.get('total_publications', 0)
-            total_citations = profile.get('total_citations', 0)
-            avg_citations = profile.get('average_citations', 0)
-            oa_percentage = profile.get('oa_percentage', 0)
-            retractions = profile.get('retractions', 0)
+            # Фильтруем публикации для отображения
+            filtered_pubs = get_filtered_publications(publications, start_year, end_year)
             
-            top_journals = profile.get('top_journals', {})
-            top_coauthors_with_orcids = profile.get('top_coauthors_with_orcids', {})
+            # Пересчитываем метрики для отфильтрованных публикаций
+            h_index = 0
+            total_pubs = len(filtered_pubs)
+            total_citations = 0
+            avg_citations = 0
+            oa_percentage = 0
+            retractions = 0
+            
+            if filtered_pubs:
+                citations = [p.get('cited_by_count', 0) for p in filtered_pubs]
+                total_citations = sum(citations)
+                avg_citations = sum(citations) / len(citations) if citations else 0
+                
+                citations_sorted = sorted([c for c in citations if c > 0], reverse=True)
+                for j, c in enumerate(citations_sorted, 1):
+                    if c >= j:
+                        h_index = j
+                    else:
+                        break
+                
+                total_oa = sum(1 for p in filtered_pubs if p.get('is_oa', False))
+                oa_percentage = (total_oa / len(filtered_pubs) * 100) if filtered_pubs else 0
+                retractions = sum(1 for p in filtered_pubs if p.get('is_retracted', False))
+            
+            # Информация о фильтрации
+            filter_info = ""
+            if start_year is not None or end_year is not None:
+                years = [p.get('publication_year') for p in filtered_pubs if p.get('publication_year')]
+                if years:
+                    filter_info = f"""
+                    <div class="filter-info">
+                        <strong>📅 {t('temporal_gap_filter_info', start_year=min(years), end_year=max(years))}</strong>
+                        <span style="margin-left: 15px; font-size: 13px; color: #555;">
+                            {t('temporal_gap_original_count', count=len(publications))} | 
+                            {t('temporal_gap_filtered_count', count=len(filtered_pubs))}
+                        </span>
+                    </div>
+                    """
+            
+            # Собираем топ журналов из отфильтрованных публикаций
+            top_journals = dict(Counter([p.get('journal_name') for p in filtered_pubs if p.get('journal_name')]).most_common(10))
+            
+            # Собираем соавторов из отфильтрованных публикаций
+            coauthors_dict = {}
+            for p in filtered_pubs:
+                if p.get('authors_with_orcids'):
+                    for auth in p['authors_with_orcids']:
+                        name = auth.get('name', '')
+                        orcid = auth.get('orcid', '')
+                        if name and name != author_name:
+                            if name not in coauthors_dict:
+                                coauthors_dict[name] = {'count': 0, 'orcid': orcid}
+                            coauthors_dict[name]['count'] += 1
+            
+            top_coauthors = dict(sorted(coauthors_dict.items(), key=lambda x: x[1]['count'], reverse=True)[:15])
             
             coauthors_html = ""
-            if top_coauthors_with_orcids:
-                for name, data in list(top_coauthors_with_orcids.items())[:15]:
+            if top_coauthors:
+                for name, data in top_coauthors.items():
                     count = data.get('count', 0)
                     orcid = data.get('orcid', '')
-                    
-                    clean_orcid_for_lookup = orcid.replace('https://orcid.org/', '').strip() if orcid else ''
-                    
-                    person_info = {}
-                    if clean_orcid_for_lookup and clean_orcid_for_lookup in coauthor_profiles:
-                        person_info = coauthor_profiles.get(clean_orcid_for_lookup, {})
-                    elif orcid and orcid in coauthor_profiles:
-                        person_info = coauthor_profiles.get(orcid, {})
                     
                     coauthors_html += f"""
                     <div class="coauthor-card">
                         <div class="coauthor-name">{html.escape(name)}</div>
                         <div class="coauthor-joint">{count} {t('joint_works')}</div>
-                        <div class="coauthor-profiles">
                     """
                     
                     if orcid:
                         orcid_clean = orcid.replace('https://orcid.org/', '').strip()
                         orcid_url = f"https://orcid.org/{orcid_clean}"
                         coauthors_html += f"""
+                        <div style="margin-bottom: 8px;">
                             <a href="{orcid_url}" target="_blank" class="coauthor-profile-link orcid">
-                                🆔 {t('coauthor_orcid')}
+                                🆔 ORCID: {orcid_clean}
                             </a>
+                        </div>
                         """
-                    else:
-                        coauthors_html += f"""
-                            <span class="coauthor-no-orcid">{t('no_orcid_found')}</span>
-                        """
-                    
-                    if person_info:
-                        if 'scopus' in person_info:
-                            scopus_data = person_info['scopus']
-                            scopus_url = scopus_data.get('url', '')
-                            scopus_value = scopus_data.get('value', '')
-                            if scopus_url:
-                                coauthors_html += f"""
-                                    <a href="{scopus_url}" target="_blank" class="coauthor-profile-link scopus">
-                                        📚 {t('coauthor_scopus')}
-                                    </a>
-                                """
-                            elif scopus_value:
-                                coauthors_html += f"""
-                                    <a href="https://www.scopus.com/authid/detail.uri?authorId={scopus_value}" target="_blank" class="coauthor-profile-link scopus">
-                                        📚 {t('coauthor_scopus')}
-                                    </a>
-                                """
-                        
-                        if 'researcherid' in person_info:
-                            rid_data = person_info['researcherid']
-                            rid_url = rid_data.get('url', '')
-                            rid_value = rid_data.get('value', '')
-                            if rid_url:
-                                coauthors_html += f"""
-                                    <a href="{rid_url}" target="_blank" class="coauthor-profile-link researcherid">
-                                        🆔 {t('coauthor_researcherid')}
-                                    </a>
-                                """
-                            elif rid_value:
-                                coauthors_html += f"""
-                                    <a href="https://www.researcherid.com/rid/{rid_value}" target="_blank" class="coauthor-profile-link researcherid">
-                                        🆔 {t('coauthor_researcherid')}
-                                    </a>
-                                """
-                        
-                        if 'websites' in person_info:
-                            websites_list = person_info['websites']
-                            if isinstance(websites_list, list):
-                                for website in websites_list[:3]:
-                                    website_url = website.get('url', '')
-                                    website_name = website.get('name', '🌐 Website')
-                                    if website_url:
-                                        coauthors_html += f"""
-                                            <a href="{website_url}" target="_blank" class="coauthor-profile-link website">
-                                                🌐 {html.escape(website_name[:20])}
-                                            </a>
-                                        """
-                        elif 'website' in person_info:
-                            website_data = person_info['website']
-                            website_url = website_data.get('url', '')
-                            if website_url:
-                                coauthors_html += f"""
-                                    <a href="{website_url}" target="_blank" class="coauthor-profile-link website">
-                                        🌐 {t('coauthor_website')}
-                                    </a>
-                                """
-                        
-                        social_profiles = [
-                            ('linkedin', '🔗 LinkedIn', 'linkedin'),
-                            ('twitter', '🐦 Twitter', 'twitter'),
-                            ('facebook', '📘 Facebook', 'facebook'),
-                            ('researchgate', '🔬 ResearchGate', 'researchgate'),
-                            ('academia', '📖 Academia', 'academia'),
-                            ('mendeley', '📑 Mendeley', 'mendeley'),
-                            ('publons', '📝 Publons', 'publons'),
-                            ('loop', '🔄 Loop', 'loop'),
-                            ('impactstory', '📊 ImpactStory', 'impactstory'),
-                            ('google-scholar', '🎓 Google Scholar', 'google-scholar'),
-                            ('github', '💻 GitHub', 'github')
-                        ]
-                        
-                        for social_key, social_label, social_class in social_profiles:
-                            if social_key in person_info:
-                                social_data = person_info[social_key]
-                                social_url = social_data.get('url', '')
-                                social_value = social_data.get('value', '')
-                                
-                                if not social_url and social_value:
-                                    social_url = _build_external_id_url(social_key, social_value)
-                                
-                                if social_url:
-                                    coauthors_html += f"""
-                                        <a href="{social_url}" target="_blank" class="coauthor-profile-link {social_class}">
-                                            {social_label}
-                                        </a>
-                                    """
-                        
-                        other_ids = set(person_info.keys()) - {'scopus', 'researcherid', 'website', 'websites', 
-                                                               'linkedin', 'twitter', 'facebook', 'researchgate', 
-                                                               'academia', 'mendeley', 'publons', 'loop', 
-                                                               'impactstory', 'google-scholar', 'github'}
-                        
-                        if other_ids:
-                            for other_id in other_ids:
-                                other_data = person_info[other_id]
-                                if isinstance(other_data, dict):
-                                    other_url = other_data.get('url', '')
-                                else:
-                                    other_url = ''
-                                if other_url:
-                                    coauthors_html += f"""
-                                        <a href="{other_url}" target="_blank" class="coauthor-profile-link other">
-                                            🔗 {html.escape(other_id)}
-                                        </a>
-                                    """
                     
                     coauthors_html += """
-                        </div>
                     </div>
                     """
             else:
                 coauthors_html = f'<p>{t("no_publications")}</p>'
-            
-            source_categories = profile.get('source_categories', {})
-            
-            category_labels = {
-                'articles': {'en': 'source_journal_articles', 'ru': 'source_journal_articles'},
-                'repositories': {'en': 'source_repositories', 'ru': 'source_repositories'},
-                'ebooks': {'en': 'source_ebooks', 'ru': 'source_ebooks'},
-                'proceedings': {'en': 'source_proceedings', 'ru': 'source_proceedings'},
-                'other': {'en': 'source_other', 'ru': 'source_other'}
-            }
-            
-            source_section_html = ""
-            if source_categories:
-                source_section_html = f"""
-                <h3>{t('source_types')}</h3>
-                <table class="source-table">
-                    <thead>
-                        <tr>
-                            <th>{t('source_count')}</th>
-                            <th>{t('source_examples')}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                """
-                
-                category_order = ['repositories', 'ebooks', 'proceedings', 'other']
-                
-                for cat in category_order:
-                    if cat in source_categories:
-                        cat_data = source_categories[cat]
-                        count = cat_data.get('count', 0)
-                        items = cat_data.get('items', [])
-                        
-                        label_key = category_labels.get(cat, {}).get(lang, cat)
-                        label = t(label_key) if label_key else cat
-                        
-                        examples_html = ""
-                        if items:
-                            for item in items[:3]:
-                                title = item.get('title', 'No title')[:60]
-                                doi = item.get('doi', '')
-                                item_id = item.get('id', '')
-                                
-                                if doi:
-                                    link = f'https://doi.org/{doi}'
-                                    link_text = f'DOI: {doi[:20]}...' if len(doi) > 20 else f'DOI: {doi}'
-                                    examples_html += f'<div class="source-example-item">• {html.escape(title)} — <a href="{link}" target="_blank" class="source-example-link">{link_text}</a> <span class="source-badge source-badge-doi">✅ {t("source_doi_available")}</span></div>'
-                                elif item_id:
-                                    link = item_id
-                                    examples_html += f'<div class="source-example-item">• {html.escape(title)} — <a href="{link}" target="_blank" class="source-example-link">{t("source_view_link")}</a> <span class="source-badge source-badge-nodoi">⚠️ {t("source_no_doi")}</span></div>'
-                                else:
-                                    examples_html += f'<div class="source-example-item">• {html.escape(title)} <span class="source-badge source-badge-nodoi">⚠️ {t("source_no_link")}</span></div>'
-                        else:
-                            examples_html = f'<em>{t("no_publications")}</em>'
-                        
-                        source_section_html += f"""
-                            <tr>
-                                <td><strong>{label}</strong><br><span style="font-size:12px;color:#666;">{count} {t("articles") if count > 1 else t("article") if "article" in label else ""}</span></td>
-                                <td>{examples_html}</td>
-                            </tr>
-                        """
-                
-                source_section_html += """
-                    </tbody>
-                </table>
-                """
             
             html_parts.append(f"""
             <div id="author_{i}" class="author-section">
@@ -5653,6 +5902,8 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                         <span class="author-hindex">(h-index: {h_index})</span>
                         {'<span class="best-badge">🏆 ' + t("best_author", name="", h_index="") + '</span>' if is_best and len(all_authors) > 1 else ''}
                     </div>
+                    
+                    {filter_info}
                     
                     {'<div class="flag-retraction">⚠️ ' + t("retraction_warning", count=retractions) + '</div>' if retractions > 0 else ''}
                     
@@ -5699,9 +5950,7 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                     <h3>{t('top_coauthors')}</h3>
                     {coauthors_html}
                     
-                    {source_section_html}
-                    
-                    <h3>{t('publications_list')} ({len(publications)})</h3>
+                    <h3>{t('publications_list')} ({len(filtered_pubs)})</h3>
                     <div style="overflow-x: auto;">
                         <table>
                             <thead>
@@ -5728,11 +5977,11 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
                                         <td><a href="https://doi.org/{html.escape(pub.get('doi', ''))}" target="_blank" class="doi-link">{html.escape(pub.get('doi', ''))}</a></td>
                                     </tr>
                                     """
-                                    for j, pub in enumerate(sorted(publications, key=lambda x: x.get('publication_year', 0), reverse=True)[:20])
+                                    for j, pub in enumerate(sorted(filtered_pubs, key=lambda x: x.get('publication_year', 0), reverse=True)[:20])
                                 ])}
                             </tbody>
                         </table>
-                        {f'<p><em>{t("showing_limited", shown=20, total=len(publications))}</em></p>' if len(publications) > 20 else ''}
+                        {f'<p><em>{t("showing_limited", shown=20, total=len(filtered_pubs))}</em></p>' if len(filtered_pubs) > 20 else ''}
                     </div>
                 </div>
             </div>
@@ -5763,7 +6012,9 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
             institution_homepages, 
             theme_colors, 
             lang,
-            coauthor_profiles
+            coauthor_profiles,
+            start_year,
+            end_year
         ))
     
     html_parts.append("""
@@ -5782,8 +6033,8 @@ def generate_html_report_with_multiple_authors(all_authors: List[Dict], show_all
 # ОСНОВНАЯ ФУНКЦИЯ ЗАПУСКА ДЛЯ STREAMLIT
 # ============================================
 
-def run_profile_analysis(orcid_list: List[str], show_all_authors: bool, journal_logo: Optional[Dict] = None):
-    """Запускает полный анализ профиля ученого для одного или нескольких ORCID"""
+def run_profile_analysis(orcid_list: List[str], show_all_authors: bool, journal_logo: Optional[Dict] = None, analysis_mode: str = "orcid_openalex"):
+    """Запускает полный анализ профиля ученого для одного или нескольких ORCID с учетом режима анализа"""
     
     # Get current language for translations
     current_lang = st.session_state.get('language', 'en')
@@ -5796,7 +6047,7 @@ def run_profile_analysis(orcid_list: List[str], show_all_authors: bool, journal_
         
     st.cache_data.clear()
     
-    st.info(f"🔍 " + t('analyzing_authors', count=len(orcid_list)))
+    st.info(f"🔍 " + t('analyzing_authors', count=len(orcid_list)) + f" (режим: {'ORCID+OpenAlex' if analysis_mode == 'orcid_openalex' else 'ORCID only'})")
     
     progress_container = st.empty()
     status_container = st.empty()
@@ -5831,7 +6082,7 @@ def run_profile_analysis(orcid_list: List[str], show_all_authors: bool, journal_
         stage_weights = {
             'api': 0.60,      # 60% - API запросы (OpenAlex)
             'analysis': 0.25,  # 25% - анализ данных
-            'orcid_profiles': 0.10,  # 10% - получение ORCID профилей (НОВЫЙ ЭТАП)
+            'orcid_profiles': 0.10,  # 10% - получение ORCID профилей
             'visualization': 0.05    # 5% - генерация визуализаций
         }
         
@@ -5851,10 +6102,10 @@ def run_profile_analysis(orcid_list: List[str], show_all_authors: bool, journal_
         
         start_time = time.time()
         
-        # ====== ИЗМЕНЕНИЕ: Сбор данных с прогрессом ======
+        # ====== ИЗМЕНЕНИЕ: Сбор данных с прогрессом и режимом анализа ======
         # Сначала собираем основные данные через analyze_multiple_authors
         all_authors_data = asyncio.run(
-            analyze_multiple_authors(orcid_list, progress_callback)
+            analyze_multiple_authors(orcid_list, progress_callback, analysis_mode=analysis_mode)
         )
         
         # Обновляем прогресс после API этапа
@@ -5924,6 +6175,7 @@ def run_profile_analysis(orcid_list: List[str], show_all_authors: bool, journal_
                             'institution_homepages': analyzer.institution_homepages,
                             'coauthors_with_orcids': analyzer.coauthors_with_orcids,
                             'coauthor_profiles': analyzer.coauthor_profiles,
+                            'analysis_mode': analysis_mode,
                             'timestamp': datetime.now().isoformat()
                         }
                         save_to_cache(analyzer.orcid, cache_data)
@@ -5953,11 +6205,19 @@ def run_profile_analysis(orcid_list: List[str], show_all_authors: bool, journal_
                 total_progress = (viz_start_progress + viz_progress) / 100
                 analysis_progress.progress(min(total_progress, 0.99), text=f"🎨 {t('creating_charts')} {idx+1}/{len(sorted_authors)}...")
         
+        # ====== НОВОЕ: Анализ временных разрывов для каждого автора ======
+        for author_data in sorted_authors:
+            profile = author_data.get('profile', {})
+            publications = author_data.get('publications', [])
+            gap_analysis = detect_temporal_gaps(publications, MIN_GAP_YEARS_FOR_WARNING)
+            author_data['gap_analysis'] = gap_analysis
+        
         st.session_state['all_authors'] = sorted_authors
         st.session_state['show_all_authors'] = show_all_authors
         st.session_state['journal_logo_base64'] = journal_logo_base64
         st.session_state['app_logo_base64'] = app_logo_base64
         st.session_state['analysis_complete'] = True
+        st.session_state['analysis_mode'] = analysis_mode
         
         analysis_progress.progress(1.0, text=f"✅ {t('analysis_complete_text')}!")
         
@@ -6015,6 +6275,10 @@ def main():
         st.session_state.app_logo_base64 = None
     if 'language' not in st.session_state:
         st.session_state.language = 'en'  # По умолчанию английский
+    if 'analysis_mode' not in st.session_state:
+        st.session_state.analysis_mode = 'orcid_openalex'
+    if 'filter_params' not in st.session_state:
+        st.session_state.filter_params = {}
     
     # Apply theme
     primary = st.session_state.primary_color
@@ -6170,6 +6434,21 @@ def main():
             )
             st.session_state.show_all_authors = show_all_authors
         
+        # ====== НОВОЕ: Выбор режима анализа ======
+        analysis_mode = st.radio(
+            t('analysis_source'),
+            options=["orcid_only", "orcid_openalex"],
+            format_func=lambda x: t('analysis_source_orcid_only') if x == "orcid_only" else t('analysis_source_orcid_openalex'),
+            help=t('analysis_source_help'),
+            index=0 if st.session_state.analysis_mode == "orcid_only" else 1
+        )
+        st.session_state.analysis_mode = analysis_mode
+        
+        if analysis_mode == "orcid_only":
+            st.info("🔒 " + t('analysis_source_orcid_only') + " - анализируются только публикации из ORCID профиля")
+        else:
+            st.info("🔓 " + t('analysis_source_orcid_openalex') + " - объединение ORCID и OpenAlex для максимальной полноты")
+        
         if st.button(t('analyze_button'), type="primary", width='stretch'):
             orcids = parse_orcids(orcid_text)
             
@@ -6186,7 +6465,7 @@ def main():
                         }
                     }
                 
-                run_profile_analysis(orcids, show_all_authors, journal_logo_data)
+                run_profile_analysis(orcids, show_all_authors, journal_logo_data, analysis_mode)
         
         st.markdown('</div>', unsafe_allow_html=True)
     
@@ -6195,8 +6474,14 @@ def main():
             authors = st.session_state.all_authors
             show_all = st.session_state.show_all_authors
             journal_logo_base64 = st.session_state.journal_logo_base64
+            analysis_mode = st.session_state.analysis_mode
             
             st.markdown(f"## {t('profile')}")
+            
+            if analysis_mode == "orcid_only":
+                st.info("🔒 " + t('analysis_source_orcid_only'))
+            else:
+                st.info("🔓 " + t('analysis_source_orcid_openalex'))
             
             if show_all and len(authors) > 1:
                 st.info(t('showing_all', count=len(authors)))
@@ -6209,6 +6494,7 @@ def main():
                     publications = author_data.get('publications', [])
                     analyzer = author_data.get('analyzer')
                     images = author_data.get('images', {})
+                    gap_analysis = author_data.get('gap_analysis', {})
                     
                     h_index = profile.get('h_index', 0)
                     total_pubs = profile.get('total_publications', 0)
@@ -6231,6 +6517,28 @@ def main():
                     
                     if retractions > 0:
                         st.error(t('retraction_warning', count=retractions))
+                    
+                    # ====== НОВОЕ: Отображение предупреждения о временном разрыве ======
+                    if gap_analysis and gap_analysis.get('has_gap', False) and analysis_mode == "orcid_openalex":
+                        use_filter, start_year, end_year = render_temporal_gap_warning(
+                            profile,
+                            publications,
+                            current_lang
+                        )
+                        if use_filter and start_year is not None:
+                            st.session_state.filter_params = {
+                                'start_year': start_year,
+                                'end_year': end_year
+                            }
+                            # Сохраняем выбор для отчета
+                            for auth in st.session_state.all_authors:
+                                if auth.get('author_name') == author_name:
+                                    auth['filter_params'] = {
+                                        'start_year': start_year,
+                                        'end_year': end_year
+                                    }
+                        else:
+                            st.session_state.filter_params = {}
                     
                     col1, col2, col3, col4, col5 = st.columns(5)
                     with col1:
@@ -6444,11 +6752,31 @@ def main():
                     analyzer = author_data.get('analyzer')
                     images = author_data.get('images', {})
                     coauthor_profiles = profile.get('coauthor_profiles', {})
+                    gap_analysis = author_data.get('gap_analysis', {})
                     
                     st.markdown(f"### {t('single_author', name=author_name, h_index=profile.get('h_index', 0))}")
                     
                     if profile.get('retractions', 0) > 0:
                         st.error(t('retraction_warning', count=profile.get('retractions', 0)))
+                    
+                    # ====== НОВОЕ: Отображение предупреждения о временном разрыве ======
+                    if gap_analysis and gap_analysis.get('has_gap', False) and analysis_mode == "orcid_openalex":
+                        use_filter, start_year, end_year = render_temporal_gap_warning(
+                            profile,
+                            publications,
+                            current_lang
+                        )
+                        if use_filter and start_year is not None:
+                            st.session_state.filter_params = {
+                                'start_year': start_year,
+                                'end_year': end_year
+                            }
+                            author_data['filter_params'] = {
+                                'start_year': start_year,
+                                'end_year': end_year
+                            }
+                        else:
+                            st.session_state.filter_params = {}
                     
                     col1, col2, col3, col4, col5 = st.columns(5)
                     with col1:
@@ -6717,11 +7045,31 @@ def main():
                     analyzer = best_author.get('analyzer')
                     images = best_author.get('images', {})
                     coauthor_profiles = profile.get('coauthor_profiles', {})
+                    gap_analysis = best_author.get('gap_analysis', {})
                     
                     st.markdown(f"### {t('best_author', name=author_name, h_index=profile.get('h_index', 0))}")
                     
                     if profile.get('retractions', 0) > 0:
                         st.error(t('retraction_warning', count=profile.get('retractions', 0)))
+                    
+                    # ====== НОВОЕ: Отображение предупреждения о временном разрыве ======
+                    if gap_analysis and gap_analysis.get('has_gap', False) and analysis_mode == "orcid_openalex":
+                        use_filter, start_year, end_year = render_temporal_gap_warning(
+                            profile,
+                            publications,
+                            current_lang
+                        )
+                        if use_filter and start_year is not None:
+                            st.session_state.filter_params = {
+                                'start_year': start_year,
+                                'end_year': end_year
+                            }
+                            best_author['filter_params'] = {
+                                'start_year': start_year,
+                                'end_year': end_year
+                            }
+                        else:
+                            st.session_state.filter_params = {}
                     
                     col1, col2, col3, col4, col5 = st.columns(5)
                     with col1:
@@ -6991,6 +7339,7 @@ def main():
             show_all = st.session_state.show_all_authors
             journal_logo_base64 = st.session_state.journal_logo_base64
             app_logo_base64 = st.session_state.app_logo_base64
+            analysis_mode = st.session_state.analysis_mode
             
             theme_colors = {
                 'primary': st.session_state.primary_color,
@@ -6998,6 +7347,11 @@ def main():
             }
             
             st.markdown(f"## {t('html_report')}")
+            
+            if analysis_mode == "orcid_only":
+                st.info("🔒 " + t('analysis_source_orcid_only'))
+            else:
+                st.info("🔓 " + t('analysis_source_orcid_openalex'))
             
             best_author = authors[0]
             
@@ -7011,6 +7365,16 @@ def main():
             else:
                 st.info(t('showing_single'))
             
+            # ====== НОВОЕ: Отображение предупреждения о временном разрыве в отчетах ======
+            filter_params = {}
+            for author_data in authors:
+                if 'filter_params' in author_data:
+                    filter_params = author_data['filter_params']
+                    break
+            
+            if filter_params and filter_params.get('start_year') is not None:
+                st.success(f"📅 {t('temporal_gap_filter_info', start_year=filter_params['start_year'], end_year=filter_params['end_year'])}")
+            
             if st.button(t('download_report'), type="primary", width='stretch'):
                 with st.spinner(t('generating_report')):
                     html_report = generate_html_report_with_multiple_authors(
@@ -7019,7 +7383,8 @@ def main():
                         journal_logo_base64,
                         app_logo_base64,
                         theme_colors,
-                        current_lang
+                        current_lang,
+                        filter_params
                     )
                     
                     if show_all and len(authors) > 1:
