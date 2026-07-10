@@ -4001,7 +4001,11 @@ def generate_html_report(profile: Dict, publications: List[Dict], images: Dict[s
                          start_year: Optional[int] = None,
                          end_year: Optional[int] = None) -> str:
     """Генерирует HTML отчет с расширенной информацией и возможностью фильтрации по годам"""
-    
+
+    if not images or all(v == '' for v in images.values() if v is not None):
+        # Создаем визуализации на основе профиля
+        images = create_visualizations(profile, lang)
+        
     # Фильтруем публикации если указан диапазон лет
     filtered_publications = publications
     filter_info = None
