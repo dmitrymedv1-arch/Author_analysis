@@ -13,5 +13,4 @@ python-dotenv
 tenacity
 weasyprint
 Pillow
-libpango
-libcairo
+
