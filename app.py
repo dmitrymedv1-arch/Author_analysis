@@ -82,6 +82,44 @@ html_report.set_translate_impl(lambda key, lang='en', **kw: translate(key, lang,
 pdf_report.set_translate_impl(lambda key, lang='en', **kw: translate(key, lang, **kw))
 
 # ============================================
+# OPENALEX API KEY (из Streamlit Secrets)
+# ============================================
+
+def get_openalex_api_key() -> Optional[str]:
+    """
+    Возвращает OpenAlex API key из Streamlit Secrets.
+    Ищет в порядке приоритета:
+      1. st.secrets["OPENALEX_API_KEY"]
+      2. st.secrets["openalex"]["api_key"]
+      3. переменная окружения OPENALEX_API_KEY
+    Если ничего не найдено — возвращает None (запросы идут без ключа).
+    """
+    # 1) Плоский ключ
+    try:
+        if "OPENALEX_API_KEY" in st.secrets:
+            val = st.secrets["OPENALEX_API_KEY"]
+            if val:
+                return str(val).strip()
+    except Exception:
+        pass
+
+    # 2) Вложенный ключ
+    try:
+        if "openalex" in st.secrets and "api_key" in st.secrets["openalex"]:
+            val = st.secrets["openalex"]["api_key"]
+            if val:
+                return str(val).strip()
+    except Exception:
+        pass
+
+    # 3) Переменная окружения
+    env_val = os.environ.get("OPENALEX_API_KEY")
+    if env_val:
+        return env_val.strip()
+
+    return None
+    
+# ============================================
 # СЛОВАРЬ ПЕРЕВОДОВ
 # ============================================
 
@@ -1918,6 +1956,13 @@ async def get_orcid_dois(orcid: str, session, mode: str = "orcid_openalex") -> S
         'per-page': 200
     }
 
+    # OpenAlex API key (polite pool — выше лимиты и стабильность)
+    openalex_api_key = get_openalex_api_key()
+    if openalex_api_key:
+        params['api_key'] = openalex_api_key
+        if SHOW_DEBUG_LOGS:
+            print("🔑 OpenAlex API key: используется")
+
     try:
         next_page_url = None
         page_count = 0
@@ -1926,7 +1971,14 @@ async def get_orcid_dois(orcid: str, session, mode: str = "orcid_openalex") -> S
             page_count += 1
 
             if next_page_url:
-                data = await fetch_with_retry(session, next_page_url, method='GET')
+                # next_page_url уже содержит все параметры, но на случай
+                # если ключ не был добавлен при формировании — добавим
+                if openalex_api_key and 'api_key=' not in next_page_url:
+                    sep = '&' if '?' in next_page_url else '?'
+                    next_page_url_with_key = f"{next_page_url}{sep}api_key={openalex_api_key}"
+                else:
+                    next_page_url_with_key = next_page_url
+                data = await fetch_with_retry(session, next_page_url_with_key, method='GET')
             else:
                 data = await fetch_with_retry(session, base_url, params=params)
 
@@ -1989,6 +2041,11 @@ async def get_openalex_metadata(dois: List[str], session) -> List[Dict]:
         'per-page': len(dois)
     }
 
+    # OpenAlex API key (polite pool)
+    openalex_api_key = get_openalex_api_key()
+    if openalex_api_key:
+        params['api_key'] = openalex_api_key
+
     url = "https://api.openalex.org/works"
 
     if SHOW_DEBUG_LOGS:
@@ -2006,7 +2063,6 @@ async def get_openalex_metadata(dois: List[str], session) -> List[Dict]:
 
     return results
 
-
 async def get_openalex_author(orcid: str, session) -> Dict:
     """Получает информацию об авторе из OpenAlex по ORCID"""
     if not orcid:
@@ -2018,6 +2074,11 @@ async def get_openalex_author(orcid: str, session) -> Dict:
         'filter': f'orcid:{orcid_clean}',
         'per-page': 1
     }
+
+    # OpenAlex API key (polite pool)
+    openalex_api_key = get_openalex_api_key()
+    if openalex_api_key:
+        params['api_key'] = openalex_api_key
 
     url = "https://api.openalex.org/authors"
     data = await fetch_with_retry(session, url, params=params)
@@ -2057,6 +2118,11 @@ async def get_openalex_author_by_name(author_name: str, session) -> Dict:
         'per-page': 1
     }
 
+    # OpenAlex API key (polite pool)
+    openalex_api_key = get_openalex_api_key()
+    if openalex_api_key:
+        params['api_key'] = openalex_api_key
+
     url = "https://api.openalex.org/authors"
     data = await fetch_with_retry(session, url, params=params)
 
@@ -2079,6 +2145,8 @@ async def get_institution_homepages(institution_ids: List[str], session) -> Dict
 
     homepages = {}
 
+    openalex_api_key = get_openalex_api_key()
+
     for batch in chunks(unique_ids, 50):
         id_query = '|'.join([id.replace('https://openalex.org/', '') for id in batch])
         url = f"https://api.openalex.org/institutions"
@@ -2086,6 +2154,8 @@ async def get_institution_homepages(institution_ids: List[str], session) -> Dict
             'filter': f'openalex:{id_query}',
             'per-page': len(batch)
         }
+        if openalex_api_key:
+            params['api_key'] = openalex_api_key
 
         data = await fetch_with_retry(session, url, params=params)
 
@@ -3870,6 +3940,11 @@ def main():
         layout="wide",
         initial_sidebar_state="expanded"
     )
+
+    # --- Диагностика OpenAlex API key (в логах Streamlit) ---
+    _api_key_status = "✅ найден" if get_openalex_api_key() else "❌ не найден (запросы без ключа, лимиты ниже)"
+    print(f"🔑 OpenAlex API key: {_api_key_status}")
+    # --------------------------------------------------------
 
     if 'primary_color' not in st.session_state:
         st.session_state.primary_color = '#667eea'
