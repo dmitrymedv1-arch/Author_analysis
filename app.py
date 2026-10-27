@@ -4267,7 +4267,7 @@ def main():
                                 journal = p.get('journal_name', 'Unknown')
                                 doi = p.get('doi', '')
                                 doi_md = f" — [DOI: {doi}](https://doi.org/{doi})" if doi else ""
-                                st.markdown(f"• **{title}** ({year}, _{journal}_{}){doi_md}")
+                                st.markdown(f"• **{title}** ({year}, _{journal}_){doi_md}")
 
                     top_coauthors_with_orcids = profile.get('top_coauthors_with_orcids', {})
 
@@ -4532,7 +4532,7 @@ def main():
                                 journal = p.get('journal_name', 'Unknown')
                                 doi = p.get('doi', '')
                                 doi_md = f" — [DOI: {doi}](https://doi.org/{doi})" if doi else ""
-                                st.markdown(f"• **{title}** ({year}, _{journal}_{}){doi_md}")
+                                st.markdown(f"• **{title}** ({year}, _{journal}_){doi_md}")
 
                     top_coauthors_with_orcids = profile.get('top_coauthors_with_orcids', {})
 
