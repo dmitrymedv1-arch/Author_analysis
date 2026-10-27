@@ -13,4 +13,6 @@ python-dotenv
 tenacity
 weasyprint
 Pillow
-WeasyPrint
+libpango
+libcairo
+libgdk-pixbuf
