@@ -13,3 +13,4 @@ python-dotenv
 tenacity
 weasyprint
 Pillow
+WeasyPrint
