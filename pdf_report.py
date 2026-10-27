@@ -1,10 +1,15 @@
 # ============================================
 # pdf_report.py
-# Генерация PDF-отчёта (WeasyPrint) с закладками,
-# кликабельными ссылками, встроенными изображениями
-# и стилями под Color Theme.
+# Генерация PDF-отчёта (WeasyPrint) с:
+#   - кликабельным встроенным оглавлением (с номерами страниц)
+#   - цветными эмодзи (Noto Color Emoji через @font-face)
+#   - кликабельными ссылками соавторов (цветовая дифференциация)
+#   - альбомной ориентацией для секции Publication list
+#   - закладками (Outline) для секций
+#   - стилями под Color Theme
 # ============================================
 
+import os
 import html
 import html as html_module
 from datetime import datetime
@@ -56,6 +61,44 @@ def set_translate_impl(fn):
     """Устанавливает функцию перевода из app.py."""
     global _translate_impl
     _translate_impl = fn
+
+
+# ============================================
+# ПУТЬ К ШРИФТУ ЭМОДЗИ
+# ============================================
+
+def _get_emoji_font_path() -> Optional[str]:
+    """
+    Возвращает абсолютный путь к файлу NotoColorEmoji.ttf.
+    Ищет в папке fonts/ рядом с проектом.
+    Если не найден — возвращает None (эмодзи будут квадратами, но PDF не упадёт).
+    """
+    candidates = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts", "NotoColorEmoji.ttf"),
+        os.path.join(os.getcwd(), "fonts", "NotoColorEmoji.ttf"),
+        os.path.join(os.getcwd(), "NotoColorEmoji.ttf"),
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            return os.path.abspath(c)
+    return None
+
+
+def _build_emoji_font_face_css() -> str:
+    """Возвращает CSS с @font-face для эмодзи-шрифта (если файл найден)."""
+    path = _get_emoji_font_path()
+    if not path:
+        return ""
+    # WeasyPrint (>=53) поддерживает file:// — используем абсолютный путь
+    file_url = "file://" + path.replace("\\", "/")
+    return f"""
+    @font-face {{
+        font-family: 'Noto Color Emoji';
+        src: url('{file_url}') format('truetype');
+        font-weight: normal;
+        font-style: normal;
+    }}
+    """
 
 
 # ============================================
@@ -186,8 +229,9 @@ def _build_sources_section_html(source_categories: Dict, t, lang: str) -> str:
 
 def _build_publications_table_html(filtered_publications: List[Dict], t, lang: str) -> str:
     """
-    Таблица публикаций для PDF. Статичная (без JS),
-    отсортирована по году убыванию. Кликабельные DOI-ссылки.
+    Таблица публикаций для PDF (альбомная ориентация).
+    Статичная (без JS), отсортирована по году убыванию.
+    Кликабельные DOI-ссылки.
     """
     rows_html = []
     sorted_pubs = sorted(filtered_publications, key=lambda x: x.get('publication_year', 0) or 0, reverse=True)
@@ -206,28 +250,28 @@ def _build_publications_table_html(filtered_publications: List[Dict], t, lang: s
         doi_cell = f'<a href="https://doi.org/{doi}">{doi}</a>' if doi else ''
         rows_html.append(
             f"<tr>"
-            f"<td>{i}</td>"
-            f"<td>{title[:160]}</td>"
-            f"<td>{year}</td>"
-            f"<td>{journal}</td>"
-            f"<td>{citations}</td>"
-            f"<td>{cpy_str}</td>"
-            f"<td>{oa}</td>"
-            f"<td>{doi_cell}</td>"
+            f"<td class=\"col-idx\">{i}</td>"
+            f"<td class=\"col-title\">{title[:200]}</td>"
+            f"<td class=\"col-year\">{year}</td>"
+            f"<td class=\"col-journal\">{journal}</td>"
+            f"<td class=\"col-cit\">{citations}</td>"
+            f"<td class=\"col-cpy\">{cpy_str}</td>"
+            f"<td class=\"col-oa\">{oa}</td>"
+            f"<td class=\"col-doi\">{doi_cell}</td>"
             f"</tr>"
         )
     return f"""
-    <table class="pdf-table pub-table">
+    <table class="pdf-table pub-table-landscape">
         <thead>
             <tr>
-                <th>#</th>
-                <th>{t('title')}</th>
-                <th>{t('year')}</th>
-                <th>{t('journal')}</th>
-                <th>{t('citations')}</th>
-                <th>{t('citations_per_year')}</th>
-                <th>OA</th>
-                <th>{t('doi')}</th>
+                <th class="col-idx">#</th>
+                <th class="col-title">{t('title')}</th>
+                <th class="col-year">{t('year')}</th>
+                <th class="col-journal">{t('journal')}</th>
+                <th class="col-cit">{t('citations')}</th>
+                <th class="col-cpy">{t('citations_per_year')}</th>
+                <th class="col-oa">OA</th>
+                <th class="col-doi">{t('doi')}</th>
             </tr>
         </thead>
         <tbody>
@@ -239,23 +283,33 @@ def _build_publications_table_html(filtered_publications: List[Dict], t, lang: s
 
 
 # ============================================
-# CSS ДЛЯ PDF (включает @page, закладки, тема)
+# CSS ДЛЯ PDF (включает @page, закладки, тему,
+# альбомную ориентацию, цветные эмодзи)
 # ============================================
 
 def _build_pdf_css(primary: str, secondary: str) -> str:
+    emoji_face = _build_emoji_font_face_css()
+    # Базовый font-family для всей цепочки: основной научный шрифт,
+    # затем DejaVu Serif (если есть), затем Noto Color Emoji (для глифов),
+    # затем sans-serif как крайний fallback.
+    font_stack = "'Times New Roman', 'DejaVu Serif', 'Noto Color Emoji', 'Noto Emoji', sans-serif"
+
     return f"""
+    {emoji_face}
+
+    /* ====== Страницы ====== */
     @page {{
-        size: A4;
+        size: A4 portrait;
         margin: 18mm 14mm 18mm 14mm;
         @bottom-center {{
             content: counter(page) " / " counter(pages);
-            font-family: 'Times New Roman', serif;
+            font-family: {font_stack};
             font-size: 9pt;
             color: #888;
         }}
         @top-center {{
             content: "Author Profile Analysis";
-            font-family: 'Times New Roman', serif;
+            font-family: {font_stack};
             font-size: 8pt;
             color: #aaa;
         }}
@@ -264,15 +318,35 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
         @top-center {{ content: ""; }}
         @bottom-center {{ content: ""; }}
     }}
+
+    /* ====== Альбомная страница для Publication list ====== */
+    @page landscape-page {{
+        size: A4 landscape;
+        margin: 14mm 12mm 14mm 12mm;
+        @bottom-center {{
+            content: counter(page) " / " counter(pages);
+            font-family: {font_stack};
+            font-size: 9pt;
+            color: #888;
+        }}
+        @top-center {{
+            content: "Publication list";
+            font-family: {font_stack};
+            font-size: 8pt;
+            color: #aaa;
+        }}
+    }}
+
+    /* ====== Общие стили ====== */
     * {{ box-sizing: border-box; }}
     body {{
-        font-family: 'Times New Roman', 'DejaVu Serif', serif;
+        font-family: {font_stack};
         font-size: 10pt;
         color: #222;
         line-height: 1.35;
     }}
     h1, h2, h3, h4 {{
-        font-family: 'Times New Roman', serif;
+        font-family: {font_stack};
         color: {primary};
         page-break-after: avoid;
         break-after: avoid;
@@ -319,6 +393,52 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
         margin: 8mm auto;
         width: 80%;
         border-radius: 3mm;
+    }}
+
+    /* ====== Оглавление (встроенное, кликабельное) ====== */
+    .pdf-toc {{
+        page-break-after: always;
+        break-after: page;
+    }}
+    .pdf-toc .toc-title {{
+        font-size: 20pt;
+        color: {primary};
+        border-bottom: 3px solid {primary};
+        padding-bottom: 3mm;
+        margin-bottom: 6mm;
+        bookmark-level: 1;
+    }}
+    .pdf-toc ul {{
+        list-style: none;
+        padding-left: 0;
+        margin: 0;
+    }}
+    .pdf-toc li {{
+        margin: 2mm 0;
+        font-size: 11pt;
+    }}
+    .pdf-toc li.toc-level-1 {{
+        font-weight: bold;
+        margin-top: 3mm;
+    }}
+    .pdf-toc li.toc-level-2 {{
+        padding-left: 8mm;
+        font-weight: normal;
+        font-size: 10pt;
+    }}
+    .pdf-toc a {{
+        color: #222;
+        text-decoration: none;
+    }}
+    .pdf-toc a::after {{
+        content: leader('.') target-counter(attr(href), page);
+        color: #555;
+        font-weight: normal;
+        font-size: 10pt;
+    }}
+    .pdf-toc .toc-author {{
+        color: {primary};
+        font-weight: bold;
     }}
 
     /* ====== Секции ====== */
@@ -434,7 +554,7 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
         max-height: 70mm;
     }}
 
-    /* ====== Таблицы ====== */
+    /* ====== Таблицы (портретные) ====== */
     .pdf-table {{
         width: 100%;
         border-collapse: collapse;
@@ -456,9 +576,6 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
     .pdf-table tr:nth-child(even) td {{
         background: #f9f9f9;
     }}
-    .pub-table td:nth-child(2) {{
-        word-break: break-word;
-    }}
     .src-count {{ font-size: 8pt; color: #666; }}
     .src-ex {{ font-size: 8pt; margin: 1mm 0; }}
     .src-badge {{
@@ -471,6 +588,54 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
     }}
     .src-doi {{ background: #d4edda; color: #155724; }}
     .src-nodoi {{ background: #f8d7da; color: #721c24; }}
+
+    /* ====== Publication list (альбомная) ====== */
+    .landscape-section {{
+        page: landscape-page;
+        page-break-before: always;
+        break-before: page;
+    }}
+    .pub-table-landscape {{
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: collapse;
+        font-size: 7.5pt;
+        word-wrap: break-word;
+    }}
+    .pub-table-landscape thead {{
+        display: table-header-group;
+    }}
+    .pub-table-landscape th {{
+        background: {primary};
+        color: #ffffff;
+        padding: 1.5mm 1mm;
+        text-align: left;
+        font-size: 7.5pt;
+        word-break: break-word;
+    }}
+    .pub-table-landscape td {{
+        padding: 1.2mm 1mm;
+        border-bottom: 0.3mm solid #ccc;
+        vertical-align: top;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        font-size: 7.5pt;
+    }}
+    .pub-table-landscape tr {{
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }}
+    .pub-table-landscape tr:nth-child(even) td {{
+        background: #f9f9f9;
+    }}
+    .pub-table-landscape .col-idx     {{ width: 5%;  text-align: right; }}
+    .pub-table-landscape .col-title   {{ width: 38%; }}
+    .pub-table-landscape .col-year    {{ width: 6%; }}
+    .pub-table-landscape .col-journal {{ width: 18%; }}
+    .pub-table-landscape .col-cit     {{ width: 6%;  text-align: right; }}
+    .pub-table-landscape .col-cpy     {{ width: 7%;  text-align: right; }}
+    .pub-table-landscape .col-oa      {{ width: 4%;  text-align: center; }}
+    .pub-table-landscape .col-doi     {{ width: 16%; word-break: break-all; }}
 
     /* ====== Тематические карточки ====== */
     .thematic-grid {{
@@ -554,17 +719,28 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
         color: #666;
         margin: 1mm 0;
     }}
+    .coauthor-links-label {{
+        font-size: 8.5pt;
+        color: #555;
+        font-weight: bold;
+        margin-top: 1.5mm;
+    }}
+    /* Плоские ссылки для PDF — без inline-flex, чтобы WeasyPrint создавал PDF-аннотации */
     .coauthor-profile-link {{
         display: inline-block;
         padding: 0.5mm 2mm;
+        margin: 0.5mm 1.5mm 0.5mm 0;
         border-radius: 3mm;
         font-size: 7.5pt;
         font-weight: 500;
         text-decoration: none;
-        margin: 0.5mm 1mm 0.5mm 0;
+        color: #ffffff;
     }}
     .coauthor-profile-link.orcid {{ background: #a6ce39; color: #1a1a1a; }}
+    .coauthor-profile-link.scopus {{ background: #e97132; color: #ffffff; }}
+    .coauthor-profile-link.researcherid {{ background: #005a9c; color: #ffffff; }}
     .coauthor-profile-link.website {{ background: #6c757d; color: #ffffff; }}
+    .coauthor-profile-link.wos {{ background: #5b3a8e; color: #ffffff; }}
     .coauthor-profile-link.other {{ background: #17a2b8; color: #ffffff; }}
     .no-links {{ color: #999; font-style: italic; font-size: 8pt; }}
 
@@ -593,33 +769,125 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
         font-size: 8pt;
     }}
     .pdf-footer a {{ color: #1a5f9e; }}
-
-    /* ====== Страница-разрыв перед крупными секциями ====== */
-    .page-break-before {{
-        page-break-before: always;
-        break-before: page;
-    }}
     """
 
 
 # ============================================
-# СОАВТОРЫ (упрощённый рендер для PDF)
+# РЕНДЕР ССЫЛОК СОАВТОРОВ ДЛЯ PDF
+# (плоские <a>, без inline-flex, с цветовой
+# дифференциацией; каждый <a> → PDF-аннотация)
+# ============================================
+
+def _render_coauthor_links_pdf(links: List[Dict], t, lang: str) -> str:
+    """
+    Рендерит ссылки соавтора для PDF в виде плоских <a>/<span>.
+    Ссылки сгруппированы по типу (Websites & Social Links / Other IDs),
+    каждый элемент — отдельный кликабельный <a href>.
+    Цвета — по типу ресурса.
+    """
+    if not links:
+        return '<p class="no-links">No additional links found</p>'
+
+    def _class_for(name: str) -> str:
+        low = name.lower()
+        if "orcid" in low:
+            return "orcid"
+        if "scopus" in low:
+            return "scopus"
+        if "researcher" in low:
+            return "researcherid"
+        if "web of science" in low or "wos" in low or "publons" in low:
+            return "wos"
+        return "other"
+
+    def _icon_for(name: str) -> str:
+        low = name.lower()
+        if "linkedin" in low:
+            return "💼"
+        if "twitter" in low or "x.com" in low:
+            return "🐦"
+        if "facebook" in low:
+            return "📘"
+        if "researchgate" in low:
+            return "🔬"
+        if "academia" in low:
+            return "📖"
+        if "github" in low:
+            return "💻"
+        if "scholar" in low:
+            return "🎓"
+        if "scopus" in low:
+            return "📚"
+        if "researcher" in low or "orcid" in low:
+            return "🆔"
+        if "mendeley" in low:
+            return "📑"
+        if "loop" in low:
+            return "🔄"
+        if "impactstory" in low:
+            return "📊"
+        return "🔗"
+
+    websites_links = [l for l in links if l.get('type') == 'Websites & Social Links']
+    other_links = [l for l in links if l.get('type') != 'Websites & Social Links']
+
+    out = ""
+
+    if websites_links:
+        out += '<div class="coauthor-links-label">🌐 Websites &amp; Social Links:</div>'
+        out += '<div>'
+        for lk in websites_links:
+            nm = lk.get('name', 'Website')
+            url = lk.get('url') or ''
+            cls = _class_for(nm) if _class_for(nm) != "orcid" else "website"
+            icon = _icon_for(nm)
+            if url:
+                out += (
+                    f'<a href="{html.escape(url)}" target="_blank" '
+                    f'class="coauthor-profile-link {cls}">'
+                    f'{icon} {html.escape(nm[:40])}</a>'
+                )
+            else:
+                out += (
+                    f'<span class="coauthor-profile-link {cls}">'
+                    f'{icon} {html.escape(nm[:40])} (no link)</span>'
+                )
+        out += '</div>'
+
+    if other_links:
+        out += '<div class="coauthor-links-label">🔗 Other IDs:</div>'
+        out += '<div>'
+        for lk in other_links:
+            nm = lk.get('name', 'Other ID')
+            url = lk.get('url') or ''
+            cls = _class_for(nm)
+            icon = _icon_for(nm)
+            if url:
+                out += (
+                    f'<a href="{html.escape(url)}" target="_blank" '
+                    f'class="coauthor-profile-link {cls}">'
+                    f'{icon} {html.escape(nm[:40])}</a>'
+                )
+            else:
+                out += (
+                    f'<span class="coauthor-profile-link {cls}">'
+                    f'{icon} {html.escape(nm[:40])} (no link)</span>'
+                )
+        out += '</div>'
+
+    if not out:
+        out = '<p class="no-links">No additional links found</p>'
+    return out
+
+
+# ============================================
+# СОАВТОРЫ (карточки для PDF)
 # ============================================
 
 def _render_coauthors_html_pdf(top_coauthors_with_orcids: Dict, coauthor_profiles: Dict, t, lang: str) -> str:
-    """
-    Рендерит карточки соавторов для PDF.
-    Использует ту же логику, что generate_coauthor_links_html из html_report,
-    но с PDF-классами.
-    """
+    """Рендерит карточки соавторов для PDF."""
     if not top_coauthors_with_orcids:
         return f'<p class="no-links">{t("no_publications")}</p>'
-
-    # Импорт локальный, чтобы не тянуть html_report при импорте pdf_report
-    try:
-        from html_report import generate_coauthor_links_html as _links_html_fn
-    except Exception:
-        _links_html_fn = None
 
     out = ""
     for name, data in list(top_coauthors_with_orcids.items())[:15]:
@@ -640,22 +908,46 @@ def _render_coauthors_html_pdf(top_coauthors_with_orcids: Dict, coauthor_profile
             out += (f'<a href="https://orcid.org/{html.escape(clean)}" target="_blank" '
                     f'class="coauthor-profile-link orcid">🆔 ORCID: {html.escape(clean)}</a>')
         if links:
-            if _links_html_fn is not None:
-                # Переиспользуем ту же функцию, стили ограничены классами
-                out += _links_html_fn(links, lang)
-            else:
-                # Резервный простой рендер
-                for lk in links[:10]:
-                    nm = lk.get('name', 'Link')
-                    url = lk.get('url') or ''
-                    if url:
-                        out += f'<a href="{html.escape(url)}" target="_blank" class="coauthor-profile-link other">{html.escape(nm[:40])}</a> '
-                    else:
-                        out += f'<span class="coauthor-profile-link other">{html.escape(nm[:40])}</span> '
+            out += _render_coauthor_links_pdf(links, t, lang)
         else:
             out += '<p class="no-links">No additional links found</p>'
         out += '</div>'
     return out
+
+
+# ============================================
+# ПОСТРОЕНИЕ ОГЛАВЛЕНИЯ
+# ============================================
+
+def _build_toc_html(entries: List[Dict], t, lang: str) -> str:
+    """
+    Строит страницу оглавления с кликабельными ссылками и номерами страниц.
+    entries = [
+        {'level': 1, 'text': 'Профиль', 'anchor': 'overview', 'is_author': False},
+        {'level': 2, 'text': 'Метрики', 'anchor': 'metrics', 'is_author': False},
+        ...
+        {'level': 1, 'text': 'Автор 1: Иванов', 'anchor': 'author_0', 'is_author': True},
+        {'level': 2, 'text': 'Профиль', 'anchor': 'author_0_overview', 'is_author': False},
+        ...
+    ]
+    """
+    items_html = []
+    for e in entries:
+        cls = "toc-level-1" if e.get('level', 1) == 1 else "toc-level-2"
+        if e.get('is_author'):
+            cls += " toc-author"
+        items_html.append(
+            f'<li class="{cls}"><a href="#{html.escape(e["anchor"])}">{html.escape(e["text"])}</a></li>'
+        )
+
+    return f"""
+    <div class="pdf-toc">
+        <div class="toc-title">📖 Содержание</div>
+        <ul>
+            {''.join(items_html)}
+        </ul>
+    </div>
+    """
 
 
 # ============================================
@@ -882,6 +1174,24 @@ def _build_pdf_html_single_author(
     else:
         int_html = f'<p>{t("no_data_collab")}</p>'
 
+    # ====== Оглавление ======
+    toc_entries = [
+        {'level': 1, 'text': t('profile'), 'anchor': 'overview', 'is_author': False},
+        {'level': 1, 'text': t('main_metrics'), 'anchor': 'metrics', 'is_author': False},
+        {'level': 1, 'text': t('citations'), 'anchor': 'visualizations', 'is_author': False},
+        {'level': 1, 'text': t('topics'), 'anchor': 'thematic', 'is_author': False},
+        {'level': 1, 'text': t('collaborations'), 'anchor': 'collaborations', 'is_author': False},
+        {'level': 1, 'text': t('top_coauthors'), 'anchor': 'coauthors', 'is_author': False},
+    ]
+    if retraction_html:
+        toc_entries.append({'level': 1, 'text': '🚫 Retraction', 'anchor': 'retraction', 'is_author': False})
+    if sources_html:
+        toc_entries.append({'level': 1, 'text': t('source_types'), 'anchor': 'sources', 'is_author': False})
+    toc_entries.append({'level': 1, 'text': t('h_index'), 'anchor': 'stats', 'is_author': False})
+    toc_entries.append({'level': 1, 'text': t('publications_list'), 'anchor': 'publications', 'is_author': False})
+
+    toc_html = _build_toc_html(toc_entries, t, lang)
+
     html_content = f"""
     <!DOCTYPE html>
     <html>
@@ -905,6 +1215,9 @@ def _build_pdf_html_single_author(
             {f'<div class="cover-orcid">{html.escape(", ".join(author_countries))}</div>' if author_countries else ''}
             <div class="cover-date">{datetime.now().strftime('%d.%m.%Y')}</div>
         </div>
+
+        <!-- ====== ОГЛАВЛЕНИЕ ====== -->
+        {toc_html}
 
         <!-- ====== 1. ПРОФИЛЬ ====== -->
         <div id="overview" class="section pdf-avoid-break">
@@ -1006,7 +1319,7 @@ def _build_pdf_html_single_author(
         {sources_html}
 
         <!-- ====== 9. ДОП. СТАТИСТИКА ====== -->
-        <div class="section">
+        <div id="stats" class="section">
             <div class="section-title">📋 {t('h_index')}</div>
             <div class="stats-grid">
                 <div class="stat-item"><strong>{t('first_publication')}:</strong> {profile.get('first_publication', 'N/A')} - {profile.get('last_publication', 'N/A')}</div>
@@ -1024,8 +1337,8 @@ def _build_pdf_html_single_author(
             </div>
         </div>
 
-        <!-- ====== 10. СПИСОК ПУБЛИКАЦИЙ ====== -->
-        <div id="publications" class="section page-break-before">
+        <!-- ====== 10. СПИСОК ПУБЛИКАЦИЙ (альбомная ориентация) ====== -->
+        <div id="publications" class="section landscape-section">
             <div class="section-title">📚 {t('publications_list')}</div>
             {publications_html}
         </div>
@@ -1115,6 +1428,33 @@ def _build_pdf_html_multiple_authors(
     </div>
     """
 
+    # ====== Оглавление: автор → его секции ======
+    toc_entries = []
+    for i, ad in enumerate(authors_to_show):
+        author_name_i = ad.get('author_name', f'Автор {i+1}')
+        toc_entries.append({
+            'level': 1,
+            'text': f'{i+1}. {author_name_i}',
+            'anchor': f'author_{i}',
+            'is_author': True,
+        })
+        # Внутренние секции автора
+        toc_entries.append({'level': 2, 'text': t('profile'), 'anchor': f'author_{i}_overview', 'is_author': False})
+        toc_entries.append({'level': 2, 'text': t('main_metrics'), 'anchor': f'author_{i}_metrics', 'is_author': False})
+        toc_entries.append({'level': 2, 'text': t('citations'), 'anchor': f'author_{i}_visualizations', 'is_author': False})
+        toc_entries.append({'level': 2, 'text': t('top_coauthors'), 'anchor': f'author_{i}_coauthors', 'is_author': False})
+        # Retraction / Sources / Publications добавятся, только если реально есть
+        profile_i = ad.get('profile', {})
+        publications_i = _get_filtered_publications(ad.get('publications', []), start_year, end_year)
+        retracted_i = [p for p in publications_i if p.get('is_retracted', False)]
+        if retracted_i:
+            toc_entries.append({'level': 2, 'text': '🚫 Retraction', 'anchor': f'author_{i}_retraction', 'is_author': False})
+        if profile_i.get('source_categories'):
+            toc_entries.append({'level': 2, 'text': t('source_types'), 'anchor': f'author_{i}_sources', 'is_author': False})
+        toc_entries.append({'level': 2, 'text': t('publications_list'), 'anchor': f'author_{i}_publications', 'is_author': False})
+
+    toc_html = _build_toc_html(toc_entries, t, lang)
+
     # Секции по авторам
     author_sections = ""
     for i, ad in enumerate(authors_to_show):
@@ -1145,8 +1485,7 @@ def _build_pdf_html_multiple_authors(
         oa_pct = (oa_total / len(filtered_pubs) * 100) if filtered_pubs else 0
         retracted = [p for p in filtered_pubs if p.get('is_retracted', False)]
 
-        # Изображения: используем кэш из ad['images'] (если есть),
-        # либо пересоздаём через колбэк для отфильтрованных данных
+        # Изображения: пересоздаём через колбэк для отфильтрованных данных
         if create_visualizations_fn is not None:
             temp_profile = dict(profile)
             yrs = [p.get('publication_year') for p in filtered_pubs if p.get('publication_year')]
@@ -1247,32 +1586,69 @@ def _build_pdf_html_multiple_authors(
         if is_best and len(authors_to_show) > 1:
             best_badge = ' <span style="background:#FFD700;color:#333;padding:0.5mm 3mm;border-radius:3mm;font-size:9pt;font-weight:bold;">🏆 Best</span>'
 
+        retraction_section = _build_retraction_section_html(retracted, t, lang)
+        if retraction_section:
+            # Заменяем id="retraction" на уникальный для автора
+            retraction_section = retraction_section.replace('id="retraction"', f'id="author_{i}_retraction"')
+
+        sources_section = _build_sources_section_html(profile.get('source_categories', {}), t, lang)
+        if sources_section:
+            sources_section = sources_section.replace('id="sources"', f'id="author_{i}_sources"')
+
         author_sections += f"""
-        <div class="author-block" style="page-break-before:always;">
+        <div id="author_{i}" class="author-block" style="page-break-before:always;">
             <h2 style="font-size:16pt;color:{primary};border-bottom:2px solid {primary};padding-bottom:2mm;margin-bottom:4mm;bookmark-level:1;">
                 {i+1}. {html.escape(author_name)} (h-index: {h_index}){best_badge}
             </h2>
-            {filter_info_html}
-            {retr_flag}
-            <div class="metrics-grid">
-                <div class="metric-card"><div class="metric-value">{total_pubs}</div><div class="metric-label">{t('publications')}</div></div>
-                <div class="metric-card"><div class="metric-value">{h_index}</div><div class="metric-label">{t('h_index')}</div></div>
-                <div class="metric-card"><div class="metric-value">{total_citations:,}</div><div class="metric-label">{t('total_citations')}</div></div>
-                <div class="metric-card"><div class="metric-value">{avg_citations:.1f}</div><div class="metric-label">{t('avg_citations')}</div></div>
-                <div class="metric-card"><div class="metric-value">{oa_pct:.1f}%</div><div class="metric-label">{t('open_access')}</div></div>
+
+            <div id="author_{i}_overview" class="section">
+                <div class="section-title">📋 {t('profile')}</div>
+                {filter_info_html}
+                {retr_flag}
+                <div class="author-info">
+                    <div class="author-name">{html.escape(author_name)}</div>
+                    <div class="author-affil"><strong>{t('orcid')}:</strong>
+                        <a href="https://orcid.org/{html.escape(profile.get('orcid', ''))}">{html.escape(profile.get('orcid', 'N/A'))}</a></div>
+                    {f'<div class="author-affil"><strong>{t("affiliations")}:</strong> {html.escape(", ".join(profile.get("author_affiliations", [])[:5]))}</div>' if profile.get('author_affiliations') else ''}
+                    {f'<div class="author-affil"><strong>{t("countries")}:</strong> {html.escape(", ".join(profile.get("author_countries", [])))}</div>' if profile.get('author_countries') else ''}
+                    <div class="author-affil"><strong>{t('total_analyzed')}:</strong> {total_pubs}</div>
+                </div>
             </div>
-            {_img('years_chart', t('years_chart_title'))}
-            <div class="two-col-charts">
-                {_img('journals_chart', t('journals_chart_title'))}
-                {_img('oa_chart', t('oa_chart_title'))}
+
+            <div id="author_{i}_metrics" class="section">
+                <div class="section-title">📈 {t('main_metrics')}</div>
+                <div class="metrics-grid">
+                    <div class="metric-card"><div class="metric-value">{total_pubs}</div><div class="metric-label">{t('publications')}</div></div>
+                    <div class="metric-card"><div class="metric-value">{h_index}</div><div class="metric-label">{t('h_index')}</div></div>
+                    <div class="metric-card"><div class="metric-value">{total_citations:,}</div><div class="metric-label">{t('total_citations')}</div></div>
+                    <div class="metric-card"><div class="metric-value">{avg_citations:.1f}</div><div class="metric-label">{t('avg_citations')}</div></div>
+                    <div class="metric-card"><div class="metric-value">{oa_pct:.1f}%</div><div class="metric-label">{t('open_access')}</div></div>
+                </div>
             </div>
-            {_img('wordcloud', t('wordcloud_title'))}
-            <h3 class="thematic-h3">{t('top_coauthors')}</h3>
-            {coauthors_html}
-            {_build_retraction_section_html(retracted, t, lang)}
-            {_build_sources_section_html(profile.get('source_categories', {}), t, lang)}
-            <h3 class="thematic-h3">{t('publications_list')} ({len(filtered_pubs)})</h3>
-            {_build_publications_table_html(filtered_pubs, t, lang)}
+
+            <div id="author_{i}_visualizations" class="section">
+                <div class="section-title">📊 {t('citations')}</div>
+                {_img('years_chart', t('years_chart_title'))}
+                <div class="two-col-charts">
+                    {_img('journals_chart', t('journals_chart_title'))}
+                    {_img('oa_chart', t('oa_chart_title'))}
+                </div>
+                {_img('wordcloud', t('wordcloud_title'))}
+            </div>
+
+            <div id="author_{i}_coauthors" class="section">
+                <div class="section-title">🤝 {t('top_coauthors')}</div>
+                {coauthors_html}
+            </div>
+
+            {retraction_section}
+
+            {sources_section}
+
+            <div id="author_{i}_publications" class="section landscape-section">
+                <div class="section-title">📚 {t('publications_list')} ({len(filtered_pubs)})</div>
+                {_build_publications_table_html(filtered_pubs, t, lang)}
+            </div>
         </div>
         """
 
@@ -1286,6 +1662,7 @@ def _build_pdf_html_multiple_authors(
     </head>
     <body>
         {cover_html}
+        {toc_html}
         {author_sections}
         <div class="pdf-footer">
             <p>{t('footer')}</p>
@@ -1315,11 +1692,7 @@ def generate_pdf_report(
     end_year: Optional[int] = None,
     create_visualizations_fn=None,
 ) -> bytes:
-    """
-    Генерирует PDF (байты) для одного автора.
-
-    Возвращает bytes. Бросает RuntimeError, если WeasyPrint недоступен.
-    """
+    """Генерирует PDF (байты) для одного автора."""
     if not _WEASY_AVAILABLE:
         raise RuntimeError(
             "WeasyPrint не установлен. Установите его и системные библиотеки "
@@ -1354,11 +1727,7 @@ def generate_pdf_report_with_multiple_authors(
     filter_params: Optional[Dict] = None,
     create_visualizations_fn=None,
 ) -> bytes:
-    """
-    Генерирует PDF (байты) для нескольких авторов (или одного, если show_all=False).
-
-    Возвращает bytes.
-    """
+    """Генерирует PDF (байты) для нескольких авторов (или одного, если show_all=False)."""
     if not _WEASY_AVAILABLE:
         raise RuntimeError(
             "WeasyPrint не установлен. Установите его и системные библиотеки "
