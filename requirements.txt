@@ -15,4 +15,3 @@ weasyprint
 Pillow
 libpango
 libcairo
-libgdk-pixbuf
