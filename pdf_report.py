@@ -942,7 +942,7 @@ def _build_toc_html(entries: List[Dict], t, lang: str) -> str:
 
     return f"""
     <div class="pdf-toc">
-        <div class="toc-title">📖 Содержание</div>
+        <div class="toc-title">📖 Contents</div>
         <ul>
             {''.join(items_html)}
         </ul>
