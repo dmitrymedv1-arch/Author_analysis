@@ -6,7 +6,8 @@
 #   - кликабельными ссылками соавторов (цветовая дифференциация)
 #   - альбомной ориентацией для секции Publication list
 #   - закладками (Outline) для секций
-#   - стилями под Color Theme
+#   - стилями под Color Theme (primary + secondary, без градиентов
+#     кроме декоративной полосы на титуле)
 # ============================================
 
 import os
@@ -283,8 +284,15 @@ def _build_publications_table_html(filtered_publications: List[Dict], t, lang: s
 
 
 # ============================================
-# CSS ДЛЯ PDF (включает @page, закладки, тему,
-# альбомную ориентацию, цветные эмодзи)
+# CSS ДЛЯ PDF
+# Включает:
+#   - @page правила (portrait + landscape для Publication list)
+#   - кликабельное оглавление с номерами страниц
+#   - закладки (Outline) через bookmark-level
+#   - цветные эмодзи (Noto Color Emoji)
+#   - два независимых цвета темы (primary / secondary)
+#   - лёгкие оттенки темы через hex с альфой (#RRGGBBAA)
+#   - БЕЗ градиентов (кроме декоративной полосы на титуле)
 # ============================================
 
 def _build_pdf_css(primary: str, secondary: str) -> str:
@@ -305,13 +313,13 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
             content: counter(page) " / " counter(pages);
             font-family: {font_stack};
             font-size: 9pt;
-            color: #888;
+            color: {secondary};
         }}
         @top-center {{
             content: "Author Profile Analysis";
             font-family: {font_stack};
             font-size: 8pt;
-            color: #aaa;
+            color: {primary};
         }}
     }}
     @page :first {{
@@ -327,13 +335,13 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
             content: counter(page) " / " counter(pages);
             font-family: {font_stack};
             font-size: 9pt;
-            color: #888;
+            color: {secondary};
         }}
         @top-center {{
             content: "Publication list";
             font-family: {font_stack};
             font-size: 8pt;
-            color: #aaa;
+            color: {primary};
         }}
     }}
 
@@ -351,7 +359,7 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
         page-break-after: avoid;
         break-after: avoid;
     }}
-    a {{ color: #1a5f9e; text-decoration: none; }}
+    a {{ color: {primary}; text-decoration: none; }}
     a:hover {{ text-decoration: underline; }}
 
     /* ====== Титул ====== */
@@ -374,17 +382,17 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
     }}
     .pdf-cover .cover-author {{
         font-size: 16pt;
-        color: #333;
+        color: {primary};
         margin: 4mm 0;
     }}
     .pdf-cover .cover-orcid {{
         font-size: 11pt;
-        color: #555;
+        color: {secondary};
         margin: 2mm 0;
     }}
     .pdf-cover .cover-date {{
         font-size: 11pt;
-        color: #777;
+        color: {secondary};
         margin-top: 20mm;
     }}
     .pdf-cover .cover-band {{
@@ -427,12 +435,12 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
         font-size: 10pt;
     }}
     .pdf-toc a {{
-        color: #222;
+        color: {primary};
         text-decoration: none;
     }}
     .pdf-toc a::after {{
         content: leader('.') target-counter(attr(href), page);
-        color: #555;
+        color: {secondary};
         font-weight: normal;
         font-size: 10pt;
     }}
@@ -455,7 +463,7 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
         font-size: 15pt;
         font-weight: bold;
         color: {primary};
-        border-bottom: 2px solid {primary};
+        border-bottom: 3px solid {primary};
         padding-bottom: 2mm;
         margin-bottom: 4mm;
         bookmark-level: 1;
@@ -464,7 +472,7 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
 
     /* ====== Инфо-блок автора ====== */
     .author-info {{
-        background: #f4f6f9;
+        background: {primary}15;
         padding: 4mm;
         border-left: 4px solid {primary};
         border-radius: 2mm;
@@ -473,7 +481,7 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
     .author-name {{
         font-size: 15pt;
         font-weight: bold;
-        color: #2c3e50;
+        color: {primary};
     }}
     .author-affil {{
         font-size: 9.5pt;
@@ -512,7 +520,7 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
     }}
     .metric-card {{
         flex: 1 1 28mm;
-        background: #f4f6f9;
+        background: {primary}10;
         padding: 3mm;
         border-radius: 2mm;
         border-left: 3px solid {primary};
@@ -522,11 +530,11 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
     .metric-value {{
         font-size: 15pt;
         font-weight: bold;
-        color: #2c3e50;
+        color: {primary};
     }}
     .metric-label {{
         font-size: 8pt;
-        color: #777;
+        color: {secondary};
         margin-top: 1mm;
     }}
 
@@ -574,9 +582,9 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
         vertical-align: top;
     }}
     .pdf-table tr:nth-child(even) td {{
-        background: #f9f9f9;
+        background: {primary}08;
     }}
-    .src-count {{ font-size: 8pt; color: #666; }}
+    .src-count {{ font-size: 8pt; color: {secondary}; }}
     .src-ex {{ font-size: 8pt; margin: 1mm 0; }}
     .src-badge {{
         display: inline-block;
@@ -626,7 +634,7 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
         break-inside: avoid;
     }}
     .pub-table-landscape tr:nth-child(even) td {{
-        background: #f9f9f9;
+        background: {primary}08;
     }}
     .pub-table-landscape .col-idx     {{ width: 5%;  text-align: right; }}
     .pub-table-landscape .col-title   {{ width: 38%; }}
@@ -646,8 +654,8 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
     }}
     .thematic-card {{
         flex: 1 1 45mm;
-        background: #f4f6f9;
-        border-left: 3px solid {primary};
+        background: {secondary}10;
+        border-left: 4px solid {secondary};
         border-radius: 2mm;
         padding: 2.5mm 3mm;
         min-width: 40mm;
@@ -659,12 +667,12 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
     }}
     .thematic-count {{
         font-size: 8pt;
-        color: #666;
+        color: {secondary};
         margin-top: 0.5mm;
     }}
     .thematic-h3 {{
         font-size: 11pt;
-        color: {primary};
+        color: {secondary};
         margin-top: 4mm;
         margin-bottom: 1.5mm;
         bookmark-level: 2;
@@ -678,33 +686,34 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
     }}
     .collab-box {{
         flex: 1;
-        background: #f4f6f9;
+        background: {primary}10;
         padding: 3mm;
         border-radius: 2mm;
         border: 0.3mm solid #ddd;
     }}
     .collab-box h4 {{
         font-size: 10.5pt;
-        color: #2c3e50;
+        color: {primary};
         margin-bottom: 2mm;
     }}
     .collab-country {{
         font-weight: bold;
-        color: #2c3e50;
+        color: {primary};
         font-size: 9pt;
         margin-top: 2mm;
     }}
     .collab-affil-item {{
         font-size: 8.5pt;
+        color: {secondary};
         margin-left: 3mm;
     }}
 
     /* ====== Соавторы ====== */
     .coauthor-card {{
-        background: #f4f6f9;
+        background: {secondary}10;
         padding: 2.5mm 3.5mm;
         margin-bottom: 2.5mm;
-        border-left: 3px solid {primary};
+        border-left: 4px solid {secondary};
         border-radius: 2mm;
         page-break-inside: avoid;
         break-inside: avoid;
@@ -716,12 +725,12 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
     }}
     .coauthor-joint {{
         font-size: 8.5pt;
-        color: #666;
+        color: {secondary};
         margin: 1mm 0;
     }}
     .coauthor-links-label {{
         font-size: 8.5pt;
-        color: #555;
+        color: {secondary};
         font-weight: bold;
         margin-top: 1.5mm;
     }}
@@ -742,7 +751,7 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
     .coauthor-profile-link.website {{ background: #6c757d; color: #ffffff; }}
     .coauthor-profile-link.wos {{ background: #5b3a8e; color: #ffffff; }}
     .coauthor-profile-link.other {{ background: #17a2b8; color: #ffffff; }}
-    .no-links {{ color: #999; font-style: italic; font-size: 8pt; }}
+    .no-links {{ color: {secondary}; font-style: italic; font-size: 8pt; }}
 
     /* ====== Stats ====== */
     .stats-grid {{
@@ -753,10 +762,13 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
     }}
     .stat-item {{
         flex: 1 1 45%;
-        background: #f4f6f9;
+        background: {primary}10;
         padding: 2mm 3mm;
         border-radius: 2mm;
         font-size: 9pt;
+    }}
+    .stat-item strong {{
+        color: {secondary};
     }}
 
     /* ====== Сноска / Футер ====== */
@@ -765,10 +777,10 @@ def _build_pdf_css(primary: str, secondary: str) -> str:
         padding-top: 3mm;
         border-top: 0.3mm solid #ccc;
         text-align: center;
-        color: #888;
+        color: {secondary};
         font-size: 8pt;
     }}
-    .pdf-footer a {{ color: #1a5f9e; }}
+    .pdf-footer a {{ color: {primary}; }}
     """
 
 
@@ -942,7 +954,7 @@ def _build_toc_html(entries: List[Dict], t, lang: str) -> str:
 
     return f"""
     <div class="pdf-toc">
-        <div class="toc-title">📖 Contents</div>
+        <div class="toc-title">📖 Содержание</div>
         <ul>
             {''.join(items_html)}
         </ul>
