@@ -582,7 +582,7 @@ def get_contrast_color(hex_color: str) -> str:
 def generate_css_variables(base_color: str, accent_color: str = None) -> Dict[str, str]:
     """Generate complete CSS variable set for the theme"""
     if accent_color is None:
-        accent_color = get_complementary_color(base_color)
+        accent_color = '#6c757d'
 
     gradient_start = base_color
     gradient_end = accent_color
@@ -613,7 +613,7 @@ def generate_css_variables(base_color: str, accent_color: str = None) -> Dict[st
 def apply_theme_css(base_color: str, accent_color: str = None):
     """Apply dynamic CSS theme based on selected colors"""
     if accent_color is None:
-        accent_color = get_complementary_color(base_color)
+        accent_color = '#6c757d'  # нейтральный серый (без автогенерации)
 
     css_vars = generate_css_variables(base_color, accent_color)
 
@@ -1142,7 +1142,6 @@ def update_colored_progress(progress_percent: float, status_text: str = "", colo
     """Update progress bar with theme colors"""
     if color is None:
         primary_color = st.session_state.get('primary_color', '#667eea')
-        secondary_color = st.session_state.get('secondary_color', get_complementary_color(primary_color))
         color = primary_color
 
     if badge_text is None:
@@ -4017,12 +4016,18 @@ def main():
             st.session_state.primary_color = selected_theme["primary"]
             st.session_state.secondary_color = selected_theme["secondary"]
         else:
-            selected_color = st.color_picker(
+            selected_primary = st.color_picker(
                 t('select_color'),
-                value=st.session_state.primary_color
+                value=st.session_state.primary_color,
+                key="primary_color_picker"
             )
-            st.session_state.primary_color = selected_color
-            st.session_state.secondary_color = get_complementary_color(selected_color)
+            selected_secondary = st.color_picker(
+                t('secondary_color_label'),
+                value=st.session_state.secondary_color,
+                key="secondary_color_picker"
+            )
+            st.session_state.primary_color = selected_primary
+            st.session_state.secondary_color = selected_secondary
 
         col1, col2 = st.columns(2)
         with col1:
