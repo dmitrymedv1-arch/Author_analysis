@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NotoColorEmoji.ttf - platform/external/noto-fonts - Git at Google</title>
+
+  <link rel="icon" href="/+static/favicon.ico" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="/+static/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/+static/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/+static/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/+static/apple-touch-icon.png">
+  <link rel="stylesheet" href="/+static/base.css" type="text/css">
+  
+    <link rel="stylesheet" href="/+static/prettify/prettify.css" type="text/css">
+  
+  
+    
+    
+      <!-- default customHeadTagPart -->
+    
+  
+  
+    <script nonce="BU_25OR6KOo_Kt68jOylMQ">// Copyright (C) 2026 Google Inc. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+(function() {
+  try {
+    let t = localStorage.getItem('gitiles-theme');
+    if (!t) {
+      const m = document.cookie.match(/(?:^|; )gitiles-theme=([^;]*)/);
+      if (m) {
+        t = decodeURIComponent(m[1]);
+      }
+    }
+    if (t === 'dark' || t === 'light') {
+      document.documentElement.setAttribute('data-theme', t);
+    }
+  } catch (e) {}
+})();
+</script>
+  
+</head>
+<body class="Site">
+  
+    <header class="Site-header">
+      <div class="Header">
+        
+    
+      
+    
+      <style>
+        .Header-image--dark {
+          display: none;
+        }
+        html[data-theme="dark"] .Header-image--light {
+          display: none;
+        }
+        html[data-theme="dark"] .Header-image--dark {
+          display: inline-block;
+        }
+        @media (prefers-color-scheme: dark) {
+          :root:not([data-theme="light"]) .Header-image--light {
+            display: none;
+          }
+          :root:not([data-theme="light"]) .Header-image--dark {
+            display: inline-block;
+          }
+        }
+      </style>
+      <a class="Header-image" href="/">
+        <img class="Header-image--light"
+             src="//www.gstatic.com/images/branding/lockups/2x/lockup_git_color_108x24dp.png"
+             width="108" height="24"
+             alt="Google Git">
+        <img class="Header-image--dark"
+             src="//www.gstatic.com/images/branding/lockups/2x/lockup_git_light_color_108x24dp.png"
+             width="108" height="24"
+             alt="Google Git">
+      </a>
+    
+    
+  
+    
+    
+  
+
+        <div class="Header-menu">
+          
+            <a class="Header-menuItem" href="https://accounts.google.com/AccountChooser?faa=1&amp;continue=https://android.googlesource.com/login/platform/external/noto-fonts/%2B/kitkat-release/NotoColorEmoji.ttf">Sign in</a>
+            
+          
+          
+    
+  
+          
+    <button class="Header-menuItem Header-themeToggle" id="gitiles-theme-toggle" type="button" title="Toggle theme (Auto / Dark / Light)" aria-label="Toggle theme">
+      <span class="Header-themeIcon" aria-hidden="true">&#9681;</span>
+      <span class="Header-themeLabel">Theme</span>
+    </button>
+    <script nonce="BU_25OR6KOo_Kt68jOylMQ">// Copyright (C) 2026 Google Inc. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+(function() {
+  function getTheme() {
+    try {
+      const t = localStorage.getItem('gitiles-theme');
+      if (t) {
+        return t;
+      }
+    } catch (e) {}
+    try {
+      const m = document.cookie.match(/(?:^|; )gitiles-theme=([^;]*)/);
+      if (m) {
+        return decodeURIComponent(m[1]);
+      }
+    } catch (e) {}
+    return 'auto';
+  }
+
+  function applyTheme(theme) {
+    if (theme === 'dark' || theme === 'light') {
+      document.documentElement.setAttribute('data-theme', theme);
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+  }
+
+  function updateButton(btn, theme) {
+    const icon = btn.querySelector('.Header-themeIcon');
+    const label = btn.querySelector('.Header-themeLabel');
+    if (theme === 'dark') {
+      if (icon) {
+        icon.textContent = '\u263E';
+      }
+      if (label) {
+        label.textContent = 'Dark';
+      }
+      btn.title = 'Theme: Dark (click to switch to Light)';
+    } else if (theme === 'light') {
+      if (icon) {
+        icon.textContent = '\u2600';
+      }
+      if (label) {
+        label.textContent = 'Light';
+      }
+      btn.title = 'Theme: Light (click to switch to Auto)';
+    } else {
+      if (icon) {
+        icon.textContent = '\u25D1';
+      }
+      if (label) {
+        label.textContent = 'Auto';
+      }
+      btn.title = 'Theme: Auto (click to switch to Dark)';
+    }
+    btn.setAttribute('aria-label', btn.title);
+  }
+
+  function initToggle() {
+    const btn = document.getElementById('gitiles-theme-toggle');
+    if (!btn) {
+      return;
+    }
+    const current = getTheme();
+    updateButton(btn, current);
+    btn.onclick = function() {
+      const cur = getTheme();
+      const next = (cur === 'auto') ? 'dark' : ((cur === 'dark') ? 'light' : 'auto');
+      applyTheme(next);
+      try {
+        localStorage.setItem('gitiles-theme', next);
+      } catch (e) {}
+      try {
+        document.cookie = 'gitiles-theme=' + encodeURIComponent(next) + ';path=/;max-age=31536000;SameSite=Lax';
+      } catch (e) {}
+      updateButton(btn, next);
+    };
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initToggle);
+  } else {
+    initToggle();
+  }
+})();
+</script>
+  
+        </div>
+      </div>
+    </header>
+    
+    
+  
+  
+  <div class="Site-content">
+    <div class="Container">
+      
+    <div class="Breadcrumbs"><a class="Breadcrumbs-crumb" href="/?format=HTML">android</a><span class="Breadcrumbs-sep">/</span><a class="Breadcrumbs-crumb" href="/platform/">platform</a><span class="Breadcrumbs-sep">/</span><a class="Breadcrumbs-crumb" href="/platform/external/">external</a><span class="Breadcrumbs-sep">/</span><a class="Breadcrumbs-crumb" href="/platform/external/noto-fonts/">noto-fonts</a><span class="Breadcrumbs-sep">/</span><a class="Breadcrumbs-crumb" href="/platform/external/noto-fonts/+/kitkat-release">kitkat-release</a><span class="Breadcrumbs-sep">/</span><a class="Breadcrumbs-crumb" href="/platform/external/noto-fonts/+/kitkat-release/">.</a><span class="Breadcrumbs-sep">/</span><span class="Breadcrumbs-crumb">NotoColorEmoji.ttf</span></div>
+  
+      
+      
+      
+    <div class="u-sha1 u-monospace BlobSha1">blob: 5023a3b3fcc8785ed2f124b29aaa869d8d5f50b3 [<a href="/platform/external/noto-fonts/+/kitkat-release/NotoColorEmoji.ttf">file</a>]</div>
+    
+    <div class="FileContents-binary">
+      
+      3328320-byte binary file
+    </div>
+  
+      
+      
+    </div>
+  </div>
+  
+    
+      <footer class="Site-footer">
+    <div class="Footer">
+      <span class="Footer-poweredBy">Powered by <a href="https://gerrit.googlesource.com/gitiles/">Gitiles</a>| <a href="https://policies.google.com/privacy">Privacy</a>| <a href="https://policies.google.com/terms">Terms</a></span>
+      <span class="Footer-formats"><a class="u-monospace Footer-formatsItem" href="?format=TEXT">txt</a> <a class="u-monospace Footer-formatsItem" href="?format=JSON">json</a></span>
+    </div>
+    
+  </footer>
+    
+    
+  
+
+  
+</body>
+</html>
