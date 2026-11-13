@@ -274,7 +274,7 @@ def _build_publications_table_html(filtered_publications: List[Dict], t, lang: s
 
 
 def _build_pdf_css(primary: str, secondary: str) -> str:
-    moji_face = ""
+    emoji_face = _build_emoji_font_face_css()
     font_stack = "'Times New Roman', 'DejaVu Serif', 'Noto Color Emoji', 'Noto Emoji', sans-serif"
 
     return f"""
